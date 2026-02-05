@@ -1,0 +1,28 @@
+1. Generalization:
+  - Train on a diverse dataset with examples from many sources: PowerPoint slides, PDFs, web-based slideshows, lecture notes, and different subjects.
+  - Include both “important notes” (definitions, explanations, key points) and “non-content” (navigation, slide numbers, buttons, copyright, etc.).
+
+2. Quality Labels:
+  - Carefully label your data as “content” (real notes) or “not-content” (irrelevant UI, instructions, etc.).
+  - The more varied and accurate your labels, the better your model will perform for all users.
+
+3. Robust Preprocessing:
+  - Clean the text (remove extra whitespace, normalize case, etc.).
+  - Consider splitting long text blocks into sentences or bullet points for finer classification.
+
+4. Model Choice:
+  - Start with a simple model (e.g., LogisticRegression with TfidfVectorizer).
+  - As you grow, consider more advanced models (e.g., transformers like BERT) for better accuracy.
+
+5. Continuous Improvement:
+  - Allow users to flag mistakes in extracted notes, and use this feedback to retrain and improve your model.
+
+6. Privacy & Security:
+  - Make sure you handle user data securely and transparently, especially if you process notes in the cloud.
+
+Most necessary for your tool:
+    
+A large, diverse, and well-labeled dataset covering many note-taking scenarios.
+A model that prioritizes extracting meaningful, concise, and relevant information, not just text blocks.
+Easy ways to update and retrain the model as you get more user data and feedback.
+This approach will help your tool work well for a wide range of students and content types, making it truly universal and valuable.

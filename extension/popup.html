@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AutoStudyAI</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>AutoStudyAI</h1>
+  <button id="capture-btn">Capture Page Content</button>
+  <button id="save-guide-btn" style="display:none; margin-left:10px;">Save Study Guide</button>
+  <div id="status"></div>
+  <div id="progress-log" style="display:none;"></div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="notes">Notes</button>
+    <button class="tab-btn" data-tab="guide">Study Guide</button>
+    <button class="tab-btn" data-tab="flashcards">Flashcards</button>
+    <button class="tab-btn" data-tab="chat">Chat</button>
+  </div>
+  <div id="tab-content">
+    <div id="notes-section" class="tab-section active"></div>
+    <div id="guide-section" class="tab-section"></div>
+    <div id="flashcards-section" class="tab-section"></div>
+    <div id="chat-section" class="tab-section">
+      <div id="chat-history" style="max-height:120px;overflow-y:auto;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input id="chat-input" type="text" placeholder="Ask a question about the captured content..." style="flex:1;padding:7px 10px;border-radius:6px;border:1px solid #ccc;font-size:1em;" />
+        <button id="chat-send-btn">Send</button>
+        <button id="chat-example-btn" style="background:#e3eafc;color:#2a7ae2;">Example</button>
+      </div>
+      <div id="chat-answer" style="margin-top:10px;"></div>
+    </div>
+  </div>
+  <script src="pptx-parser.js"></script>
+  <script src="pptxParser.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

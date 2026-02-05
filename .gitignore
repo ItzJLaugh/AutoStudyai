@@ -1,0 +1,29 @@
+# Secrets - NEVER commit these
+.env
+*.env
+
+# Virtual environments
+.venv/
+venv/
+backend/.venv/
+
+# Node modules
+node_modules/
+pptx-bundle/node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
