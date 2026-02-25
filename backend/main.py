@@ -66,17 +66,16 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS — restrict to known origins
 ALLOWED_ORIGINS = [
-    "http://localhost:3000",      # Next.js dev
+    "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "chrome-extension://*",       # Chrome extension
 ]
-# In production, replace with your deployed domain e.g. "https://autostudyai.com"
 if os.getenv("FRONTEND_URL"):
     ALLOWED_ORIGINS.append(os.getenv("FRONTEND_URL"))
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"chrome-extension://.*|https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
