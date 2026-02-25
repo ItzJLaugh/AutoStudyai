@@ -6,8 +6,24 @@
 </head>
 <body>
   <h1>AutoStudyAI</h1>
+
+  <!-- Auth section -->
+  <div id="auth-section">
+    <div id="auth-status" style="margin-bottom:8px;font-size:0.9em;color:#888;"></div>
+    <div id="auth-login" style="display:none;margin-bottom:10px;">
+      <input id="auth-email" type="email" placeholder="Email" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #ccc;font-size:0.9em;margin-bottom:6px;" />
+      <input id="auth-password" type="password" placeholder="Password" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #ccc;font-size:0.9em;margin-bottom:6px;" />
+      <button id="auth-login-btn" style="width:100%;padding:7px;font-size:0.9em;">Login</button>
+      <div id="auth-error" style="color:#e53935;font-size:0.85em;margin-top:4px;"></div>
+    </div>
+    <div id="auth-logged-in" style="display:none;margin-bottom:10px;">
+      <span id="auth-user-email" style="font-size:0.85em;color:#4fc3f7;"></span>
+      <button id="auth-logout-btn" style="font-size:0.8em;margin-left:8px;padding:3px 8px;">Logout</button>
+    </div>
+  </div>
+
   <button id="capture-btn">Capture Page Content</button>
-  <button id="save-guide-btn" style="display:none; margin-left:10px;">Save Study Guide</button>
+  <button id="save-guide-btn" style="display:none; margin-left:10px;">Save to Platform</button>
   <div id="status"></div>
   <div id="progress-log" style="display:none;"></div>
   <div class="tabs">

@@ -1,10 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "LMS Study Helper",
-  "version": "0.1",
-  "description": "Capture LMS page content and send to backend for study guide generation.",
-  "permissions": ["scripting", "activeTab"],
-  "host_permissions": ["<all_urls>"],
+  "name": "AutoStudyAI",
+  "version": "1.0.0",
+  "description": "Instantly generate notes, study guides, and flashcards from any lecture, textbook, or course page with AI.",
+  "homepage_url": "https://autostudyai.com",
+  "minimum_chrome_version": "114",
+  "permissions": ["scripting", "activeTab", "storage"],
+  "host_permissions": ["https://autostudyai-api.onrender.com/*"],
   "background": {
     "service_worker": "background.js"
   },

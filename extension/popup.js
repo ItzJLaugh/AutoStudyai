@@ -1,7 +1,11 @@
 // Global state
+// TODO: Update this to your Render URL once deployed (e.g. https://autostudyai-api.onrender.com)
+const API = 'https://autostudyai-api.onrender.com';
 let lastStudyGuide = '';
 let lastNotes = '';
-let lastFlashcards = '';
+let lastFlashcards = [];
+let lastPageUrl = '';
+let lastPageTitle = '';
 let chatHistory = [];
 let exampleModeEnabled = false;
 
@@ -16,12 +20,140 @@ const chatAnswerDiv = document.getElementById('chat-answer');
 const chatHistoryDiv = document.getElementById('chat-history');
 const progressLog = document.getElementById('progress-log');
 
-// Progress logging functions
+// Auth DOM elements
+const authLoginDiv = document.getElementById('auth-login');
+const authLoggedInDiv = document.getElementById('auth-logged-in');
+const authStatusDiv = document.getElementById('auth-status');
+const authEmailInput = document.getElementById('auth-email');
+const authPasswordInput = document.getElementById('auth-password');
+const authLoginBtn = document.getElementById('auth-login-btn');
+const authLogoutBtn = document.getElementById('auth-logout-btn');
+const authUserEmail = document.getElementById('auth-user-email');
+const authErrorDiv = document.getElementById('auth-error');
+
+// =====================
+// Auth functions
+// =====================
+function initAuth() {
+  chrome.storage.local.get(['authToken', 'userEmail'], (result) => {
+    if (result.authToken) {
+      showLoggedIn(result.userEmail || 'Logged in');
+    } else {
+      showLoginForm();
+    }
+  });
+}
+
+function showLoginForm() {
+  authLoginDiv.style.display = 'block';
+  authLoggedInDiv.style.display = 'none';
+  authStatusDiv.textContent = 'Login to save guides to your platform';
+}
+
+function showLoggedIn(email) {
+  authLoginDiv.style.display = 'none';
+  authLoggedInDiv.style.display = 'block';
+  authUserEmail.textContent = email;
+  authStatusDiv.textContent = '';
+}
+
+authLoginBtn.addEventListener('click', async () => {
+  const email = authEmailInput.value.trim();
+  const password = authPasswordInput.value;
+  authErrorDiv.textContent = '';
+
+  if (!email || !password) {
+    authErrorDiv.textContent = 'Enter email and password';
+    return;
+  }
+
+  authLoginBtn.disabled = true;
+  authLoginBtn.textContent = 'Logging in...';
+
+  try {
+    const resp = await fetch(API + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await resp.json();
+
+    if (resp.ok && data.access_token) {
+      chrome.storage.local.set({
+        authToken: data.access_token,
+        refreshToken: data.refresh_token || '',
+        userEmail: data.email || email
+      });
+      showLoggedIn(data.email || email);
+    } else {
+      authErrorDiv.textContent = data.detail || 'Login failed';
+    }
+  } catch (e) {
+    authErrorDiv.textContent = 'Cannot connect to server';
+  }
+
+  authLoginBtn.disabled = false;
+  authLoginBtn.textContent = 'Login';
+});
+
+authLogoutBtn.addEventListener('click', () => {
+  chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
+  showLoginForm();
+  authEmailInput.value = '';
+  authPasswordInput.value = '';
+});
+
+// Init auth on popup open
+initAuth();
+
+// =====================
+// Auto-refresh token helper
+// =====================
+async function getValidToken() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['authToken', 'refreshToken'], async (result) => {
+      if (!result.authToken) { resolve(null); return; }
+
+      // Try a quick check — if the token works, return it
+      try {
+        const check = await fetch(API + '/auth/me', {
+          headers: { 'Authorization': 'Bearer ' + result.authToken }
+        });
+        if (check.ok) { resolve(result.authToken); return; }
+      } catch (e) { /* fall through to refresh */ }
+
+      // Token failed — try refresh
+      if (!result.refreshToken) { resolve(null); return; }
+      try {
+        const resp = await fetch(API + '/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: result.refreshToken })
+        });
+        const data = await resp.json();
+        if (resp.ok && data.access_token) {
+          chrome.storage.local.set({
+            authToken: data.access_token,
+            refreshToken: data.refresh_token || result.refreshToken
+          });
+          resolve(data.access_token);
+          return;
+        }
+      } catch (e) { /* refresh failed */ }
+
+      resolve(null);
+    });
+  });
+}
+
+// =====================
+// Progress logging
+// =====================
 function showProgress(message, isComplete = false) {
   if (progressLog) {
     progressLog.style.display = 'block';
     const itemClass = isComplete ? 'progress-item progress-complete' : 'progress-item';
-    progressLog.innerHTML += `<div class="${itemClass}">${message}</div>`;
+    progressLog.innerHTML += `<div class="${itemClass}">${escapeHtml(message)}</div>`;
     progressLog.scrollTop = progressLog.scrollHeight;
   }
 }
@@ -33,7 +165,9 @@ function clearProgress() {
   }
 }
 
+// =====================
 // Example button toggle
+// =====================
 function toggleExampleMode() {
   exampleModeEnabled = !exampleModeEnabled;
   if (chatExampleBtn) {
@@ -47,7 +181,9 @@ function toggleExampleMode() {
   }
 }
 
-// Tab switching logic
+// =====================
+// Tab switching
+// =====================
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -58,8 +194,21 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-// Helper functions
+// =====================
+// Helpers
+// =====================
+
+// XSS prevention — escape HTML entities before inserting into DOM
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(text));
+  return div.innerHTML;
+}
+
 function renderMarkdownBold(text) {
+  // First escape, then selectively allow <b> tags from our own markdown conversion
+  text = escapeHtml(text);
   return text.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 }
 
@@ -85,9 +234,9 @@ function formatBullets(text) {
   let html = '<ul>';
   for (let line of lines) {
     if (line.startsWith('- ') || line.startsWith('* ')) {
-      html += `<li>${line.substring(2)}</li>`;
+      html += `<li>${renderMarkdownBold(line.substring(2))}</li>`;
     } else {
-      html += `<li style="list-style:none;font-weight:500;">${line}</li>`;
+      html += `<li style="list-style:none;font-weight:500;">${renderMarkdownBold(line)}</li>`;
     }
   }
   html += '</ul>';
@@ -98,21 +247,39 @@ function displayResults(response) {
   if (response && response.success) {
     lastNotes = response.notes || '';
     lastStudyGuide = response.study_guide || '';
-    lastFlashcards = '';
+    lastFlashcards = response.flashcards || [];
 
     document.getElementById('notes-section').innerHTML = lastNotes
-      ? renderMarkdownBold(formatSection('Notes', lastNotes))
+      ? formatSection('Notes', lastNotes)
       : 'No notes.';
     document.getElementById('guide-section').innerHTML = lastStudyGuide
-      ? renderMarkdownBold(formatSection('Study Guide', lastStudyGuide))
+      ? formatSection('Study Guide', lastStudyGuide)
       : 'No study guide.';
-    document.getElementById('flashcards-section').innerHTML = 'Flashcards feature coming soon!';
+
+    // Display flashcards
+    if (lastFlashcards.length > 0) {
+      let fcHtml = `<div style="margin-bottom:8px;font-size:0.9em;color:#888;">${escapeHtml(String(lastFlashcards.length))} flashcards generated</div>`;
+      lastFlashcards.forEach((fc) => {
+        fcHtml += `<div style="background:#f5f5f5;padding:8px;border-radius:6px;margin-bottom:6px;">
+          <div style="font-weight:500;">Q: ${escapeHtml(fc.front)}</div>
+          <div style="color:#555;margin-top:4px;">A: ${escapeHtml(fc.back)}</div>
+        </div>`;
+      });
+      document.getElementById('flashcards-section').innerHTML = fcHtml;
+    } else {
+      document.getElementById('flashcards-section').innerHTML = 'No flashcards generated.';
+    }
+
     document.getElementById('chat-answer').innerHTML = '';
     document.getElementById('chat-input').value = '';
     document.getElementById('chat-history').innerHTML = '';
     chatHistory = [];
 
-    if (saveBtn) saveBtn.style.display = lastStudyGuide ? 'inline-block' : 'none';
+    // Show save button only if logged in and has content
+    chrome.storage.local.get(['authToken'], (result) => {
+      if (saveBtn) saveBtn.style.display = (lastStudyGuide && result.authToken) ? 'inline-block' : 'none';
+    });
+
     statusDiv.innerText = 'Ready!';
   } else {
     statusDiv.innerText = 'Failed to generate.';
@@ -120,7 +287,9 @@ function displayResults(response) {
   }
 }
 
+// =====================
 // Capture button handler
+// =====================
 captureBtn.addEventListener('click', async () => {
   statusDiv.innerText = 'Capturing...';
   clearProgress();
@@ -130,37 +299,33 @@ captureBtn.addEventListener('click', async () => {
   chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
     const tabId = tabs[0].id;
     const tabUrl = tabs[0].url;
+    lastPageUrl = tabUrl;
 
-    // Extract page title for subject detection
     const pageTitle = tabs[0].title || 'content';
-    const subjectName = pageTitle.split(' - ')[0].split('|')[0].trim().substring(0, 30);
+    lastPageTitle = pageTitle.split(' - ')[0].split('|')[0].trim().substring(0, 60);
 
-    showProgress(`Analyzing page: "${subjectName}"...`);
+    showProgress(`Analyzing page: "${lastPageTitle}"...`);
 
-    // Try PDF extraction first
     chrome.tabs.sendMessage(tabId, {action: 'extractPdfText'}, (pdfResp) => {
       if (chrome.runtime.lastError) {
-        // Content script not loaded, fallback to direct extraction
         showProgress('Scanning page for content...');
-        fallbackToPageContent(tabId, tabUrl, subjectName);
+        fallbackToPageContent(tabId, tabUrl, lastPageTitle);
         return;
       }
 
       if (pdfResp && pdfResp.content && pdfResp.content.trim().length > 100) {
         showProgress('PDF detected - extracting text...', true);
         showProgress('Processing PDF content...');
-        sendToBackend(pdfResp.content, tabUrl, subjectName);
+        sendToBackend(pdfResp.content, tabUrl, lastPageTitle);
       } else {
-        // Try slideshow capture
         showProgress('Checking for slideshows...');
         chrome.tabs.sendMessage(tabId, {action: 'captureSlideshow'}, (slideResp) => {
           if (slideResp && slideResp.success && slideResp.slides && slideResp.slides.length > 0) {
             showProgress(`Slideshow found - captured ${slideResp.slides.length} slides!`, true);
             const slideContent = slideResp.slides.map(s => s.content).join('\n\n');
             showProgress('Processing slideshow content...');
-            sendToBackend(slideContent, tabUrl, subjectName);
+            sendToBackend(slideContent, tabUrl, lastPageTitle);
           } else {
-            // Try PPTX extraction
             chrome.tabs.sendMessage(tabId, {action: 'downloadPptx'}, (pptxResp) => {
               if (pptxResp && pptxResp.success && pptxResp.url) {
                 showProgress('PowerPoint file detected - downloading...', true);
@@ -170,15 +335,15 @@ captureBtn.addEventListener('click', async () => {
                     showProgress('Extracting slideshow content...');
                     const pptxParser = window.extractPptxText || (() => Promise.resolve(''));
                     const slideText = await pptxParser(blob);
-                    sendToBackend(slideText, pptxResp.url, subjectName);
+                    sendToBackend(slideText, pptxResp.url, lastPageTitle);
                   })
                   .catch(() => {
                     showProgress('Falling back to page content...');
-                    fallbackToPageContent(tabId, tabUrl, subjectName);
+                    fallbackToPageContent(tabId, tabUrl, lastPageTitle);
                   });
               } else {
                 showProgress('Grabbing page content...');
-                fallbackToPageContent(tabId, tabUrl, subjectName);
+                fallbackToPageContent(tabId, tabUrl, lastPageTitle);
               }
             });
           }
@@ -210,41 +375,81 @@ function fallbackToPageContent(tabId, tabUrl, subjectName = 'content') {
 
 function sendToBackend(content, url, subjectName = 'content') {
   statusDiv.innerText = 'Processing...';
-  showProgress('Learning about "' + subjectName + '"...');
-
-  // Show progress messages with delays using setTimeout chain
-  setTimeout(() => {
-    showProgress('Sending to AI for analysis...');
-  }, 500);
-
-  setTimeout(() => {
-    showProgress('Generating notes and key points...');
-  }, 1200);
+  showProgress('Sending to AI for analysis...');
 
   chrome.runtime.sendMessage({action: 'sendContent', content: content, url: url}, (response) => {
     if (response && response.success) {
-      showProgress('Notes generated!', true);
-      setTimeout(() => showProgress('Creating study questions...'), 400);
-      setTimeout(() => showProgress('Study guide complete!', true), 900);
-      setTimeout(() => showProgress('Organizing study materials...'), 1300);
-      setTimeout(() => {
-        showProgress('Complete!', true);
-        displayResults(response);
-      }, 1700);
-    } else {
-      showProgress('Processing failed', false);
+      showProgress('Complete!', true);
       displayResults(response);
+    } else {
+      const errMsg = (response && response.error) ? response.error : 'Unknown error';
+      showProgress('Processing failed: ' + errMsg, false);
+      statusDiv.innerText = 'Error: ' + errMsg;
+      if (saveBtn) saveBtn.style.display = 'none';
     }
   });
 }
 
+// =====================
+// Save to platform
+// =====================
+saveBtn.addEventListener('click', async () => {
+  if (!lastStudyGuide) return;
+
+  const token = await getValidToken();
+  if (!token) {
+    statusDiv.innerText = 'Session expired. Please login again.';
+    showLoginForm();
+    return;
+  }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+
+  try {
+    const resp = await fetch(API + '/guides', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({
+        title: lastPageTitle || 'Study Guide',
+        notes: lastNotes || null,
+        study_guide: lastStudyGuide || null,
+        flashcards: lastFlashcards.length > 0 ? lastFlashcards : null,
+        source_url: lastPageUrl || null
+      })
+    });
+
+    const data = await resp.json();
+    if (resp.ok && data.guide) {
+      statusDiv.innerText = 'Saved to platform!';
+      saveBtn.textContent = 'Saved!';
+      setTimeout(() => {
+        saveBtn.textContent = 'Save to Platform';
+        saveBtn.disabled = false;
+      }, 2000);
+    } else {
+      statusDiv.innerText = 'Save failed: ' + (data.detail || 'Unknown error');
+      saveBtn.textContent = 'Save to Platform';
+      saveBtn.disabled = false;
+    }
+  } catch (e) {
+    statusDiv.innerText = 'Cannot connect to server';
+    saveBtn.textContent = 'Save to Platform';
+    saveBtn.disabled = false;
+  }
+});
+
+// =====================
 // Chat functions
+// =====================
 function sendChat() {
   const question = chatInput.value.trim();
   if (!question) return;
   chatInput.value = '';
 
-  // Use example mode if enabled
   const mode = exampleModeEnabled ? 'example' : 'short';
   chatAnswerDiv.innerText = exampleModeEnabled ? 'Getting example...' : 'Thinking...';
   chatHistory.push({role: 'user', text: question});
@@ -268,7 +473,6 @@ function sendChat() {
 }
 
 function sendExampleRequest() {
-  // This is now handled by the toggle - get example for last question
   const lastUserMsg = [...chatHistory].reverse().find(msg => msg.role === 'user');
   if (!lastUserMsg) {
     chatAnswerDiv.innerText = 'Ask a question first to get an example.';
@@ -293,35 +497,14 @@ function sendExampleRequest() {
 
 function updateChatHistory() {
   chatHistoryDiv.innerHTML = chatHistory.map(msg =>
-    `<div style="margin-bottom:4px;"><b>${msg.role === 'user' ? 'You' : 'AI'}:</b> ${msg.text}</div>`
+    `<div style="margin-bottom:4px;"><b>${msg.role === 'user' ? 'You' : 'AI'}:</b> ${escapeHtml(msg.text)}</div>`
   ).join('');
 }
 
 // Chat event listeners
-if (chatSendBtn) {
-  chatSendBtn.addEventListener('click', sendChat);
-}
-if (chatInput) {
-  chatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendChat();
-  });
-}
+if (chatSendBtn) chatSendBtn.addEventListener('click', sendChat);
+if (chatInput) chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 if (chatExampleBtn) {
-  // Toggle example mode on click
   chatExampleBtn.addEventListener('click', toggleExampleMode);
   chatExampleBtn.title = 'Click to enable example mode';
 }
-
-// Save study guide
-saveBtn.addEventListener('click', () => {
-  if (!lastStudyGuide) return;
-  const blob = new Blob([lastStudyGuide], {type: 'text/plain'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'study_guide.txt';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-});

@@ -1,5 +1,10 @@
 fastapi
 uvicorn
-pydantic
+pydantic[email]
 python-dotenv
 openai
+PyJWT
+supabase
+slowapi
+bleach
+stripe

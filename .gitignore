@@ -1,6 +1,8 @@
 # Secrets - NEVER commit these
 .env
 *.env
+.env.local
+.env.*.local
 
 # Virtual environments
 .venv/
@@ -24,6 +26,7 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+NUL
 
 # Logs
 *.log

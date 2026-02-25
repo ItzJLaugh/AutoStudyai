@@ -1,58 +1,96 @@
-// ...existing code...
+// AutoStudyAI Background Service Worker
+// All API calls include auth token for security
+
+// TODO: Update this to your Render URL once deployed (e.g. https://autostudyai-api.onrender.com)
+const API_URL = 'https://autostudyai-api.onrender.com';
+
+// Helper to get auth token from storage
+function getAuthToken() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['authToken'], (result) => {
+      resolve(result.authToken || '');
+    });
+  });
+}
+
+// Helper to make authenticated API requests
+async function authedFetch(path, options = {}) {
+  const token = await getAuthToken();
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + token,
+    ...(options.headers || {})
+  };
+  return fetch(API_URL + path, { ...options, headers });
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'sendContent') {
-    fetch('http://localhost:8000/ingest', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        content: message.content,
-        page_url: message.url
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      const content_id = data.content_id;
-      // Immediately call /generate
-      fetch('http://localhost:8000/generate', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          content_id: content_id,
-          notes: true,
-          study_guide: true
-        })
-      })
-      .then(res => res.json())
-      .then(genData => {
-        sendResponse({success: true, notes: genData.notes, study_guide: genData.study_guide});
-      })
-      .catch(() => {
-        sendResponse({success: false});
-      });
-    })
-    .catch(() => {
-      sendResponse({success: false});
-    });
+    (async () => {
+      try {
+        const ingestResp = await authedFetch('/ingest', {
+          method: 'POST',
+          body: JSON.stringify({
+            content: message.content,
+            page_url: message.url
+          })
+        });
+        const ingestData = await ingestResp.json();
+
+        if (!ingestResp.ok) {
+          sendResponse({ success: false, error: ingestData.detail || 'Ingest failed' });
+          return;
+        }
+
+        const genResp = await authedFetch('/generate', {
+          method: 'POST',
+          body: JSON.stringify({
+            content_id: ingestData.content_id,
+            notes: true,
+            study_guide: true,
+            flashcards: true
+          })
+        });
+        const genData = await genResp.json();
+
+        if (!genResp.ok) {
+          sendResponse({ success: false, error: genData.detail || 'Generation failed' });
+          return;
+        }
+
+        sendResponse({
+          success: true,
+          notes: genData.notes,
+          study_guide: genData.study_guide,
+          flashcards: genData.flashcards || []
+        });
+      } catch (e) {
+        sendResponse({ success: false, error: e.message || 'Request failed' });
+      }
+    })();
     return true; // Keep the message channel open for async response
   }
+
   if (message.action === 'chatWithContent') {
-    fetch('http://localhost:8000/chat', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        question: message.question,
-        content: message.content,
-        mode: message.mode || 'short'
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      sendResponse({answer: data.answer});
-    })
-    .catch(() => {
-      sendResponse({answer: 'No answer.'});
-    });
+    (async () => {
+      try {
+        const resp = await authedFetch('/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            question: message.question,
+            content: message.content,
+            mode: message.mode || 'short'
+          })
+        });
+        const data = await resp.json();
+        sendResponse({ answer: data.answer || 'No answer.' });
+      } catch (e) {
+        sendResponse({ answer: 'Error: ' + (e.message || 'Request failed') });
+      }
+    })();
     return true;
   }
 });
