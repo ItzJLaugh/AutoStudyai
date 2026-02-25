@@ -249,6 +249,14 @@ export default function Dashboard() {
                   <button className={'bookmark-btn' + (guide.is_bookmarked ? ' active' : '')} onClick={e => toggleBookmark(guide.id, e)}>
                     {guide.is_bookmarked ? '\u2605' : '\u2606'}
                   </button>
+                  <button
+                    className="bookmark-btn"
+                    style={{ color: 'var(--error)', opacity: 0.55, fontSize: '0.95em' }}
+                    title="Delete guide"
+                    onClick={e => { e.stopPropagation(); if (window.confirm('Delete "' + guide.title + '"?')) deleteGuide(guide.id); }}
+                  >
+                    &#128465;
+                  </button>
                 </div>
               </div>
             ))}
@@ -346,6 +354,14 @@ export default function Dashboard() {
                 <button className={'bookmark-btn' + (guide.is_bookmarked ? ' active' : '')} onClick={e => toggleBookmark(guide.id, e)}>
                   {guide.is_bookmarked ? '\u2605' : '\u2606'}
                 </button>
+                <button
+                  className="bookmark-btn"
+                  style={{ color: 'var(--error)', opacity: 0.55, fontSize: '0.95em' }}
+                  title="Delete guide"
+                  onClick={e => { e.stopPropagation(); if (window.confirm('Delete "' + guide.title + '"?')) deleteGuide(guide.id); }}
+                >
+                  &#128465;
+                </button>
               </div>
             </div>
           ))
@@ -360,11 +376,15 @@ export default function Dashboard() {
   // ============== CONTEXT MENU RENDERER ==============
   function renderContextMenu() {
     if (!contextMenu) return null;
+    const menuW = 260;
+    const menuH = 320;
+    const x = Math.max(8, Math.min(contextMenu.x, window.innerWidth - menuW - 8));
+    const y = Math.max(8, Math.min(contextMenu.y, window.innerHeight - menuH - 8));
     return (
       <div
         ref={contextRef}
         className="context-menu"
-        style={{ top: contextMenu.y, left: contextMenu.x }}
+        style={{ top: y, left: x }}
       >
         <div className="context-menu-header">{contextMenu.guide.title}</div>
         <div className="context-menu-divider" />
@@ -527,6 +547,14 @@ export default function Dashboard() {
                 onClick={e => toggleBookmark(guide.id, e)}
               >
                 {guide.is_bookmarked ? '\u2605' : '\u2606'}
+              </button>
+              <button
+                className="bookmark-btn"
+                style={{ color: 'var(--error)', opacity: 0.55, fontSize: '0.95em' }}
+                title="Delete guide"
+                onClick={e => { e.stopPropagation(); if (window.confirm('Delete "' + guide.title + '"?')) deleteGuide(guide.id); }}
+              >
+                &#128465;
               </button>
             </div>
           </div>

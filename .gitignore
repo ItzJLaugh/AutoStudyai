@@ -13,6 +13,10 @@ backend/.venv/
 node_modules/
 pptx-bundle/node_modules/
 
+# Next.js build output
+web/.next/
+.next/
+
 # Python cache
 __pycache__/
 *.pyc

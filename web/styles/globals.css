@@ -424,13 +424,35 @@ input::placeholder { color: var(--text-muted); }
 
 /* === Login Page === */
 .login-page {
-  min-height: 100vh; display: flex; align-items: center;
-  justify-content: center; background: var(--bg-deepest);
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 28px;
+  background-color: var(--bg-deepest);
+  background-image:
+    linear-gradient(rgba(79, 195, 247, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 195, 247, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  position: relative; overflow: hidden;
+}
+.login-page::before {
+  content: '';
+  position: absolute;
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, rgba(79, 195, 247, 0.07) 0%, transparent 65%);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.login-title {
+  font-size: 2.4em; font-weight: 800; color: var(--accent);
+  letter-spacing: -1px; text-align: center;
+  position: relative; z-index: 1;
+  text-shadow: 0 0 40px rgba(79, 195, 247, 0.3);
 }
 .login-box {
   width: 100%; max-width: 400px; background: var(--bg-primary);
   padding: 36px; border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle); box-shadow: var(--shadow-lg);
+  position: relative; z-index: 1;
 }
 .login-box h2 { text-align: center; margin-bottom: 24px; color: var(--accent); font-size: 1.5em; }
 

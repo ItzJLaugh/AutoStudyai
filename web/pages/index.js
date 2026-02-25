@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { getToken, setToken } from '../lib/api';
 
-const API = 'http://localhost:8000';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,6 +39,7 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
+      <h1 className="login-title">AutoStudyAI</h1>
       <div className="login-box">
         <h2>{isSignup ? 'Create Account' : 'Welcome Back'}</h2>
         <form onSubmit={handleSubmit}>
