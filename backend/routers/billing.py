@@ -17,7 +17,7 @@ from auth_utils import get_user_id
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/billing", tags=["billing"])
 
-FREE_TIER_LIMIT = 10  # guides per month
+FREE_TIER_LIMIT = 2  # guides per month
 
 
 def _get_stripe():
@@ -202,14 +202,19 @@ async def stripe_webhook(request: Request):
         if event_type == "checkout.session.completed":
             user_id = data.get("metadata", {}).get("user_id")
             if user_id and data.get("subscription"):
-                sub = stripe.Subscription.retrieve(data["subscription"])
+                period_end = None
+                try:
+                    sub = stripe.Subscription.retrieve(data["subscription"])
+                    period_end = datetime.utcfromtimestamp(sub["current_period_end"]).isoformat()
+                except Exception as sub_err:
+                    logger.warning(f"Could not retrieve subscription details: {sub_err}")
                 supabase.table("user_subscriptions").upsert({
                     "user_id": user_id,
                     "stripe_customer_id": data.get("customer"),
                     "stripe_subscription_id": data["subscription"],
                     "plan": "pro",
                     "status": "active",
-                    "current_period_end": datetime.utcfromtimestamp(sub["current_period_end"]).isoformat(),
+                    "current_period_end": period_end,
                 }, on_conflict="user_id").execute()
                 logger.info(f"Pro subscription activated for user={user_id[:8]}")
 
@@ -226,11 +231,20 @@ async def stripe_webhook(request: Request):
 
         elif event_type == "customer.subscription.deleted":
             customer_id = data.get("customer")
-            supabase.table("user_subscriptions") \
-                .update({"plan": "free", "status": "cancelled", "stripe_subscription_id": None}) \
+            subscription_id = data.get("id")
+            # Only downgrade if the deleted subscription matches the one on record
+            existing = supabase.table("user_subscriptions") \
+                .select("stripe_subscription_id") \
                 .eq("stripe_customer_id", customer_id) \
                 .execute()
-            logger.info(f"Subscription cancelled for customer={customer_id}")
+            if existing.data and existing.data[0].get("stripe_subscription_id") == subscription_id:
+                supabase.table("user_subscriptions") \
+                    .update({"plan": "free", "status": "cancelled", "stripe_subscription_id": None}) \
+                    .eq("stripe_customer_id", customer_id) \
+                    .execute()
+                logger.info(f"Subscription cancelled for customer={customer_id}")
+            else:
+                logger.info(f"Ignoring deletion of old subscription {subscription_id} for customer={customer_id}")
 
     except Exception as e:
         logger.error(f"Error processing webhook {event_type}: {e}")

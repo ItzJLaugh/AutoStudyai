@@ -1,6 +1,5 @@
 // Global state
-// TODO: Update this to your Render URL once deployed (e.g. https://autostudyai-api.onrender.com)
-const API = 'https://autostudyai-api.onrender.com';
+const API = 'https://autostudy-ai.fly.dev';
 let lastStudyGuide = '';
 let lastNotes = '';
 let lastFlashcards = [];
@@ -281,20 +280,25 @@ function displayResults(response) {
     });
 
     statusDiv.innerText = 'Ready!';
+    if (platformBanner) platformBanner.style.display = lastStudyGuide ? 'block' : 'none';
   } else {
     statusDiv.innerText = 'Failed to generate.';
     if (saveBtn) saveBtn.style.display = 'none';
+    if (platformBanner) platformBanner.style.display = 'none';
   }
 }
 
 // =====================
 // Capture button handler
 // =====================
+const platformBanner = document.getElementById('platform-banner');
+
 captureBtn.addEventListener('click', async () => {
   statusDiv.innerText = 'Capturing...';
   clearProgress();
   showProgress('Starting content capture...');
   if (saveBtn) saveBtn.style.display = 'none';
+  if (platformBanner) platformBanner.style.display = 'none';
 
   chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
     const tabId = tabs[0].id;
@@ -381,6 +385,14 @@ function sendToBackend(content, url, subjectName = 'content') {
     if (response && response.success) {
       showProgress('Complete!', true);
       displayResults(response);
+    } else if (response && response.status === 402) {
+      showProgress('Free guide limit reached', false);
+      statusDiv.innerText = 'Free limit reached — upgrade to Pro';
+      if (platformBanner) {
+        platformBanner.style.display = 'block';
+        platformBanner.innerHTML = '&#9888; Free guide limit reached. <a href="https://autostudyai.online/billing" target="_blank">Upgrade to Pro</a> for unlimited guides.';
+      }
+      if (saveBtn) saveBtn.style.display = 'none';
     } else {
       const errMsg = (response && response.error) ? response.error : 'Unknown error';
       showProgress('Processing failed: ' + errMsg, false);
@@ -398,7 +410,7 @@ saveBtn.addEventListener('click', async () => {
 
   const token = await getValidToken();
   if (!token) {
-    statusDiv.innerText = 'Session expired. Please login again.';
+    statusDiv.innerText = 'Must log in again.';
     showLoginForm();
     return;
   }
@@ -430,6 +442,12 @@ saveBtn.addEventListener('click', async () => {
         saveBtn.textContent = 'Save to Platform';
         saveBtn.disabled = false;
       }, 2000);
+    } else if (resp.status === 401 || resp.status === 403) {
+      chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
+      statusDiv.innerText = 'Must log in again.';
+      showLoginForm();
+      saveBtn.textContent = 'Save to Platform';
+      saveBtn.disabled = false;
     } else {
       statusDiv.innerText = 'Save failed: ' + (data.detail || 'Unknown error');
       saveBtn.textContent = 'Save to Platform';

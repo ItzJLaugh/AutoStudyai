@@ -15,10 +15,30 @@ export default function BillingPage() {
 
   useEffect(() => {
     if (!ready) return;
-    if (router.query.success === 'true') setMessage('🎉 Welcome to Pro! Your subscription is now active.');
-    if (router.query.cancelled === 'true') setMessage('Checkout cancelled — you are still on the free plan.');
-    loadStatus();
+    if (router.query.success === 'true') {
+      setMessage('🎉 Welcome to Pro! Activating your subscription...');
+      pollForPro();
+    } else {
+      if (router.query.cancelled === 'true') setMessage('Checkout cancelled — you are still on the free plan.');
+      loadStatus();
+    }
   }, [ready, router.query]);
+
+  async function pollForPro(attempts = 0) {
+    setLoading(true);
+    const data = await apiFetch('/billing/status');
+    if (data?.plan === 'pro') {
+      setStatus(data);
+      setMessage('🎉 Welcome to Pro! Your subscription is now active.');
+      setLoading(false);
+    } else if (attempts < 6) {
+      setTimeout(() => pollForPro(attempts + 1), 2000);
+    } else {
+      if (data) setStatus(data);
+      setMessage('🎉 Payment received! Your plan will update shortly — refresh if needed.');
+      setLoading(false);
+    }
+  }
 
   async function loadStatus() {
     setLoading(true);
@@ -55,7 +75,7 @@ export default function BillingPage() {
 
   const isPro = status?.plan === 'pro';
   const guidesUsed = status?.guides_used ?? 0;
-  const guidesLimit = status?.guides_limit ?? 10;
+  const guidesLimit = status?.guides_limit ?? 2;
   const usagePct = isPro ? 100 : Math.min(100, (guidesUsed / guidesLimit) * 100);
 
   return (
@@ -97,7 +117,7 @@ export default function BillingPage() {
                 <div className="plan-name">Free</div>
                 <div className="plan-price">$0 <span>/month</span></div>
                 <ul className="plan-features">
-                  <li>10 AI guide generations per month</li>
+                  <li>2 AI study guide generations per month</li>
                   <li>Notes, study guides &amp; flashcards</li>
                   <li>Save guides to dashboard</li>
                   <li>Chat with content</li>
@@ -107,7 +127,7 @@ export default function BillingPage() {
 
               <div className={'plan-card plan-card-pro' + (isPro ? ' plan-card-current' : '')}>
                 <div className="plan-name">Pro</div>
-                <div className="plan-price">$9.99 <span>/month</span></div>
+                <div className="plan-price">$6.99 <span>/month</span></div>
                 <ul className="plan-features">
                   <li><strong>Unlimited</strong> guide generations</li>
                   <li>Everything in Free</li>
@@ -133,7 +153,7 @@ export default function BillingPage() {
       </div>
 
       <style jsx>{`
-        .billing-page { max-width: 700px; padding: 32px; }
+        .billing-page { max-width: 960px; padding: 32px; }
         h2 { margin-bottom: 24px; font-size: 1.6rem; }
         .billing-message { background: #f0f0ff; border: 1px solid #c7c7ff; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; }
         .billing-loading { color: #888; }

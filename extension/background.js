@@ -1,8 +1,7 @@
 // AutoStudyAI Background Service Worker
 // All API calls include auth token for security
 
-// TODO: Update this to your Render URL once deployed (e.g. https://autostudyai-api.onrender.com)
-const API_URL = 'https://autostudyai-api.onrender.com';
+const API_URL = 'https://autostudy-ai.fly.dev';
 
 // Helper to get auth token from storage
 function getAuthToken() {
@@ -41,7 +40,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const ingestData = await ingestResp.json();
 
         if (!ingestResp.ok) {
-          sendResponse({ success: false, error: ingestData.detail || 'Ingest failed' });
+          const detail = ingestData.detail;
+          const errMsg = typeof detail === 'object' ? (detail.message || 'Request failed') : (detail || 'Ingest failed');
+          sendResponse({ success: false, error: errMsg, status: ingestResp.status });
           return;
         }
 
@@ -57,7 +58,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const genData = await genResp.json();
 
         if (!genResp.ok) {
-          sendResponse({ success: false, error: genData.detail || 'Generation failed' });
+          const detail = genData.detail;
+          const errMsg = typeof detail === 'object' ? (detail.message || 'Request failed') : (detail || 'Generation failed');
+          sendResponse({ success: false, error: errMsg, status: genResp.status });
           return;
         }
 

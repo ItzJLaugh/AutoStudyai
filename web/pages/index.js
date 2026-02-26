@@ -1,3 +1,4 @@
+import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { getToken, setToken } from '../lib/api';
@@ -38,6 +39,17 @@ export default function LoginPage() {
   }
 
   return (
+    <>
+    <Head>
+      <title>AutoStudyAI — AI Study Guides, Notes & Flashcards</title>
+      <meta name="description" content="AutoStudyAI instantly turns any lecture, textbook, or course page into study guides, notes, and flashcards using AI. Install the Chrome extension and start studying smarter." />
+      <meta name="keywords" content="AutoStudyAI, AI study guide, study tool, flashcards, notes generator, Chrome extension, student AI" />
+      <meta property="og:title" content="AutoStudyAI — AI Study Guides, Notes & Flashcards" />
+      <meta property="og:description" content="Turn any lecture or textbook into study materials instantly with AI." />
+      <meta property="og:url" content="https://autostudyai.online" />
+      <meta property="og:type" content="website" />
+      <link rel="canonical" href="https://autostudyai.online" />
+    </Head>
     <div className="login-page">
       <h1 className="login-title">AutoStudyAI</h1>
       <div className="login-box">
@@ -64,5 +76,6 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+    </>
   );
 }

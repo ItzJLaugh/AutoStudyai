@@ -3,10 +3,10 @@
   "name": "AutoStudyAI",
   "version": "1.0.0",
   "description": "Instantly generate notes, study guides, and flashcards from any lecture, textbook, or course page with AI.",
-  "homepage_url": "https://autostudyai.com",
+  "homepage_url": "https://autostudyai.online",
   "minimum_chrome_version": "114",
   "permissions": ["scripting", "activeTab", "storage"],
-  "host_permissions": ["https://autostudyai-api.onrender.com/*"],
+  "host_permissions": ["https://autostudy-ai.fly.dev/*"],
   "background": {
     "service_worker": "background.js"
   },
