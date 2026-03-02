@@ -95,10 +95,11 @@ def _generate_notes_fallback(content: str) -> List[str]:
     return notes[:15]
 
 
-def generate_study_guide(chunks: List[str], min_questions: int = None) -> str:
+def generate_study_guide(chunks: List[str]) -> str:
     """
     Generate a comprehensive study guide with AI-generated questions and answers.
-    min_questions: if provided (e.g. slide count), the prompt enforces a dynamic minimum.
+    Identifies every term, concept, definition, and clinical fact and writes
+    one question per identified item — no numeric targets.
     """
     client = get_openai_client()
     if not client:
@@ -106,37 +107,48 @@ def generate_study_guide(chunks: List[str], min_questions: int = None) -> str:
 
     context = '\n\n'.join(chunks)[:30000]
 
-    min_hint = ""
-    if min_questions and min_questions > 0:
-        min_hint = (
-            f"\n\nMINIMUM: There are {min_questions} slides/sections. "
-            f"Generate at least {min_questions} questions total — "
-            f"slides with multiple bullet points should produce multiple questions."
-        )
+    prompt = f"""Create a study guide Q&A from the text below.
 
-    prompt = f"""Generate Q&A pairs from this text to cover ALL key concepts.
+Step 1 — Identify every single testable item in the text:
+• Named terms and their definitions
+• Drug names, mechanisms, dosages, side effects
+• Conditions and their signs/symptoms/causes/treatments
+• Lab values and what they indicate
+• Procedures and how/when they are performed
+• Classifications and their members
+• Cause-and-effect relationships
+• Any other specific fact a student must know
 
-For EACH bullet point, numbered item, clinical fact, medication, condition, or procedure — write one dedicated question. Do NOT group multiple bullet points into a single question. Each individual fact deserves its own question.{min_hint}
+Step 2 — Write exactly ONE question for each item identified above.
+Do NOT group multiple items into one question.
+Do NOT skip any item.
+Do NOT stop until every identified item has been asked about.
+
+EXAMPLE — if a slide contains:
+  "Hypokalemia: K+ < 3.5. Causes: vomiting, diuretics. Symptoms: muscle weakness, arrhythmia. Treatment: oral or IV KCl."
+You should produce FOUR questions:
+  Q: What is the definition of hypokalemia?
+  Q: What are common causes of hypokalemia?
+  Q: What are the symptoms of hypokalemia?
+  Q: How is hypokalemia treated?
+NOT one question that asks "describe hypokalemia."
 
 {context}
 
 FORMAT:
 Q1: [question]
-A1: [short answer]
+A1: [answer in 1-2 sentences]
 
-RULES:
-- Each bullet point and individual fact gets its own question — do not skip any
-- Cover every slide/section from beginning to end
-- Answers: 1-2 sentences max"""
+Continue until every item is covered."""
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Quiz generator. Short answers only."},
+                {"role": "system", "content": "You are an exhaustive study guide generator. Never stop until every fact in the text has been turned into a question."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=8000,
+            max_tokens=12000,
             temperature=0.1,
         )
         raw_result = response.choices[0].message.content.strip()
@@ -191,11 +203,11 @@ def generate_nclex_questions(content: str, num_questions: int = 10) -> list:
     # Scale question count with content length
     content_len = len(context)
     if content_len < 5000:
-        num_questions = min(num_questions, 8)
+        num_questions = 8
     elif content_len < 12000:
-        num_questions = min(num_questions, 15)
+        num_questions = 15
     else:
-        num_questions = min(num_questions, 20)
+        num_questions = 20
 
     prompt = f"""Generate {num_questions} NCLEX-style practice questions from the nursing/medical content below.
 Mix question types: roughly 60% MCQ (4 options, exactly 1 correct) and 40% SATA (5 options, 2-4 correct).

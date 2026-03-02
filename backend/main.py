@@ -258,7 +258,7 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
 
         if body.study_guide:
             logger.info("Generating study guide...")
-            study_guide = generate_study_guide(chunks, min_questions=slide_count or None)
+            study_guide = generate_study_guide(chunks)
 
         if body.flashcards:
             logger.info("Generating flashcards...")
