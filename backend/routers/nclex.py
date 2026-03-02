@@ -31,7 +31,7 @@ class NCLEXAnswer(BaseModel):
 
 
 class NCLEXSubmission(BaseModel):
-    answers: List[NCLEXAnswer] = Field(..., max_length=50)
+    answers: List[NCLEXAnswer] = Field(..., max_length=200)
 
 
 @router.get("/{guide_id}/generate")
@@ -61,7 +61,7 @@ def generate_nclex(guide_id: str, authorization: str = Header(default="")):
         # Combine both fields for maximum topic coverage
         combined = "\n\n".join(filter(None, [notes, study_guide]))
 
-        questions = generate_nclex_questions(combined, num_questions=10)
+        questions = generate_nclex_questions(combined)
 
         if not questions:
             raise HTTPException(status_code=500, detail="Failed to generate NCLEX questions. Please try again.")

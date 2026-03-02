@@ -189,9 +189,11 @@ Continue until every item is covered."""
         return f"[Error generating study guide: {e}]"
 
 
-def generate_nclex_questions(content: str, num_questions: int = 10) -> list:
+def generate_nclex_questions(content: str) -> list:
     """
     Generate NCLEX-style clinical scenario questions (MCQ and SATA) from content.
+    Identifies every clinical concept in the material and generates one question
+    per concept so the student encounters all material in NCLEX format.
     Returns a list of question dicts with type, stem, options, correct_indices, rationale.
     """
     client = get_openai_client()
@@ -200,29 +202,32 @@ def generate_nclex_questions(content: str, num_questions: int = 10) -> list:
 
     context = content[:25000]
 
-    # Scale question count with content length
-    content_len = len(context)
-    if content_len < 5000:
-        num_questions = 8
-    elif content_len < 12000:
-        num_questions = 15
-    else:
-        num_questions = 20
+    prompt = f"""Create NCLEX-style practice questions from the nursing content below.
 
-    prompt = f"""Generate {num_questions} NCLEX-style practice questions from the nursing/medical content below.
-Mix question types: roughly 60% MCQ (4 options, exactly 1 correct) and 40% SATA (5 options, 2-4 correct).
+GOAL: A student who completes these questions should have encountered every condition, medication, lab value, nursing intervention, and procedure discussed in the text — tested through clinical reasoning scenarios.
+
+Step 1 — Identify every clinical concept in the content:
+• Conditions and diseases (signs/symptoms, causes, complications)
+• Medications (class, mechanism, nursing considerations, side effects)
+• Lab values and their clinical significance
+• Nursing interventions and procedures
+• Patient safety priorities and expected outcomes
+
+Step 2 — Write one NCLEX-style question per identified concept.
+Do NOT skip any concept. Do NOT group multiple concepts into one question.
+Mix types: roughly 60% MCQ (4 options, 1 correct) and 40% SATA (5 options, 2-4 correct).
 
 REQUIREMENTS:
-- Each question must open with a realistic clinical scenario ("A nurse is caring for...", "A client presents with...", "The nurse is assessing...")
+- Each question opens with a clinical scenario ("A nurse is caring for...", "A client presents with...", "The nurse is assessing...")
 - Test clinical reasoning and application, not just memorization
-- Distractors must be plausible common nursing errors, not obviously wrong
+- Distractors must be plausible nursing errors, not obviously wrong
 - SATA stems must end with "(Select all that apply)"
-- Rationale must explain why the correct answer(s) are right AND briefly why key distractors are wrong
+- Rationale explains why correct answers are right AND why key distractors are wrong
 
 CONTENT:
 {context}
 
-Return ONLY a valid JSON array with this exact structure, no other text:
+Return ONLY a valid JSON array — no markdown, no extra text:
 [
   {{
     "type": "mcq",
@@ -238,7 +243,9 @@ Return ONLY a valid JSON array with this exact structure, no other text:
     "correct_indices": [0, 2, 3],
     "rationale": "Hydration (IV and oral) dilutes sickled cells and improves flow. Supplemental oxygen corrects hypoxia that triggers sickling. Cold causes vasoconstriction and worsens crisis — warm compresses are used instead. Cool rooms can trigger vasospasm and should be avoided."
   }}
-]"""
+]
+
+Continue the array until every identified concept has a question."""
 
     try:
         response = client.chat.completions.create(
@@ -249,12 +256,13 @@ Return ONLY a valid JSON array with this exact structure, no other text:
                     "content": (
                         "You are an expert NCLEX question writer with 20 years of nursing education experience. "
                         "You write questions that follow NCSBN Clinical Judgment Measurement Model standards. "
+                        "Cover every clinical concept in the provided content. "
                         "Always return valid JSON only — no markdown, no extra text."
                     )
                 },
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=6000,
+            max_tokens=10000,
             temperature=0.6,
         )
         raw = response.choices[0].message.content.strip()
@@ -273,7 +281,7 @@ Return ONLY a valid JSON array with this exact structure, no other text:
             if q["type"] not in ("mcq", "sata"):
                 continue
             validated.append(q)
-        return validated[:num_questions]
+        return validated
 
     except Exception as e:
         logger.error(f"Error generating NCLEX questions: {e}")
