@@ -79,7 +79,7 @@ def generate_quiz(guide_id: str, authorization: str = Header(default="")):
         if not qa_pairs:
             raise HTTPException(status_code=400, detail="No Q&A pairs found in study guide")
 
-        qa_pairs = qa_pairs[:15]
+        qa_pairs = qa_pairs[:50]
 
         client = get_openai_client()
         if not client:

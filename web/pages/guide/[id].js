@@ -140,7 +140,7 @@ export default function GuidePage() {
             qaPairs.map((pair, i) => (
               <div key={i} className="qa-item">
                 <div className="qa-question" onClick={() => toggleQA(i)}>
-                  <span>Q{pair.index}: {pair.question}</span>
+                  <span><strong>Q{pair.index}:</strong> {pair.question}</span>
                   <span className={'qa-chevron' + (revealedQs.has(i) ? ' open' : '')}>{'\u25BC'}</span>
                 </div>
                 <div className={'qa-answer' + (revealedQs.has(i) ? ' visible' : '')}>

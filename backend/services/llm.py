@@ -95,7 +95,7 @@ def _generate_notes_fallback(content: str) -> List[str]:
     return notes[:15]
 
 
-def generate_study_guide(chunks: List[str], max_questions: int = 50) -> str:
+def generate_study_guide(chunks: List[str]) -> str:
     """
     Generate a comprehensive study guide with AI-generated questions and answers.
     """
@@ -105,7 +105,9 @@ def generate_study_guide(chunks: List[str], max_questions: int = 50) -> str:
 
     context = '\n\n'.join(chunks)[:20000]
 
-    prompt = f"""Generate {max_questions} quiz questions from this text:
+    prompt = f"""Generate Q&A pairs from this text to cover ALL key concepts.
+
+Create one question for EACH distinct concept, term, definition, medication, condition, procedure, or system covered. Do NOT use a fixed number — generate as many as needed for complete coverage of the material (aim for at least 1 question per slide or section).
 
 {context}
 
@@ -114,8 +116,8 @@ Q1: [question]
 A1: [short answer]
 
 RULES:
-- {max_questions} questions
-- Answers: 1 sentence max"""
+- Cover every distinct topic — do not skip any
+- Answers: 1-2 sentences max"""
 
     try:
         response = client.chat.completions.create(
@@ -144,11 +146,12 @@ RULES:
                 if colon_idx > 0:
                     prefix = line[:colon_idx+1]
                     answer = line[colon_idx+1:].strip()
-                    # Truncate to first sentence or 80 chars
-                    if '. ' in answer:
-                        answer = answer.split('. ')[0] + '.'
-                    if len(answer) > 100:
-                        answer = answer[:97] + '...'
+                    # Allow up to 2 sentences
+                    sentences = answer.split('. ')
+                    if len(sentences) > 2:
+                        answer = '. '.join(sentences[:2]) + '.'
+                    if len(answer) > 220:
+                        answer = answer[:217] + '...'
                     processed_lines.append(f"{prefix} {answer}")
                 else:
                     processed_lines.append(line)
@@ -174,6 +177,15 @@ def generate_nclex_questions(content: str, num_questions: int = 10) -> list:
         return []
 
     context = content[:25000]
+
+    # Scale question count with content length
+    content_len = len(context)
+    if content_len < 5000:
+        num_questions = min(num_questions, 8)
+    elif content_len < 12000:
+        num_questions = min(num_questions, 15)
+    else:
+        num_questions = min(num_questions, 20)
 
     prompt = f"""Generate {num_questions} NCLEX-style practice questions from the nursing/medical content below.
 Mix question types: roughly 60% MCQ (4 options, exactly 1 correct) and 40% SATA (5 options, 2-4 correct).
