@@ -78,6 +78,7 @@ export default function GuidePage() {
     { key: 'notes', label: 'Notes' },
     { key: 'flashcards', label: `Flashcards (${flashcards.length})` },
     { key: 'quiz', label: 'Quiz' },
+    { key: 'nclex', label: 'NCLEX Mode' },
   ];
 
   return (
@@ -227,6 +228,20 @@ export default function GuidePage() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'nclex' && (
+        <div>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 8 }}>
+            Practice with AI-generated NCLEX-style clinical scenario questions based on your study material.
+          </p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: 20 }}>
+            Includes Multiple Choice and Select All That Apply (SATA) with rationales for each question.
+          </p>
+          <button className="btn" onClick={() => router.push('/nclex/' + id)}>
+            Start NCLEX Practice
+          </button>
         </div>
       )}
     </div>

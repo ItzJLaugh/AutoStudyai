@@ -361,7 +361,32 @@ input::placeholder { color: var(--text-muted); }
 .quiz-option.selected { border-color: var(--accent); background: var(--accent-glow); }
 .quiz-option.correct { border-color: var(--success); background: var(--success-bg); color: var(--success); }
 .quiz-option.wrong { border-color: var(--error); background: var(--error-bg); color: var(--error); }
+.quiz-option.missed { border-color: var(--warning); background: rgba(255, 167, 38, 0.12); color: var(--warning); }
 .quiz-option.disabled { pointer-events: none; opacity: 0.7; }
+.nclex-rationale {
+  margin-top: 16px; padding: 14px 16px; border-radius: var(--radius);
+  background: rgba(79, 195, 247, 0.08); border: 1px solid var(--accent);
+  font-size: 0.9em; color: var(--text-secondary); line-height: 1.6;
+}
+.nclex-rationale strong { color: var(--accent); font-size: 0.8em; letter-spacing: 0.05em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+.nclex-sata-checkbox {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%;
+  text-align: left; padding: 12px 16px; margin-bottom: 8px;
+  background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius); cursor: pointer; font-size: 0.95em;
+  color: var(--text-primary); transition: border-color 0.15s;
+}
+.nclex-sata-checkbox:hover { border-color: var(--accent); }
+.nclex-sata-checkbox input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); flex-shrink: 0; }
+.nclex-sata-checkbox.correct { border-color: var(--success); background: var(--success-bg); color: var(--success); }
+.nclex-sata-checkbox.wrong { border-color: var(--error); background: var(--error-bg); color: var(--error); }
+.nclex-sata-checkbox.missed { border-color: var(--warning); background: rgba(255, 167, 38, 0.12); color: var(--warning); }
+.nclex-type-badge {
+  display: inline-block; font-size: 0.72em; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 2px 8px; border-radius: 4px;
+  margin-bottom: 10px; background: var(--accent-glow); color: var(--accent);
+  border: 1px solid var(--accent);
+}
 .quiz-result {
   text-align: center; padding: 32px; background: var(--bg-secondary);
   border-radius: var(--radius-lg); border: 1px solid var(--border-subtle);

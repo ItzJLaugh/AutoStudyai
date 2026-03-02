@@ -34,7 +34,7 @@ from services.llm import (
     generate_flashcards, answer_question,
     summarize_for_slideshow
 )
-from routers import auth, folders, guides, stats, search, quiz, billing
+from routers import auth, folders, guides, stats, search, quiz, billing, nclex
 from auth_utils import get_user_id
 from routers.billing import check_and_increment_usage
 
@@ -106,6 +106,7 @@ app.include_router(guides.router)
 app.include_router(stats.router)
 app.include_router(search.router)
 app.include_router(quiz.router)
+app.include_router(nclex.router)
 app.include_router(billing.router)
 
 # Initialize storage with limits

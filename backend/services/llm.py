@@ -23,7 +23,7 @@ def get_openai_client() -> Optional[OpenAI]:
     return OpenAI(api_key=api_key)
 
 
-def generate_notes_ai(content: str, max_notes: int = 15) -> List[str]:
+def generate_notes_ai(content: str, max_notes: int = 25) -> List[str]:
     """
     Use AI to extract key notes from educational content.
     Returns a list of concise, important points.
@@ -53,7 +53,7 @@ Rules:
 5. Format each note as a standalone bullet point
 
 Content:
-{content[:8000]}
+{content[:20000]}
 
 Return ONLY the bullet points, one per line, starting with "- ":"""
 
@@ -61,7 +61,7 @@ Return ONLY the bullet points, one per line, starting with "- ":"""
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=1024,
+            max_tokens=2000,
             temperature=0.3,
         )
         result = response.choices[0].message.content.strip()
@@ -95,7 +95,7 @@ def _generate_notes_fallback(content: str) -> List[str]:
     return notes[:15]
 
 
-def generate_study_guide(chunks: List[str], max_questions: int = 30) -> str:
+def generate_study_guide(chunks: List[str], max_questions: int = 50) -> str:
     """
     Generate a comprehensive study guide with AI-generated questions and answers.
     """
@@ -103,7 +103,7 @@ def generate_study_guide(chunks: List[str], max_questions: int = 30) -> str:
     if not client:
         return "[Error: OpenAI API key not configured]"
 
-    context = '\n\n'.join(chunks)[:8000]
+    context = '\n\n'.join(chunks)[:20000]
 
     prompt = f"""Generate {max_questions} quiz questions from this text:
 
@@ -124,7 +124,7 @@ RULES:
                 {"role": "system", "content": "Quiz generator. Short answers only."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=4000,
+            max_tokens=8000,
             temperature=0.1,
         )
         raw_result = response.choices[0].message.content.strip()
@@ -162,6 +162,88 @@ RULES:
         if hasattr(e, 'status_code') and e.status_code == 429:
             return "[Error: OpenAI rate limit reached. Please try again later.]"
         return f"[Error generating study guide: {e}]"
+
+
+def generate_nclex_questions(content: str, num_questions: int = 10) -> list:
+    """
+    Generate NCLEX-style clinical scenario questions (MCQ and SATA) from content.
+    Returns a list of question dicts with type, stem, options, correct_indices, rationale.
+    """
+    client = get_openai_client()
+    if not client:
+        return []
+
+    context = content[:25000]
+
+    prompt = f"""Generate {num_questions} NCLEX-style practice questions from the nursing/medical content below.
+Mix question types: roughly 60% MCQ (4 options, exactly 1 correct) and 40% SATA (5 options, 2-4 correct).
+
+REQUIREMENTS:
+- Each question must open with a realistic clinical scenario ("A nurse is caring for...", "A client presents with...", "The nurse is assessing...")
+- Test clinical reasoning and application, not just memorization
+- Distractors must be plausible common nursing errors, not obviously wrong
+- SATA stems must end with "(Select all that apply)"
+- Rationale must explain why the correct answer(s) are right AND briefly why key distractors are wrong
+
+CONTENT:
+{context}
+
+Return ONLY a valid JSON array with this exact structure, no other text:
+[
+  {{
+    "type": "mcq",
+    "stem": "A 72-year-old client with chronic kidney disease has a serum potassium of 6.2 mEq/L. Which finding would the nurse expect on the ECG?",
+    "options": ["Prolonged PR interval", "Peaked T waves", "ST depression", "Widened QRS only"],
+    "correct_indices": [1],
+    "rationale": "Hyperkalemia causes peaked (tall, narrow) T waves on ECG, which is often the earliest cardiac manifestation. Prolonged PR interval and widened QRS occur later. ST depression is associated with hypokalemia or ischemia, not hyperkalemia."
+  }},
+  {{
+    "type": "sata",
+    "stem": "A nurse is planning care for a client in sickle cell crisis. Which interventions should the nurse include? (Select all that apply)",
+    "options": ["Administer IV fluids as ordered", "Apply cold packs to painful areas", "Encourage high fluid intake", "Administer oxygen if SpO2 < 95%", "Place client in a cool room"],
+    "correct_indices": [0, 2, 3],
+    "rationale": "Hydration (IV and oral) dilutes sickled cells and improves flow. Supplemental oxygen corrects hypoxia that triggers sickling. Cold causes vasoconstriction and worsens crisis — warm compresses are used instead. Cool rooms can trigger vasospasm and should be avoided."
+  }}
+]"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert NCLEX question writer with 20 years of nursing education experience. "
+                        "You write questions that follow NCSBN Clinical Judgment Measurement Model standards. "
+                        "Always return valid JSON only — no markdown, no extra text."
+                    )
+                },
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=6000,
+            temperature=0.6,
+        )
+        raw = response.choices[0].message.content.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        import json as _json
+        questions = _json.loads(raw)
+        # Validate basic structure
+        validated = []
+        for q in questions:
+            if not all(k in q for k in ("type", "stem", "options", "correct_indices", "rationale")):
+                continue
+            if q["type"] not in ("mcq", "sata"):
+                continue
+            validated.append(q)
+        return validated[:num_questions]
+
+    except Exception as e:
+        logger.error(f"Error generating NCLEX questions: {e}")
+        return []
 
 
 def generate_flashcards(chunks: List[str], max_cards: int = 15) -> List[dict]:
