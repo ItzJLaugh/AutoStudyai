@@ -36,7 +36,7 @@ export default function NCLEXPage() {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
         <div style={{ color: 'var(--accent)', fontSize: '1.1em', marginBottom: 8 }}>Generating NCLEX-style questions...</div>
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>AI is writing clinical scenarios. This may take 10–15 seconds.</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>AI is identifying every concept and writing a clinical scenario for each one. This may take 20–30 seconds.</div>
       </div>
     );
   }
