@@ -78,7 +78,6 @@ export default function GuidePage() {
     { key: 'notes', label: 'Notes' },
     { key: 'flashcards', label: `Flashcards (${flashcards.length})` },
     { key: 'quiz', label: 'Quiz' },
-    { key: 'nclex', label: 'NCLEX Mode' },
   ];
 
   return (
@@ -119,7 +118,7 @@ export default function GuidePage() {
       </div>
 
       {/* Tabs */}
-      <div className="tabs">
+      <div className="tabs" style={{ alignItems: 'flex-end' }}>
         {tabs.map(tab => (
           <button
             key={tab.key}
@@ -129,6 +128,22 @@ export default function GuidePage() {
             {tab.label}
           </button>
         ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.6em', color: '#a78bfa', marginBottom: 3, whiteSpace: 'nowrap', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            For nursing/medical students
+          </span>
+          <button
+            className={'tab-btn' + (activeTab === 'nclex' ? ' active' : '')}
+            onClick={() => setActiveTab('nclex')}
+            style={{
+              color: activeTab === 'nclex' ? '#fff' : '#a78bfa',
+              borderColor: '#7c3aed',
+              background: activeTab === 'nclex' ? '#7c3aed' : 'transparent',
+            }}
+          >
+            NCLEX Mode
+          </button>
+        </div>
       </div>
 
       {/* Tab content */}
