@@ -95,19 +95,28 @@ def _generate_notes_fallback(content: str) -> List[str]:
     return notes[:15]
 
 
-def generate_study_guide(chunks: List[str]) -> str:
+def generate_study_guide(chunks: List[str], min_questions: int = None) -> str:
     """
     Generate a comprehensive study guide with AI-generated questions and answers.
+    min_questions: if provided (e.g. slide count), the prompt enforces a dynamic minimum.
     """
     client = get_openai_client()
     if not client:
         return "[Error: OpenAI API key not configured]"
 
-    context = '\n\n'.join(chunks)[:20000]
+    context = '\n\n'.join(chunks)[:30000]
+
+    min_hint = ""
+    if min_questions and min_questions > 0:
+        min_hint = (
+            f"\n\nMINIMUM: There are {min_questions} slides/sections. "
+            f"Generate at least {min_questions} questions total — "
+            f"slides with multiple bullet points should produce multiple questions."
+        )
 
     prompt = f"""Generate Q&A pairs from this text to cover ALL key concepts.
 
-Create one question for EACH distinct concept, term, definition, medication, condition, procedure, or system covered. Do NOT use a fixed number — generate as many as needed for complete coverage of the material (aim for at least 1 question per slide or section).
+For EACH bullet point, numbered item, clinical fact, medication, condition, or procedure — write one dedicated question. Do NOT group multiple bullet points into a single question. Each individual fact deserves its own question.{min_hint}
 
 {context}
 
@@ -116,7 +125,8 @@ Q1: [question]
 A1: [short answer]
 
 RULES:
-- Cover every distinct topic — do not skip any
+- Each bullet point and individual fact gets its own question — do not skip any
+- Cover every slide/section from beginning to end
 - Answers: 1-2 sentences max"""
 
     try:

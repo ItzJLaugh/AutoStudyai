@@ -221,12 +221,15 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         metadata = content_obj.get("metadata", {})
 
         # Check if this is slideshow content
+        slide_count = 0
         if metadata.get("is_slideshow"):
             slides = extract_slideshow_content(raw_text)
             if slides:
                 # Format all slides as structured text — no AI compression step
                 # so every slide's content reaches generate_study_guide intact
                 cleaned = format_slideshow_text(slides)
+                slide_count = len(slides)
+                logger.info(f"Extracted {slide_count} slides")
             else:
                 cleaned = clean_text(raw_text)
         else:
@@ -255,7 +258,7 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
 
         if body.study_guide:
             logger.info("Generating study guide...")
-            study_guide = generate_study_guide(chunks)
+            study_guide = generate_study_guide(chunks, min_questions=slide_count or None)
 
         if body.flashcards:
             logger.info("Generating flashcards...")

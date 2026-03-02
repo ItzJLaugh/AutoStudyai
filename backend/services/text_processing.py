@@ -128,6 +128,7 @@ def extract_slideshow_content(text: str) -> List[dict]:
     """
     Extract content from slideshow-formatted text.
     Returns list of slides with title and content.
+    Handles the extension's "--- Slide N ---" format as well as plain "Slide N".
     """
     slides = []
     current_slide = {"title": "", "content": []}
@@ -138,8 +139,14 @@ def extract_slideshow_content(text: str) -> List[dict]:
         if not line:
             continue
 
-        # Detect slide boundaries
-        if re.match(r'^slide\s*\d+', line, re.IGNORECASE):
+        # Stop at the extra page content block appended by the extension
+        # to avoid processing duplicated content
+        if re.match(r'^-+\s*additional\s*page\s*content\s*-*', line, re.IGNORECASE):
+            break
+
+        # Detect slide boundaries — matches both "--- Slide N ---" (extension format)
+        # and plain "Slide N" (other sources)
+        if re.match(r'^-*\s*slide\s*\d+\s*-*\s*$', line, re.IGNORECASE):
             if current_slide["content"]:
                 slides.append(current_slide)
             current_slide = {"title": "", "content": []}
