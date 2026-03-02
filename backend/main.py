@@ -27,12 +27,12 @@ from schemas import (
 )
 from services.text_processing import (
     clean_text, chunk_text,
-    is_slideshow_content, extract_slideshow_content
+    is_slideshow_content, extract_slideshow_content,
+    format_slideshow_text
 )
 from services.llm import (
     generate_notes_ai, generate_study_guide,
-    generate_flashcards, answer_question,
-    summarize_for_slideshow
+    generate_flashcards, answer_question
 )
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex
 from auth_utils import get_user_id
@@ -224,9 +224,9 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         if metadata.get("is_slideshow"):
             slides = extract_slideshow_content(raw_text)
             if slides:
-                # Use slideshow-specific processing
-                slideshow_summary = summarize_for_slideshow(slides)
-                cleaned = slideshow_summary if slideshow_summary else clean_text(raw_text)
+                # Format all slides as structured text — no AI compression step
+                # so every slide's content reaches generate_study_guide intact
+                cleaned = format_slideshow_text(slides)
             else:
                 cleaned = clean_text(raw_text)
         else:

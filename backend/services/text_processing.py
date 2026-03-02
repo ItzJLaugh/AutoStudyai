@@ -248,6 +248,23 @@ def chunk_text(text: str, max_length: int = 1500) -> List[str]:
     return chunks
 
 
+def format_slideshow_text(slides: List[dict]) -> str:
+    """
+    Format extracted slides into structured text without AI summarization.
+    Preserves all slide content so nothing is lost to compression.
+    """
+    parts = []
+    for i, slide in enumerate(slides, 1):
+        title = slide.get('title', '')
+        content = slide.get('content', [])
+        if title:
+            parts.append(f"=== Slide {i}: {title} ===")
+        if content:
+            parts.extend(content)
+        parts.append('')  # blank line between slides
+    return '\n'.join(parts)
+
+
 def extract_key_terms(text: str) -> List[str]:
     """
     Extract potential key terms and concepts from text.

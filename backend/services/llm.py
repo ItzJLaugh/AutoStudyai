@@ -346,10 +346,10 @@ def answer_question(question: str, context: str, mode: str = "short") -> str:
         max_tokens = 500
     else:  # short
         system_prompt = "You are a helpful tutor. Provide a brief, direct answer using only the information in the context. Keep it concise (1-2 sentences)."
-        max_tokens = 150
+        max_tokens = 200
 
     prompt = f"""Context:
-{context[:6000]}
+{context[:25000]}
 
 Question: {question}
 
