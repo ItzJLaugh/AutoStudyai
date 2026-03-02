@@ -192,37 +192,48 @@ Continue until every item is covered."""
 def generate_nclex_questions(content: str) -> list:
     """
     Generate NCLEX-style clinical scenario questions (MCQ and SATA) from content.
-    Identifies every clinical concept in the material and generates one question
-    per concept so the student encounters all material in NCLEX format.
+    Generates one question per Q&A pair found in the study guide, so the student
+    encounters every concept from the study material in NCLEX format.
     Returns a list of question dicts with type, stem, options, correct_indices, rationale.
     """
+    import re as _re
+    import json as _json
+
     client = get_openai_client()
     if not client:
         return []
 
     context = content[:25000]
 
-    prompt = f"""Create NCLEX-style practice questions from the nursing content below.
+    # Count Q&A pairs already identified in the study guide so we can give
+    # GPT-4o an explicit target instead of letting it cluster into themes.
+    qa_matches = _re.findall(r'^Q\d+:', context, _re.MULTILINE)
+    n_pairs = len(qa_matches)
 
-GOAL: A student who completes these questions should have encountered every condition, medication, lab value, nursing intervention, and procedure discussed in the text — tested through clinical reasoning scenarios.
+    if n_pairs > 0:
+        count_instruction = (
+            f"The study guide below contains {n_pairs} Q&A pairs (Q1/A1, Q2/A2, …). "
+            f"Each pair represents ONE distinct clinical concept. "
+            f"Generate exactly one NCLEX question per Q&A pair — that means a minimum of {n_pairs} questions. "
+            f"Do NOT merge multiple Q&A pairs into a single question."
+        )
+    else:
+        count_instruction = (
+            "Identify every clinical concept, condition, medication, lab value, and procedure in the content. "
+            "Generate one NCLEX question per identified item — do NOT group multiple items into one question."
+        )
 
-Step 1 — Identify every clinical concept in the content:
-• Conditions and diseases (signs/symptoms, causes, complications)
-• Medications (class, mechanism, nursing considerations, side effects)
-• Lab values and their clinical significance
-• Nursing interventions and procedures
-• Patient safety priorities and expected outcomes
+    prompt = f"""Create NCLEX-style practice questions from the nursing study material below.
 
-Step 2 — Write one NCLEX-style question per identified concept.
-Do NOT skip any concept. Do NOT group multiple concepts into one question.
-Mix types: roughly 60% MCQ (4 options, 1 correct) and 40% SATA (5 options, 2-4 correct).
+{count_instruction}
 
-REQUIREMENTS:
+QUESTION RULES:
+- Mix types: ~60% MCQ (4 options, 1 correct) and ~40% SATA (5 options, 2-4 correct)
 - Each question opens with a clinical scenario ("A nurse is caring for...", "A client presents with...", "The nurse is assessing...")
-- Test clinical reasoning and application, not just memorization
+- Test clinical reasoning and application, not memorization
 - Distractors must be plausible nursing errors, not obviously wrong
 - SATA stems must end with "(Select all that apply)"
-- Rationale explains why correct answers are right AND why key distractors are wrong
+- Rationale: 2-3 sentences — explain why correct answers are right AND why key distractors are wrong
 
 CONTENT:
 {context}
@@ -234,18 +245,18 @@ Return ONLY a valid JSON array — no markdown, no extra text:
     "stem": "A 72-year-old client with chronic kidney disease has a serum potassium of 6.2 mEq/L. Which finding would the nurse expect on the ECG?",
     "options": ["Prolonged PR interval", "Peaked T waves", "ST depression", "Widened QRS only"],
     "correct_indices": [1],
-    "rationale": "Hyperkalemia causes peaked (tall, narrow) T waves on ECG, which is often the earliest cardiac manifestation. Prolonged PR interval and widened QRS occur later. ST depression is associated with hypokalemia or ischemia, not hyperkalemia."
+    "rationale": "Hyperkalemia causes peaked T waves on ECG — the earliest cardiac sign. Prolonged PR and widened QRS appear later. ST depression is associated with hypokalemia or ischemia, not hyperkalemia."
   }},
   {{
     "type": "sata",
-    "stem": "A nurse is planning care for a client in sickle cell crisis. Which interventions should the nurse include? (Select all that apply)",
+    "stem": "A nurse is planning care for a client in sickle cell crisis. Which interventions should be included? (Select all that apply)",
     "options": ["Administer IV fluids as ordered", "Apply cold packs to painful areas", "Encourage high fluid intake", "Administer oxygen if SpO2 < 95%", "Place client in a cool room"],
     "correct_indices": [0, 2, 3],
-    "rationale": "Hydration (IV and oral) dilutes sickled cells and improves flow. Supplemental oxygen corrects hypoxia that triggers sickling. Cold causes vasoconstriction and worsens crisis — warm compresses are used instead. Cool rooms can trigger vasospasm and should be avoided."
+    "rationale": "Hydration and supplemental oxygen are priorities — they reduce sickling and correct hypoxia. Cold and cool environments cause vasoconstriction, worsening the crisis; warm compresses are used instead."
   }}
 ]
 
-Continue the array until every identified concept has a question."""
+Do NOT stop until every Q&A pair has a corresponding NCLEX question."""
 
     try:
         response = client.chat.completions.create(
@@ -255,24 +266,39 @@ Continue the array until every identified concept has a question."""
                     "role": "system",
                     "content": (
                         "You are an expert NCLEX question writer with 20 years of nursing education experience. "
-                        "You write questions that follow NCSBN Clinical Judgment Measurement Model standards. "
-                        "Cover every clinical concept in the provided content. "
+                        "You write one NCLEX question for each Q&A pair in the study material — never fewer. "
+                        "Never merge multiple Q&A pairs into one question. "
                         "Always return valid JSON only — no markdown, no extra text."
                     )
                 },
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=10000,
+            max_tokens=16000,
             temperature=0.6,
         )
         raw = response.choices[0].message.content.strip()
+
         # Strip markdown code fences if present
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
-        import json as _json
-        questions = _json.loads(raw)
+
+        # Attempt to parse; if truncated mid-JSON, recover completed objects
+        try:
+            questions = _json.loads(raw)
+        except _json.JSONDecodeError:
+            last_complete = raw.rfind('},')
+            if last_complete > 0:
+                try:
+                    questions = _json.loads(raw[:last_complete + 1] + ']')
+                except _json.JSONDecodeError:
+                    logger.error("Could not recover partial NCLEX JSON")
+                    return []
+            else:
+                logger.error("NCLEX response was not valid JSON")
+                return []
+
         # Validate basic structure
         validated = []
         for q in questions:

@@ -25,7 +25,7 @@ def _validate_uuid(value: str, name: str = "ID") -> str:
 
 
 class NCLEXAnswer(BaseModel):
-    question_index: int = Field(..., ge=0, le=100)
+    question_index: int = Field(..., ge=0, le=500)
     selected_indices: List[int] = Field(..., max_length=10)
     is_correct: bool = False
 
