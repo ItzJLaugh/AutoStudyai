@@ -10,13 +10,13 @@ import traceback
 from uuid import uuid4
 
 from dotenv import load_dotenv
+from pydantic import BaseModel, field_validator
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-import bleach
 
 from storage import InMemoryStorage
 from schemas import (
@@ -32,8 +32,21 @@ from services.text_processing import (
 )
 from services.llm import (
     generate_notes_ai, generate_study_guide,
-    generate_flashcards, answer_question
+    generate_flashcards, answer_question, extract_image_text
 )
+
+
+class ImageTextRequest(BaseModel):
+    image_data: str
+
+    @field_validator("image_data")
+    @classmethod
+    def validate_image(cls, v):
+        if not v or not v.startswith("data:image/"):
+            raise ValueError("Must be a base64 image data URL")
+        if len(v) > 2_000_000:
+            raise ValueError("Image too large")
+        return v
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex
 from auth_utils import get_user_id
 from routers.billing import check_and_increment_usage
@@ -193,6 +206,25 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
     except Exception as e:
         logger.error(f"Error in /ingest: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Failed to ingest content")
+
+
+@app.post("/extract-image-text")
+@limiter.limit("120/minute")
+async def extract_image_text_endpoint(
+    body: ImageTextRequest,
+    request: Request,
+    authorization: str = Header(default="")
+):
+    """Extract text and visual content from a base64 slide image using GPT-4o Vision."""
+    try:
+        get_user_id(authorization)
+        text = extract_image_text(body.image_data)
+        return {"text": text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in /extract-image-text: {e}")
+        raise HTTPException(status_code=500, detail="Failed to extract image text")
 
 
 @app.post("/generate", response_model=GenerateResponse)

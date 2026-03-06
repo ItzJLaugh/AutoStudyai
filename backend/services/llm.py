@@ -478,3 +478,46 @@ def generate_notes(chunks: List[str]) -> List[str]:
 def generate_questions_from_notes(notes: List[str]) -> List[str]:
     """Legacy function - now handled by generate_study_guide."""
     return [f"What is {note[:50]}...?" for note in notes[:10] if len(note) > 10]
+
+
+def extract_image_text(image_data: str) -> str:
+    """
+    Extract text and describe visual content (diagrams, graphs, charts, illustrations)
+    from a base64-encoded image using GPT-4o Vision.
+    Returns empty string for decorative/irrelevant images.
+    """
+    client = get_openai_client()
+    if not client:
+        return ''
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": image_data, "detail": "low"}
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "Analyze this image from a lecture slide. "
+                            "Extract all visible text. "
+                            "If it contains a diagram, flowchart, or illustration: describe every labeled component, arrow, and relationship. "
+                            "If it contains a graph or chart: describe the title, axes, values, and key trends. "
+                            "If it contains a table: transcribe the headers and data. "
+                            "If it is purely decorative (logo, background, photo with no educational content): respond only with DECORATIVE. "
+                            "Be thorough — your output will be used to create study questions."
+                        )
+                    }
+                ]
+            }],
+            max_tokens=600,
+            temperature=0.1,
+        )
+        result = response.choices[0].message.content.strip()
+        return '' if result == 'DECORATIVE' else result
+    except Exception as e:
+        logger.error(f"Error extracting image text: {e}")
+        return ''

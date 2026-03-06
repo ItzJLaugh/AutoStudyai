@@ -323,10 +323,44 @@ captureBtn.addEventListener('click', async () => {
         sendToBackend(pdfResp.content, tabUrl, lastPageTitle);
       } else {
         showProgress('Checking for slideshows...');
-        chrome.tabs.sendMessage(tabId, {action: 'captureSlideshow'}, (slideResp) => {
+        chrome.tabs.sendMessage(tabId, {action: 'captureSlideshow'}, async (slideResp) => {
           if (slideResp && slideResp.success && slideResp.slides && slideResp.slides.length > 0) {
             showProgress(`Slideshow found - captured ${slideResp.slides.length} slides!`, true);
-            const slideContent = slideResp.slides.map(s => s.content).join('\n\n');
+            let slideContent = slideResp.slides.map(s => s.content).join('\n\n');
+
+            // Send any slide images through GPT-4o Vision to extract text/diagram descriptions
+            const allImages = [];
+            if (slideResp.slideImages) {
+              for (const images of Object.values(slideResp.slideImages)) {
+                for (const b64 of images) allImages.push(b64);
+              }
+            }
+            if (allImages.length > 0) {
+              showProgress(`Reading ${allImages.length} image(s) from slides...`);
+              let token = '';
+              try {
+                const stored = await new Promise(r => chrome.storage.local.get(['authToken'], r));
+                token = stored.authToken || '';
+              } catch (e) {}
+              const visionResults = await Promise.allSettled(
+                allImages.map(b64 =>
+                  fetch(API + '/extract-image-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ image_data: b64 })
+                  }).then(r => r.ok ? r.json() : { text: '' })
+                    .then(r => r.text || '')
+                    .catch(() => '')
+                )
+              );
+              const descriptions = visionResults
+                .map(r => r.status === 'fulfilled' ? r.value : '')
+                .filter(t => t.length > 10);
+              if (descriptions.length > 0) {
+                slideContent += '\n\n--- Visual Content From Slides ---\n' + descriptions.join('\n\n');
+              }
+            }
+
             showProgress('Processing slideshow content...');
             sendToBackend(slideContent, tabUrl, lastPageTitle);
           } else {
