@@ -18,6 +18,10 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+from routers import auth, folders, guides, stats, search, quiz, billing, nclex
+from auth_utils import get_user_id
+from routers.billing import check_and_increment_usage
+
 from storage import InMemoryStorage
 from schemas import (
     IngestRequest, IngestResponse,
@@ -47,9 +51,6 @@ class ImageTextRequest(BaseModel):
         if len(v) > 2_000_000:
             raise ValueError("Image too large")
         return v
-from routers import auth, folders, guides, stats, search, quiz, billing, nclex
-from auth_utils import get_user_id
-from routers.billing import check_and_increment_usage
 
 # Load environment variables
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
@@ -68,7 +69,7 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title="AutoStudyAI API",
     description="API for generating study materials from educational content",
-    version="1.0.0",
+    version="1.1.0",
     docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
     redoc_url=None,
 )
@@ -294,7 +295,13 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
 
         if body.flashcards:
             logger.info("Generating flashcards...")
-            flashcards = generate_flashcards(chunks)
+            # Match flashcard count to Q&A pairs in study guide
+            fc_count = 200
+            if study_guide:
+                pairs = re.findall(r'^Q\d+:', study_guide, re.MULTILINE)
+                if pairs:
+                    fc_count = max(len(pairs), 10)
+            flashcards = generate_flashcards(chunks, max_cards=fc_count)
 
         return GenerateResponse(
             notes=notes_str,
@@ -321,7 +328,7 @@ async def create_flashcards(body: FlashcardRequest, request: Request, authorizat
         logger.info(f"Generating flashcards for user={user_id[:8]}...")
 
         # Enforce max_cards limit
-        max_cards = min(body.max_cards, 30)
+        max_cards = min(body.max_cards, 200)
 
         content_obj = storage.get_content(body.content_id)
         if not content_obj:

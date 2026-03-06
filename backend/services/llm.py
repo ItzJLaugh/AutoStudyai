@@ -119,6 +119,13 @@ Step 1 — Identify every single testable item in the text:
 • Cause-and-effect relationships
 • Any other specific fact a student must know
 
+SKIP — do NOT create questions about course/slide metadata:
+✗ Course names, course codes, or course numbers
+✗ Week numbers, module numbers, unit numbers, chapter headings used as labels
+✗ Instructor names, semester, school names, dates
+✗ Slide numbers, page numbers, or section titles that are purely organizational
+✗ Anything whose only answer would be "it is covered in week X" or "it is part of course Y"
+
 Step 2 — Write exactly ONE question for each item identified above.
 Do NOT group multiple items into one question.
 Do NOT skip any item.
@@ -143,7 +150,7 @@ Continue until every item is covered."""
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are an exhaustive study guide generator. Never stop until every fact in the text has been turned into a question."},
                 {"role": "user", "content": prompt}
@@ -314,33 +321,34 @@ Do NOT stop until every Q&A pair has a corresponding NCLEX question."""
         return []
 
 
-def generate_flashcards(chunks: List[str], max_cards: int = 15) -> List[dict]:
+def generate_flashcards(chunks: List[str], max_cards: int = 200) -> List[dict]:
     """
     Generate flashcards from content.
     Returns list of {front: question, back: answer} dictionaries.
+    One flashcard per educational concept — no artificial cap.
     """
     client = get_openai_client()
     if not client:
         return []
 
-    context = '\n\n'.join(chunks)[:10000]
+    context = '\n\n'.join(chunks)[:25000]
 
-    prompt = f"""Create {max_cards} flashcards from this educational content.
+    prompt = f"""Create one flashcard for EVERY distinct educational concept, term, definition, condition, or fact in this content.
 
 IGNORE completely:
 - Website navigation, menus, UI elements
 - Wikipedia/website metadata (edit, history, talk pages)
 - Login/sharing/social features
 - Table of contents or structural elements
+- Course codes, week numbers, module labels, instructor names
 
-FOCUS ONLY on actual educational content.
+FOCUS ONLY on actual educational content — every testable item deserves its own flashcard.
 
 Each flashcard should:
 1. Have a clear, specific question on the front
-2. Have a concise answer (1-2 sentences) on the back
+2. Have a concise answer (1-3 sentences) on the back
 3. Test one concept at a time
 4. Be useful for quick review and memorization
-5. NEVER ask about website features or navigation
 
 Content:
 {context}
@@ -352,13 +360,13 @@ BACK: [Answer]
 FRONT: [Question]
 BACK: [Answer]
 
-(continue for all flashcards)"""
+(continue for ALL concepts — do not stop early)"""
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=2048,
+            max_tokens=8000,
             temperature=0.4,
         )
         result = response.choices[0].message.content.strip()
@@ -395,31 +403,45 @@ def answer_question(question: str, context: str, mode: str = "short") -> str:
         return "[Error: OpenAI API key not configured]"
 
     if mode == "example":
-        system_prompt = "You are a helpful tutor. Provide a concrete, real-world example that illustrates the answer to the question. Make it relatable and easy to understand."
+        system_prompt = (
+            "You retrieve information directly from the provided context — the student's own scraped slides and notes. "
+            "Find the most relevant passage and quote or closely paraphrase it exactly as it appears. "
+            "Then give one brief real-world example to illustrate it. "
+            "Never add information not present in the context."
+        )
         max_tokens = 300
     elif mode == "detailed":
-        system_prompt = "You are a helpful tutor. Provide a detailed, step-by-step explanation. Break down complex concepts and ensure thorough understanding."
+        system_prompt = (
+            "You retrieve information directly from the provided context — the student's own scraped slides and notes. "
+            "Find every relevant passage and present the information exactly as it appears — "
+            "quote or closely paraphrase the source material. "
+            "Do not add outside knowledge. If the context doesn't cover something, say so explicitly."
+        )
         max_tokens = 500
     else:  # short
-        system_prompt = "You are a helpful tutor. Provide a brief, direct answer using only the information in the context. Keep it concise (1-2 sentences)."
+        system_prompt = (
+            "You retrieve information directly from the provided context — the student's own scraped slides and notes. "
+            "Find the exact relevant passage and return it verbatim or as a close paraphrase. "
+            "1-2 sentences max. Never add information not present in the context."
+        )
         max_tokens = 200
 
-    prompt = f"""Context:
+    prompt = f"""Context (student's scraped slides and notes):
 {context[:25000]}
 
 Question: {question}
 
-Answer based on the context above:"""
+Find and return the relevant information directly from the context above. Do not answer from general knowledge — only use what is written in the context."""
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=max_tokens,
-            temperature=0.5,
+            temperature=0.1,
         )
         return response.choices[0].message.content.strip()
 

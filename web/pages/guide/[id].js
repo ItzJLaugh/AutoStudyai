@@ -15,11 +15,22 @@ export default function GuidePage() {
   const [revealedQs, setRevealedQs] = useState(new Set());
   const [quizHistory, setQuizHistory] = useState([]);
   const prevRevealed = useRef(0);
+  // Chat state
+  const [chatQuestion, setChatQuestion] = useState('');
+  const [chatMode, setChatMode] = useState('short');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
+  const chatEndRef = useRef(null);
 
   useEffect(() => {
     if (ready && id) {
       loadGuide();
       loadQuizHistory();
+      // Log a read session to update streak
+      apiFetch('/stats/log-session', {
+        method: 'POST',
+        body: JSON.stringify({ session_type: 'read', guide_id: id, duration_seconds: 0 })
+      });
     }
   }, [ready, id]);
 
@@ -37,6 +48,11 @@ export default function GuidePage() {
       });
     }
   }, [revealedQs]);
+
+  // Scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory]);
 
   async function loadGuide() {
     const data = await apiFetch('/guides/' + id);
@@ -62,6 +78,24 @@ export default function GuidePage() {
     });
   }
 
+  async function sendChatMessage(e) {
+    e.preventDefault();
+    if (!chatQuestion.trim() || chatLoading) return;
+    const question = chatQuestion.trim();
+    setChatQuestion('');
+    setChatLoading(true);
+    setChatHistory(prev => [...prev, { role: 'user', text: question }]);
+
+    const context = [guide.notes || '', guide.study_guide || ''].filter(Boolean).join('\n\n');
+    const data = await apiFetch('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ question, content: context, mode: chatMode })
+    });
+    const answer = data?.answer || 'No answer returned.';
+    setChatHistory(prev => [...prev, { role: 'ai', text: answer }]);
+    setChatLoading(false);
+  }
+
   if (!guide) return <div style={{ padding: 40, color: 'var(--text-muted)' }}>Loading...</div>;
 
   const qaPairs = parseQAPairs(guide.study_guide);
@@ -78,6 +112,7 @@ export default function GuidePage() {
     { key: 'notes', label: 'Notes' },
     { key: 'flashcards', label: `Flashcards (${flashcards.length})` },
     { key: 'quiz', label: 'Quiz' },
+    { key: 'chat', label: 'AI Chat' },
   ];
 
   return (
@@ -243,6 +278,98 @@ export default function GuidePage() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'chat' && (
+        <div>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 4 }}>
+            Ask questions about this study guide and get answers pulled directly from your material.
+          </p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: 16 }}>
+            Answers come from your captured notes and study guide — not outside sources.
+          </p>
+
+          {/* Chat history */}
+          <div style={{
+            background: 'var(--bg-secondary)', borderRadius: 10, border: '1px solid var(--border-subtle)',
+            padding: '12px 16px', marginBottom: 16, minHeight: 120, maxHeight: 400, overflowY: 'auto'
+          }}>
+            {chatHistory.length === 0 ? (
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.9em', textAlign: 'center', paddingTop: 32 }}>
+                Ask anything about your study guide...
+              </div>
+            ) : (
+              chatHistory.map((msg, i) => (
+                <div key={i} style={{
+                  marginBottom: 14,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                }}>
+                  <div style={{
+                    background: msg.role === 'user' ? 'var(--accent-dark)' : 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)',
+                    borderRadius: msg.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                    padding: '8px 14px',
+                    maxWidth: '85%',
+                    fontSize: '0.9em',
+                    lineHeight: 1.5,
+                    border: '1px solid var(--border-subtle)'
+                  }}>
+                    {msg.text}
+                  </div>
+                  <span style={{ fontSize: '0.7em', color: 'var(--text-muted)', marginTop: 3 }}>
+                    {msg.role === 'user' ? 'You' : 'AI'}
+                  </span>
+                </div>
+              ))
+            )}
+            {chatLoading && (
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginTop: 8 }}>
+                Searching your notes...
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Mode selector */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {[
+              { value: 'short', label: 'Quick' },
+              { value: 'detailed', label: 'Detailed' },
+              { value: 'example', label: '+ Example' },
+            ].map(m => (
+              <button
+                key={m.value}
+                onClick={() => setChatMode(m.value)}
+                style={{
+                  fontSize: '0.78em', padding: '4px 12px', borderRadius: 20,
+                  border: '1px solid var(--border-default)',
+                  background: chatMode === m.value ? 'var(--accent-glow)' : 'transparent',
+                  color: chatMode === m.value ? 'var(--accent)' : 'var(--text-muted)',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Input */}
+          <form onSubmit={sendChatMessage} style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              placeholder="Ask a question about this guide..."
+              value={chatQuestion}
+              onChange={e => setChatQuestion(e.target.value)}
+              disabled={chatLoading}
+              style={{ flex: 1, marginBottom: 0 }}
+            />
+            <button type="submit" className="btn" disabled={chatLoading || !chatQuestion.trim()} style={{ whiteSpace: 'nowrap' }}>
+              Send
+            </button>
+          </form>
         </div>
       )}
 

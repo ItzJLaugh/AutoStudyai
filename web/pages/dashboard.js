@@ -23,7 +23,15 @@ export default function Dashboard() {
   const [guidesSort, setGuidesSort] = useState('recent'); // recent, title, progress
   const [renamingFolder, setRenamingFolder] = useState(null);
   const [renameValue, setRenameValue] = useState('');
+  const [extDismissed, setExtDismissed] = useState(false);
   const contextRef = useRef(null);
+
+  useEffect(() => {
+    // Check if user already clicked the extension install link
+    if (typeof window !== 'undefined' && localStorage.getItem('ext_install_clicked') === '1') {
+      setExtDismissed(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (ready) loadData();
@@ -461,25 +469,33 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Extension banner */}
-      <a
-        href="https://chromewebstore.google.com/detail/autostudyai/eddmfjcnfjfbaknmeccjbjdgpeipjbaf"
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          background: 'var(--card-bg)', border: '1px solid var(--border)',
-          borderRadius: 10, padding: '10px 16px', marginBottom: 24,
-          textDecoration: 'none', color: 'inherit',
-        }}
-      >
-        <span style={{ fontSize: '1.4em' }}>🧩</span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '0.85em', fontWeight: 600, color: 'var(--text-primary)' }}>Get the Chrome Extension</div>
-          <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>Capture slides & lecture notes directly from your browser</div>
-        </div>
-        <span style={{ fontSize: '0.8em', color: 'var(--accent)', whiteSpace: 'nowrap' }}>Install free →</span>
-      </a>
+      {/* Extension banner — hide after user clicks install */}
+      {!extDismissed && (
+        <a
+          href="https://chromewebstore.google.com/detail/autostudyai/eddmfjcnfjfbaknmeccjbjdgpeipjbaf"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => {
+            localStorage.setItem('ext_install_clicked', '1');
+            setExtDismissed(true);
+          }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            background: 'var(--bg-secondary)', border: '1px solid var(--border-default)',
+            borderRadius: 10, padding: '12px 16px', marginBottom: 24,
+            textDecoration: 'none', color: 'inherit',
+          }}
+        >
+          <span style={{ fontSize: '1.4em' }}>🧩</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '0.85em', fontWeight: 600, color: 'var(--text-primary)' }}>Get the AutoStudyAI Chrome Extension</div>
+            <div style={{ fontSize: '0.75em', color: 'var(--text-muted)', marginTop: 2 }}>
+              Don&apos;t forget to download the extension — it automatically grabs your lecture slides, notes, and course pages so AI can instantly build your study guide. No copy-paste needed.
+            </div>
+          </div>
+          <span style={{ fontSize: '0.8em', color: 'var(--accent)', whiteSpace: 'nowrap' }}>Install free →</span>
+        </a>
+      )}
 
       {/* Classes section */}
       <div className="section-header" id="classes">
