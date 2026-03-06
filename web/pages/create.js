@@ -1,19 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { apiFetch } from '../lib/api';
+import { apiFetch, getToken } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
+
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function CreateGuidePage() {
   const router = useRouter();
   const { ready } = useRequireAuth();
+  const [inputMode, setInputMode] = useState('text'); // 'text' | 'pdf'
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfName, setPdfName] = useState('');
   const [folders, setFolders] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState('');
   const [generateNotes, setGenerateNotes] = useState(true);
   const [generateFlashcards, setGenerateFlashcards] = useState(true);
-  const [status, setStatus] = useState(''); // 'idle' | 'ingesting' | 'generating' | 'saving' | 'done' | 'error'
+  const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (ready) {
@@ -23,20 +29,61 @@ export default function CreateGuidePage() {
     }
   }, [ready]);
 
+  function handlePdfSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPdfFile(file);
+    setPdfName(file.name);
+    if (!title) setTitle(file.name.replace(/\.pdf$/i, ''));
+  }
+
+  function switchMode(mode) {
+    setInputMode(mode);
+    setError('');
+    setPdfFile(null);
+    setPdfName('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
-    if (!title.trim() || !content.trim() || content.trim().length < 10) return;
+    if (!title.trim()) return;
     setError('');
+
+    let finalContent = content.trim();
+
+    if (inputMode === 'pdf') {
+      if (!pdfFile) { setError('Please select a PDF file.'); return; }
+      setStatus('extracting');
+      const formData = new FormData();
+      formData.append('file', pdfFile);
+      try {
+        const resp = await fetch(API + '/extract-pdf-text', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + (getToken() || '') },
+          body: formData,
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.text) {
+          setError(data.detail || 'Could not extract text from PDF. Try a text-based PDF.');
+          setStatus('error');
+          return;
+        }
+        finalContent = data.text;
+      } catch {
+        setError('Failed to upload PDF. Please try again.');
+        setStatus('error');
+        return;
+      }
+    } else if (finalContent.length < 10) {
+      return;
+    }
+
     setStatus('ingesting');
 
-    // Step 1: Ingest the content
     const ingestData = await apiFetch('/ingest', {
       method: 'POST',
-      body: JSON.stringify({
-        content: content.trim(),
-        page_url: '',
-        content_type: 'webpage'
-      })
+      body: JSON.stringify({ content: finalContent, page_url: '', content_type: 'webpage' })
     });
 
     if (!ingestData?.content_id) {
@@ -47,7 +94,6 @@ export default function CreateGuidePage() {
 
     setStatus('generating');
 
-    // Step 2: Generate study materials
     const generateData = await apiFetch('/generate', {
       method: 'POST',
       body: JSON.stringify({
@@ -66,7 +112,6 @@ export default function CreateGuidePage() {
 
     setStatus('saving');
 
-    // Step 3: Save the guide
     const body = {
       title: title.trim(),
       notes: generateData.notes || null,
@@ -75,10 +120,7 @@ export default function CreateGuidePage() {
     };
     if (selectedFolder) body.folder_id = selectedFolder;
 
-    const savedData = await apiFetch('/guides', {
-      method: 'POST',
-      body: JSON.stringify(body)
-    });
+    const savedData = await apiFetch('/guides', { method: 'POST', body: JSON.stringify(body) });
 
     if (savedData?.guide) {
       setStatus('done');
@@ -91,19 +133,24 @@ export default function CreateGuidePage() {
 
   if (!ready) return null;
 
-  const isLoading = ['ingesting', 'generating', 'saving'].includes(status);
+  const isLoading = ['extracting', 'ingesting', 'generating', 'saving'].includes(status);
 
   const statusMessages = {
+    extracting: 'Reading PDF...',
     ingesting: 'Processing your content...',
     generating: 'AI is generating your study guide, notes, and flashcards — this may take 20-40 seconds...',
     saving: 'Saving your guide...',
   };
 
+  const canSubmit = !isLoading && title.trim() && (
+    inputMode === 'pdf' ? !!pdfFile : content.trim().length >= 10
+  );
+
   return (
     <div className="fade-in" style={{ maxWidth: 740 }}>
       <h2 style={{ marginBottom: 4 }}>Create Study Guide</h2>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginBottom: 24 }}>
-        Paste your lecture notes, textbook excerpts, or any course content — AI will generate a study guide, notes, and flashcards automatically.
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginBottom: 20 }}>
+        Paste your notes or upload a PDF — AI will generate a study guide, notes, and flashcards automatically.
       </p>
 
       {isLoading && (
@@ -127,6 +174,27 @@ export default function CreateGuidePage() {
       )}
 
       <form onSubmit={handleCreate}>
+        {/* Input mode toggle */}
+        <div style={{ display: 'flex', gap: 0, marginBottom: 20, border: '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden', width: 'fit-content' }}>
+          {[['text', 'Paste Text'], ['pdf', 'Upload PDF']].map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => switchMode(mode)}
+              disabled={isLoading}
+              style={{
+                padding: '8px 20px', border: 'none', cursor: 'pointer',
+                fontSize: '0.88em', fontWeight: 500,
+                background: inputMode === mode ? 'var(--accent)' : 'var(--bg-secondary)',
+                color: inputMode === mode ? 'var(--bg-deepest)' : 'var(--text-secondary)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: 6 }}>
             Guide Title *
@@ -142,30 +210,69 @@ export default function CreateGuidePage() {
           />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: 6 }}>
-            Content * <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(paste your notes, slides, or reading material)</span>
-          </label>
-          <textarea
-            placeholder="Paste your lecture notes, textbook content, or study material here..."
-            value={content}
-            onChange={e => setContent(e.target.value)}
-            required
-            disabled={isLoading}
-            style={{
-              width: '100%', minHeight: 280, padding: '12px 14px',
-              background: 'var(--bg-secondary)', border: '1px solid var(--border-default)',
-              borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9em',
-              resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6,
-              outline: 'none', transition: 'border-color 0.15s'
-            }}
-            onFocus={e => e.target.style.borderColor = 'var(--border-active)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
-          />
-          <div style={{ fontSize: '0.75em', color: 'var(--text-muted)', marginTop: 4 }}>
-            {content.length.toLocaleString()} characters
+        {inputMode === 'text' ? (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Content * <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(paste your notes, slides, or reading material)</span>
+            </label>
+            <textarea
+              placeholder="Paste your lecture notes, textbook content, or study material here..."
+              value={content}
+              onChange={e => setContent(e.target.value)}
+              required
+              disabled={isLoading}
+              style={{
+                width: '100%', minHeight: 280, padding: '12px 14px',
+                background: 'var(--bg-secondary)', border: '1px solid var(--border-default)',
+                borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9em',
+                resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6,
+                outline: 'none', transition: 'border-color 0.15s'
+              }}
+              onFocus={e => e.target.style.borderColor = 'var(--border-active)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+            />
+            <div style={{ fontSize: '0.75em', color: 'var(--text-muted)', marginTop: 4 }}>
+              {content.length.toLocaleString()} characters
+            </div>
           </div>
-        </div>
+        ) : (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: 6 }}>
+              PDF File * <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(text-based PDFs only, max 10MB)</span>
+            </label>
+            <div
+              onClick={() => !isLoading && fileInputRef.current?.click()}
+              style={{
+                border: '2px dashed ' + (pdfFile ? 'var(--accent)' : 'var(--border-default)'),
+                borderRadius: 8, padding: '32px 20px', textAlign: 'center',
+                cursor: isLoading ? 'default' : 'pointer', background: 'var(--bg-secondary)',
+                transition: 'border-color 0.15s',
+              }}
+            >
+              <div style={{ fontSize: '2em', marginBottom: 8 }}>📄</div>
+              {pdfFile ? (
+                <>
+                  <div style={{ color: 'var(--accent)', fontWeight: 600, fontSize: '0.9em' }}>{pdfName}</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.78em', marginTop: 4 }}>
+                    {(pdfFile.size / 1024 / 1024).toFixed(2)} MB — click to change
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.9em' }}>Click to select a PDF</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.78em', marginTop: 4 }}>or drag and drop</div>
+                </>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              onChange={handlePdfSelect}
+              style={{ display: 'none' }}
+            />
+          </div>
+        )}
 
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: 6 }}>
@@ -214,7 +321,7 @@ export default function CreateGuidePage() {
         <button
           type="submit"
           className="btn"
-          disabled={isLoading || !title.trim() || content.trim().length < 10}
+          disabled={!canSubmit}
           style={{ padding: '12px 32px', fontSize: '1em' }}
         >
           {isLoading ? 'Generating...' : 'Generate Study Guide'}

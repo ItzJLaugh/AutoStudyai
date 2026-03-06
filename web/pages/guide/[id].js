@@ -78,6 +78,23 @@ export default function GuidePage() {
     });
   }
 
+  async function resetProgress() {
+    if (!window.confirm('Reset all read progress and flashcard mastery for this guide?')) return;
+    await Promise.all([
+      apiFetch('/guides/' + id + '/read-progress', {
+        method: 'PATCH',
+        body: JSON.stringify({ read_progress: 0 })
+      }),
+      apiFetch('/guides/' + id + '/flashcard-progress', {
+        method: 'PATCH',
+        body: JSON.stringify({ known: [], unknown: [], last_studied: null })
+      })
+    ]);
+    setRevealedQs(new Set());
+    prevRevealed.current = 0;
+    setGuide(prev => ({ ...prev, read_progress: 0, flashcard_progress: { known: [], unknown: [] } }));
+  }
+
   async function sendChatMessage(e) {
     e.preventDefault();
     if (!chatQuestion.trim() || chatLoading) return;
@@ -135,7 +152,7 @@ export default function GuidePage() {
       </div>
 
       {/* Progress overview */}
-      <div className="guide-progress">
+      <div className="guide-progress" style={{ position: 'relative' }}>
         <div className="guide-progress-item">
           <div className="guide-progress-label">Read Progress</div>
           <div className="progress-bar-container"><div className="progress-bar-fill" style={{ width: readPct + '%' }} /></div>
@@ -150,6 +167,20 @@ export default function GuidePage() {
           <div className="guide-progress-label">Best Quiz Score</div>
           <div className="guide-progress-value" style={{ fontSize: '1.2em' }}>{bestQuiz !== null ? bestQuiz + '%' : '--'}</div>
         </div>
+        <button
+          onClick={resetProgress}
+          title="Reset read progress and flashcard mastery"
+          style={{
+            position: 'absolute', top: 8, right: 8,
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--text-muted)', fontSize: '0.75em', padding: '4px 8px',
+            borderRadius: 6, transition: 'color 0.15s'
+          }}
+          onMouseOver={e => e.target.style.color = 'var(--error)'}
+          onMouseOut={e => e.target.style.color = 'var(--text-muted)'}
+        >
+          ↺ Reset Progress
+        </button>
       </div>
 
       {/* Tabs */}

@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [renamingFolder, setRenamingFolder] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [extDismissed, setExtDismissed] = useState(false);
+  const [streakInfo, setStreakInfo] = useState(null);
   const contextRef = useRef(null);
 
   useEffect(() => {
@@ -53,14 +54,16 @@ export default function Dashboard() {
   }
 
   async function loadData() {
-    const [foldersData, guidesData, statsData] = await Promise.all([
+    const [foldersData, guidesData, statsData, streakData] = await Promise.all([
       apiFetch('/folders'),
       apiFetch('/guides'),
-      apiFetch('/stats/overview')
+      apiFetch('/stats/overview'),
+      apiFetch('/stats/streak')
     ]);
     setFolders(foldersData?.folders || []);
     setGuides(guidesData?.guides || []);
     setStats(statsData);
+    setStreakInfo(streakData);
   }
 
   async function createFolder() {
@@ -466,6 +469,27 @@ export default function Dashboard() {
             <div className="stat-number">{stats.minutes_today}</div>
             <div className="stat-label">Minutes Today</div>
           </div>
+        </div>
+      )}
+
+      {/* Streak danger banner */}
+      {streakInfo && streakInfo.current_streak > 0 && !streakInfo.studied_today && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          background: 'rgba(255, 167, 38, 0.08)', border: '1px solid rgba(255, 167, 38, 0.35)',
+          borderRadius: 10, padding: '12px 16px', marginBottom: 16,
+          cursor: 'pointer'
+        }} onClick={() => guides.length > 0 && router.push('/guide/' + guides[0].id)}>
+          <span style={{ fontSize: '1.5em' }}>🔥</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '0.85em', fontWeight: 600, color: '#ffa726' }}>
+              Your {streakInfo.current_streak}-day streak is at risk!
+            </div>
+            <div style={{ fontSize: '0.75em', color: 'var(--text-muted)', marginTop: 2 }}>
+              You haven&apos;t studied yet today. Open a guide to keep your streak alive.
+            </div>
+          </div>
+          <span style={{ fontSize: '0.8em', color: '#ffa726', whiteSpace: 'nowrap' }}>Study now →</span>
         </div>
       )}
 

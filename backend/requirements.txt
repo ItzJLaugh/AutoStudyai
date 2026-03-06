@@ -8,3 +8,5 @@ supabase
 slowapi
 bleach
 stripe
+pypdf
+python-multipart

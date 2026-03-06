@@ -7,11 +7,12 @@ import os
 import re
 import logging
 import traceback
+import pypdf
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, field_validator
-from fastapi import FastAPI, HTTPException, Request, Header
+from pydantic import BaseModel, Field, field_validator
+from fastapi import FastAPI, HTTPException, Request, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -20,6 +21,7 @@ from slowapi.errors import RateLimitExceeded
 
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex
 from auth_utils import get_user_id
+from database import get_supabase
 from routers.billing import check_and_increment_usage
 
 from storage import InMemoryStorage
@@ -51,6 +53,11 @@ class ImageTextRequest(BaseModel):
         if len(v) > 2_000_000:
             raise ValueError("Image too large")
         return v
+
+
+class FeedbackRequest(BaseModel):
+    message: str = Field(..., min_length=5, max_length=2000)
+    type: str = Field(default="general", max_length=30)
 
 # Load environment variables
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
@@ -399,4 +406,63 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             status_code=500,
             content={"answer": "Error processing your question. Please try again."}
         )
+
+
+@app.post("/extract-pdf-text")
+@limiter.limit("10/minute")
+async def extract_pdf_text_endpoint(
+    request: Request,
+    file: UploadFile = File(...),
+    authorization: str = Header(default="")
+):
+    """Extract plain text from an uploaded PDF file."""
+    try:
+        get_user_id(authorization)
+        if not file.filename.lower().endswith(".pdf"):
+            raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+        content = await file.read()
+        if len(content) > 10_000_000:
+            raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+
+        
+        import io
+        reader = pypdf.PdfReader(io.BytesIO(content))
+        pages_text = []
+        for page in reader.pages:
+            t = page.extract_text()
+            if t and t.strip():
+                pages_text.append(t.strip())
+        text = "\n\n".join(pages_text).strip()
+        if len(text) < 50:
+            raise HTTPException(status_code=400, detail="Could not extract readable text from this PDF")
+        return {"text": text[:30000]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in /extract-pdf-text: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process PDF")
+
+
+@app.post("/feedback")
+@limiter.limit("5/minute")
+async def submit_feedback(
+    body: FeedbackRequest,
+    request: Request,
+    authorization: str = Header(default="")
+):
+    """Save user feedback to Supabase."""
+    try:
+        user_id = get_user_id(authorization)
+        supabase = get_supabase()
+        supabase.table("feedback").insert({
+            "user_id": user_id,
+            "message": body.message,
+            "type": body.type,
+        }).execute()
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in /feedback: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save feedback")
 
