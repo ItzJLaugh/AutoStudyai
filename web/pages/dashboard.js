@@ -461,6 +461,26 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Extension banner */}
+      <a
+        href="https://chromewebstore.google.com/detail/autostudyai/eddmfjcnfjfbaknmeccjbjdgpeipjbaf"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          background: 'var(--card-bg)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: '10px 16px', marginBottom: 24,
+          textDecoration: 'none', color: 'inherit',
+        }}
+      >
+        <span style={{ fontSize: '1.4em' }}>🧩</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '0.85em', fontWeight: 600, color: 'var(--text-primary)' }}>Get the Chrome Extension</div>
+          <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>Capture slides & lecture notes directly from your browser</div>
+        </div>
+        <span style={{ fontSize: '0.8em', color: 'var(--accent)', whiteSpace: 'nowrap' }}>Install free →</span>
+      </a>
+
       {/* Classes section */}
       <div className="section-header" id="classes">
         <h2>My Classes</h2>
@@ -517,7 +537,11 @@ export default function Dashboard() {
       {guides.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">&#128214;</div>
-          No study guides yet. Use the Chrome extension to capture content!
+          No study guides yet.{' '}
+          <a href="https://chromewebstore.google.com/detail/autostudyai/eddmfjcnfjfbaknmeccjbjdgpeipjbaf" target="_blank" rel="noopener noreferrer">
+            Install the Chrome extension
+          </a>
+          {' '}to capture slides and lecture notes.
         </div>
       ) : (
         guides.slice(0, 10).map(guide => (
