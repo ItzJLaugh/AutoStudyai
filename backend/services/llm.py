@@ -126,14 +126,14 @@ def generate_study_guide(chunks: List[str]) -> str:
     prompt = f"""Create a comprehensive study guide Q&A from the text below.
 
 Before writing any questions, mentally catalog every testable item in the text:
-- Named terms and their definitions
-- Drug names, mechanisms, dosages, side effects
-- Conditions and their signs/symptoms/causes/treatments
-- Lab values and what they indicate
-- Procedures and how/when they are performed
-- Classifications and their members
-- Cause-and-effect relationships
-- Any other specific fact a student must know
+- Named terms, concepts, and their definitions
+- Processes, steps, or procedures and how/when they occur
+- Classifications, categories, and their members
+- Cause-and-effect and before/after relationships
+- Key people, events, dates, or named examples
+- Formulas, values, thresholds, or quantitative facts
+- Rules, principles, or laws and what they state
+- Any other specific fact a student could be tested on
 
 Skip only: course names/codes as labels, instructor names, semester info, slide numbers as organizational markers.
 
@@ -218,7 +218,7 @@ def generate_nclex_questions(content: str) -> list:
         count_instruction = (
             f"The study guide below contains {n_pairs} Q&A pairs (Q1/A1, Q2/A2, …). "
             f"Each pair represents ONE distinct clinical concept. "
-            f"Generate exactly one NCLEX question per Q&A pair — that means a minimum of {n_pairs} questions. "
+            f"Generate AT LEAST one NCLEX question per Q&A pair — that means a minimum of {n_pairs} questions. "
             f"Do NOT merge multiple Q&A pairs into a single question."
         )
     else:
@@ -264,7 +264,7 @@ Do NOT stop until every Q&A pair has a corresponding NCLEX question."""
 
     system = (
         "You are an expert NCLEX question writer with 20 years of nursing education experience. "
-        "You write one NCLEX question for each Q&A pair in the study material — never fewer. "
+        "You write AT LEAST one NCLEX question for each Q&A pair in the study material — never fewer. "
         "Never merge multiple Q&A pairs into one question. "
         "Always return valid JSON only — no markdown, no extra text."
     )
