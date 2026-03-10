@@ -110,12 +110,14 @@ def get_streak(authorization: str = Header(default="")):
         if last_date and last_date < today - timedelta(days=1):
             current = 0
 
-        # Get last 7 days of activity
-        week_ago = today - timedelta(days=6)
+        # Build current week Sun–Sat (never mark future days active)
+        days_since_sunday = (today.weekday() + 1) % 7  # Mon=1, Tue=2, …, Sun=0
+        week_start = today - timedelta(days=days_since_sunday)  # Sunday of this week
+
         sessions = supabase.table("study_sessions") \
             .select("started_at") \
             .eq("user_id", user_id) \
-            .gte("started_at", str(week_ago)) \
+            .gte("started_at", str(week_start)) \
             .execute()
 
         active_days = set()
@@ -125,8 +127,8 @@ def get_streak(authorization: str = Header(default="")):
 
         week = []
         for i in range(7):
-            d = week_ago + timedelta(days=i)
-            week.append({"date": str(d), "active": str(d) in active_days})
+            d = week_start + timedelta(days=i)
+            week.append({"date": str(d), "active": str(d) in active_days and d <= today})
 
         return {
             "current_streak": current,

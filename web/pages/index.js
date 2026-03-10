@@ -33,7 +33,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (getToken()) router.push('/dashboard');
-  }, []);
+    if (router.query.session_expired) setError('Session expired — please log back in.');
+  }, [router.query]);
 
   function switchMode(toSignup) {
     setIsSignup(toSignup);

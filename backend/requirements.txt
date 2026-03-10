@@ -3,6 +3,7 @@ uvicorn
 pydantic[email]
 python-dotenv
 openai
+anthropic
 PyJWT
 supabase
 slowapi

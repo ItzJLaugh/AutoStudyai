@@ -74,7 +74,7 @@ export async function apiFetch(path, options = {}) {
         });
       } else {
         clearAuth();
-        window.location.href = '/';
+        window.location.href = '/?session_expired=1';
         return null;
       }
     }
