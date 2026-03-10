@@ -155,13 +155,13 @@ A2: [answer in 1-2 sentences]
 (continue until every catalogued item has a question — do not stop early)"""
 
     try:
-        response = client.messages.create(
+        with client.messages.stream(
             model="claude-sonnet-4-6",
-            max_tokens=32000,
+            max_tokens=20000,
             system=system,
             messages=[{"role": "user", "content": prompt}],
-        )
-        raw_result = response.content[0].text.strip()
+        ) as stream:
+            raw_result = stream.get_final_text().strip()
 
         # POST-PROCESS: Force short answers by truncating
         lines = raw_result.split('\n')

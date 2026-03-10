@@ -326,7 +326,7 @@ captureBtn.addEventListener('click', async () => {
         chrome.tabs.sendMessage(tabId, {action: 'captureSlideshow'}, async (slideResp) => {
           if (slideResp && slideResp.success && slideResp.slides && slideResp.slides.length > 0) {
             showProgress(`Slideshow found - captured ${slideResp.slides.length} slides!`, true);
-            let slideContent = slideResp.slides.map(s => s.content).join('\n\n');
+            let slideContent = slideResp.content || slideResp.slides.map(s => s.content).join('\n\n');
 
             // Send any slide images through GPT-4o Vision to extract text/diagram descriptions
             const allImages = [];
@@ -380,8 +380,20 @@ captureBtn.addEventListener('click', async () => {
                     fallbackToPageContent(tabId, tabUrl, lastPageTitle);
                   });
               } else {
-                showProgress('Grabbing page content...');
-                fallbackToPageContent(tabId, tabUrl, lastPageTitle);
+                showProgress('Checking for slide content...');
+                chrome.tabs.sendMessage(tabId, {action: 'extractContent'}, (extractResp) => {
+                  if (extractResp && extractResp.content && extractResp.content.trim().length > 100) {
+                    if (extractResp.hasSlideshow) {
+                      showProgress('Slideshow content extracted!', true);
+                    } else {
+                      showProgress('Page content captured!', true);
+                    }
+                    sendToBackend(extractResp.content, tabUrl, lastPageTitle);
+                  } else {
+                    showProgress('Grabbing page content...');
+                    fallbackToPageContent(tabId, tabUrl, lastPageTitle);
+                  }
+                });
               }
             });
           }

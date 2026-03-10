@@ -162,7 +162,13 @@ export default function Dashboard() {
   async function deleteGuide(guideId) {
     setContextMenu(null);
     await apiFetch('/guides/' + guideId, { method: 'DELETE' });
-    setGuides(guides.filter(g => g.id !== guideId));
+    const updatedGuides = guides.filter(g => g.id !== guideId);
+    setGuides(updatedGuides);
+    setStats(prev => ({
+      ...prev,
+      total_guides: updatedGuides.length,
+      total_flashcards: updatedGuides.reduce((sum, g) => sum + (g.flashcards?.length || 0), 0)
+    }));
     showToast('Guide deleted', 'info');
   }
 
