@@ -518,31 +518,26 @@ function extractPageContent() {
  */
 function findPptxLinks() {
   const links = [];
+  // Page title contains filename on Canvas file preview pages (e.g. "file.pptx: Course...")
+  const isOnPptxPage = /\.pptx?:/i.test(document.title);
 
-  // Direct .pptx links
+  // Direct .pptx/.ppt href links
   document.querySelectorAll('a[href$=".pptx"], a[href$=".ppt"]').forEach(a => {
-    links.push({ url: a.href, text: a.innerText || 'PowerPoint file' });
+    if (!links.find(l => l.url === a.href))
+      links.push({ url: a.href, text: a.innerText || 'PowerPoint file' });
   });
 
-  // Canvas file links — with explicit download param
-  document.querySelectorAll('a[href*="/files/"][href*="download"]').forEach(a => {
-    if (a.innerText.toLowerCase().includes('powerpoint') ||
-        a.innerText.toLowerCase().includes('.pptx') ||
-        a.innerText.toLowerCase().includes('.ppt')) {
-      links.push({ url: a.href, text: a.innerText });
-    }
-  });
-
-  // Canvas module file links — URL is /files/123 without download (e.g. ?wrap=1)
+  // All Canvas /files/ links — check link text, href, OR page title for PPTX
   document.querySelectorAll('a[href*="/files/"]').forEach(a => {
     const href = a.href || '';
     const text = (a.innerText || a.textContent || '').toLowerCase();
     if (!href.match(/\/files\/\d+/)) return;
-    if (links.find(l => l.url === href || l.url === href.split('?')[0] + '?download_frd=1')) return;
-    if (text.includes('.pptx') || text.includes('.ppt') || text.includes('powerpoint')) {
-      const downloadUrl = href.split('?')[0] + '?download_frd=1';
-      links.push({ url: downloadUrl, text: a.innerText || 'PowerPoint file' });
-    }
+    const downloadUrl = href.includes('download_frd') ? href : href.split('?')[0] + '?download_frd=1';
+    if (links.find(l => l.url === downloadUrl || l.url === href)) return;
+    const isPptx = text.includes('.pptx') || text.includes('.ppt') || text.includes('powerpoint')
+                || href.toLowerCase().includes('.pptx') || href.toLowerCase().includes('.ppt')
+                || isOnPptxPage;
+    if (isPptx) links.push({ url: downloadUrl, text: a.innerText || 'PowerPoint file' });
   });
 
   return links;
