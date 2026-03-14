@@ -332,19 +332,34 @@ captureBtn.addEventListener('click', async () => {
           } else {
             chrome.tabs.sendMessage(tabId, {action: 'downloadPptx'}, (pptxResp) => {
               if (pptxResp && pptxResp.success && pptxResp.url) {
-                showProgress('PowerPoint file detected - downloading...', true);
-                fetch(pptxResp.url, { credentials: 'include' })
-                  .then(r => r.blob())
-                  .then(async (blob) => {
-                    showProgress('Extracting slideshow content...');
+                showProgress('PowerPoint file detected - downloading...');
+                chrome.tabs.sendMessage(tabId, { action: 'fetchPptxFile', url: pptxResp.url }, async (fetchResp) => {
+                  if (chrome.runtime.lastError || !fetchResp || !fetchResp.success) {
+                    const err = fetchResp && fetchResp.error;
+                    if (err === 'auth_redirect') {
+                      showProgress('Canvas requires login to download this file. Use the "Upload PPTX" button instead: download it from Canvas first, then upload.', false);
+                    } else {
+                      showProgress('Could not download the PowerPoint. Use the "Upload PPTX" button instead.', false);
+                    }
+                    statusDiv.innerText = 'Download failed — use Upload PPTX.';
+                    return;
+                  }
+                  showProgress(`Downloaded (${Math.round(fetchResp.size / 1024 / 1024 * 10) / 10} MB) — extracting slides...`);
+                  try {
+                    const blob = await fetch(fetchResp.dataUrl).then(r => r.blob());
                     const pptxParser = window.extractPptxText || (() => Promise.resolve(''));
                     const slideText = await pptxParser(blob);
+                    if (!slideText || slideText.startsWith('Failed')) {
+                      showProgress('Could not parse this PowerPoint. Use the "Upload PPTX" button instead.', false);
+                      statusDiv.innerText = 'Parse failed — use Upload PPTX.';
+                      return;
+                    }
                     sendToBackend(slideText, pptxResp.url, lastPageTitle);
-                  })
-                  .catch(() => {
-                    showProgress('Falling back to page content...');
-                    fallbackToPageContent(tabId, tabUrl, lastPageTitle);
-                  });
+                  } catch (e) {
+                    showProgress('Error parsing PowerPoint. Use the "Upload PPTX" button instead.', false);
+                    statusDiv.innerText = 'Parse failed — use Upload PPTX.';
+                  }
+                });
               } else {
                 showProgress('Checking for slide content...');
                 chrome.tabs.sendMessage(tabId, {action: 'extractContent'}, (extractResp) => {

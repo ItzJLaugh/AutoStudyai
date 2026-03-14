@@ -646,6 +646,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
       break;
 
+    case 'fetchPptxFile':
+      // Fetch the PPTX from within the page context so Canvas session cookies are sent.
+      fetch(request.url, { credentials: 'include' })
+        .then(r => {
+          if (!r.ok) { sendResponse({ success: false, error: `HTTP ${r.status}` }); return; }
+          return r.blob();
+        })
+        .then(blob => {
+          if (!blob) return;
+          if (blob.type.startsWith('text/') || blob.type === 'application/json') {
+            sendResponse({ success: false, error: 'auth_redirect' });
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = () => sendResponse({ success: true, dataUrl: reader.result, size: blob.size });
+          reader.onerror = () => sendResponse({ success: false, error: 'read_error' });
+          reader.readAsDataURL(blob);
+        })
+        .catch(e => sendResponse({ success: false, error: e.message }));
+      return true; // async
+
     case 'extractPdfText':
       const pdfResult = extractPdfContent();
       sendResponse(pdfResult);
