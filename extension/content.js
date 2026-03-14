@@ -292,23 +292,11 @@ async function captureAllSlides(statusCallback) {
     }
 
     if (content && content.length > 10) {
-      // Collect image URLs from the active slide element (fetched after capture to avoid slowing navigation)
-      const activeEl = document.querySelector(
-        '.slide.active, .slide.current, .carousel-item.active, ' +
-        '.slick-current, .swiper-slide-active, [class*="slide"][class*="active"]'
-      );
-      const imageSrcs = activeEl
-        ? Array.from(activeEl.querySelectorAll('img'))
-            .filter(img => img.naturalWidth >= 100 && img.naturalHeight >= 100
-                        && img.src && img.src.startsWith('http'))
-            .map(img => img.src)
-        : [];
       slides.push({
         index: slideIndex + 1,
-        content: content,
-        imageSrcs: imageSrcs
+        content: content
       });
-      console.log(`AutoStudyAI: Captured slide ${slideIndex + 1}` + (imageSrcs.length ? ` (${imageSrcs.length} image(s))` : ''));
+      console.log(`AutoStudyAI: Captured slide ${slideIndex + 1}`);
     }
 
     lastContent = content;
@@ -588,47 +576,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // Handle async operations
   if (request.action === 'captureSlideshow' || request.action === 'captureSlides') {
-    // Async slideshow capture - click through all slides, then fetch images concurrently
-    captureAllSlides().then(async result => {
+    // Async slideshow capture - click through all slides
+    captureAllSlides().then(result => {
       const formattedContent = formatSlidesContent(result);
-
-      // Fetch all slide images as base64 concurrently (doesn't slow down slide navigation)
-      const slideImages = {};
-      const fetchTasks = result.slides.flatMap(slide =>
-        (slide.imageSrcs || []).map(src =>
-          fetch(src, { credentials: 'include' })
-            .then(r => r.ok ? r.blob() : null)
-            .then(blob => {
-              if (!blob || !blob.type.startsWith('image/')) return null;
-              if (blob.size < 5000 || blob.size > 1500000) return null;
-              return new Promise(resolve => {
-                const reader = new FileReader();
-                reader.onload = () => resolve({ slideIdx: slide.index, b64: reader.result });
-                reader.onerror = () => resolve(null);
-                reader.readAsDataURL(blob);
-              });
-            })
-            .catch(() => null)
-        )
-      );
-      const fetched = await Promise.allSettled(fetchTasks);
-      fetched.forEach(r => {
-        if (r.status === 'fulfilled' && r.value) {
-          const { slideIdx, b64 } = r.value;
-          if (!slideImages[slideIdx]) slideImages[slideIdx] = [];
-          slideImages[slideIdx].push(b64);
-        }
-      });
-      const totalImages = Object.values(slideImages).reduce((sum, arr) => sum + arr.length, 0);
-      if (totalImages > 0) console.log(`AutoStudyAI: Fetched ${totalImages} slide image(s) for vision processing`);
-
       sendResponse({
         success: result.success,
         content: formattedContent,
         totalSlides: result.totalCaptured,
         detectedTotal: result.detectedTotal,
-        slides: result.slides,
-        slideImages: slideImages
+        slides: result.slides
       });
     }).catch(err => {
       sendResponse({ success: false, error: err.message });
