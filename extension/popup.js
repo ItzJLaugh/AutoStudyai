@@ -333,7 +333,7 @@ captureBtn.addEventListener('click', async () => {
             chrome.tabs.sendMessage(tabId, {action: 'downloadPptx'}, (pptxResp) => {
               if (pptxResp && pptxResp.success && pptxResp.url) {
                 showProgress('PowerPoint file detected - downloading...', true);
-                fetch(pptxResp.url)
+                fetch(pptxResp.url, { credentials: 'include' })
                   .then(r => r.blob())
                   .then(async (blob) => {
                     showProgress('Extracting slideshow content...');

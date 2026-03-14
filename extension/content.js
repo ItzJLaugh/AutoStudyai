@@ -524,12 +524,24 @@ function findPptxLinks() {
     links.push({ url: a.href, text: a.innerText || 'PowerPoint file' });
   });
 
-  // Canvas file links
+  // Canvas file links — with explicit download param
   document.querySelectorAll('a[href*="/files/"][href*="download"]').forEach(a => {
     if (a.innerText.toLowerCase().includes('powerpoint') ||
         a.innerText.toLowerCase().includes('.pptx') ||
         a.innerText.toLowerCase().includes('.ppt')) {
       links.push({ url: a.href, text: a.innerText });
+    }
+  });
+
+  // Canvas module file links — URL is /files/123 without download (e.g. ?wrap=1)
+  document.querySelectorAll('a[href*="/files/"]').forEach(a => {
+    const href = a.href || '';
+    const text = (a.innerText || a.textContent || '').toLowerCase();
+    if (!href.match(/\/files\/\d+/)) return;
+    if (links.find(l => l.url === href || l.url === href.split('?')[0] + '?download_frd=1')) return;
+    if (text.includes('.pptx') || text.includes('.ppt') || text.includes('powerpoint')) {
+      const downloadUrl = href.split('?')[0] + '?download_frd=1';
+      links.push({ url: downloadUrl, text: a.innerText || 'PowerPoint file' });
     }
   });
 
