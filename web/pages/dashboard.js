@@ -23,16 +23,7 @@ export default function Dashboard() {
   const [guidesSort, setGuidesSort] = useState('recent'); // recent, title, progress
   const [renamingFolder, setRenamingFolder] = useState(null);
   const [renameValue, setRenameValue] = useState('');
-  const [extDismissed, setExtDismissed] = useState(false);
-  const [streakInfo, setStreakInfo] = useState(null);
   const contextRef = useRef(null);
-
-  useEffect(() => {
-    // Check if user already clicked the extension install link
-    if (typeof window !== 'undefined' && localStorage.getItem('ext_install_clicked') === '1') {
-      setExtDismissed(true);
-    }
-  }, []);
 
   useEffect(() => {
     if (ready) loadData();
@@ -54,16 +45,14 @@ export default function Dashboard() {
   }
 
   async function loadData() {
-    const [foldersData, guidesData, statsData, streakData] = await Promise.all([
+    const [foldersData, guidesData, statsData] = await Promise.all([
       apiFetch('/folders'),
       apiFetch('/guides'),
-      apiFetch('/stats/overview'),
-      apiFetch('/stats/streak')
+      apiFetch('/stats/overview')
     ]);
     setFolders(foldersData?.folders || []);
     setGuides(guidesData?.guides || []);
     setStats(statsData);
-    setStreakInfo(streakData);
   }
 
   async function createFolder() {
@@ -162,13 +151,7 @@ export default function Dashboard() {
   async function deleteGuide(guideId) {
     setContextMenu(null);
     await apiFetch('/guides/' + guideId, { method: 'DELETE' });
-    const updatedGuides = guides.filter(g => g.id !== guideId);
-    setGuides(updatedGuides);
-    setStats(prev => ({
-      ...prev,
-      total_guides: updatedGuides.length,
-      total_flashcards: updatedGuides.reduce((sum, g) => sum + (g.flashcards?.length || 0), 0)
-    }));
+    setGuides(guides.filter(g => g.id !== guideId));
     showToast('Guide deleted', 'info');
   }
 
@@ -478,54 +461,25 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Streak danger banner */}
-      {streakInfo && streakInfo.current_streak > 0 && !streakInfo.studied_today && (
-        <div style={{
+      {/* Extension banner */}
+      <a
+        href="https://chromewebstore.google.com/detail/autostudyai/eddmfjcnfjfbaknmeccjbjdgpeipjbaf"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
           display: 'flex', alignItems: 'center', gap: 12,
-          background: 'rgba(255, 167, 38, 0.08)', border: '1px solid rgba(255, 167, 38, 0.35)',
-          borderRadius: 10, padding: '12px 16px', marginBottom: 16,
-          cursor: 'pointer'
-        }} onClick={() => guides.length > 0 && router.push('/guide/' + guides[0].id)}>
-          <span style={{ fontSize: '1.5em' }}>🔥</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '0.85em', fontWeight: 600, color: '#ffa726' }}>
-              Your {streakInfo.current_streak}-day streak is at risk!
-            </div>
-            <div style={{ fontSize: '0.75em', color: 'var(--text-muted)', marginTop: 2 }}>
-              You haven&apos;t studied yet today. Open a guide to keep your streak alive.
-            </div>
-          </div>
-          <span style={{ fontSize: '0.8em', color: '#ffa726', whiteSpace: 'nowrap' }}>Study now →</span>
+          background: 'var(--card-bg)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: '10px 16px', marginBottom: 24,
+          textDecoration: 'none', color: 'inherit',
+        }}
+      >
+        <span style={{ fontSize: '1.4em' }}>🧩</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '0.85em', fontWeight: 600, color: 'var(--text-primary)' }}>Get the Chrome Extension</div>
+          <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>Capture slides & lecture notes directly from your browser</div>
         </div>
-      )}
-
-      {/* Extension banner — hide after user clicks install */}
-      {!extDismissed && (
-        <a
-          href="https://chromewebstore.google.com/detail/autostudyai/eddmfjcnfjfbaknmeccjbjdgpeipjbaf"
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => {
-            localStorage.setItem('ext_install_clicked', '1');
-            setExtDismissed(true);
-          }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            background: 'var(--bg-secondary)', border: '1px solid var(--border-default)',
-            borderRadius: 10, padding: '12px 16px', marginBottom: 24,
-            textDecoration: 'none', color: 'inherit',
-          }}
-        >
-          <span style={{ fontSize: '1.4em' }}>🧩</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '0.85em', fontWeight: 600, color: 'var(--text-primary)' }}>Get the AutoStudyAI Chrome Extension</div>
-            <div style={{ fontSize: '0.75em', color: 'var(--text-muted)', marginTop: 2 }}>
-              Don&apos;t forget to download the extension — it automatically grabs your lecture slides, notes, and course pages so AI can instantly build your study guide. No copy-paste needed.
-            </div>
-          </div>
-          <span style={{ fontSize: '0.8em', color: 'var(--accent)', whiteSpace: 'nowrap' }}>Install free →</span>
-        </a>
-      )}
+        <span style={{ fontSize: '0.8em', color: 'var(--accent)', whiteSpace: 'nowrap' }}>Install free →</span>
+      </a>
 
       {/* Classes section */}
       <div className="section-header" id="classes">

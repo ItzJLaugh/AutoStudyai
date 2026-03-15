@@ -518,26 +518,19 @@ function extractPageContent() {
  */
 function findPptxLinks() {
   const links = [];
-  // Page title contains filename on Canvas file preview pages (e.g. "file.pptx: Course...")
-  const isOnPptxPage = /\.pptx?:/i.test(document.title);
 
-  // Direct .pptx/.ppt href links
+  // Direct .pptx links
   document.querySelectorAll('a[href$=".pptx"], a[href$=".ppt"]').forEach(a => {
-    if (!links.find(l => l.url === a.href))
-      links.push({ url: a.href, text: a.innerText || 'PowerPoint file' });
+    links.push({ url: a.href, text: a.innerText || 'PowerPoint file' });
   });
 
-  // All Canvas /files/ links — check link text, href, OR page title for PPTX
-  document.querySelectorAll('a[href*="/files/"]').forEach(a => {
-    const href = a.href || '';
-    const text = (a.innerText || a.textContent || '').toLowerCase();
-    if (!href.match(/\/files\/\d+/)) return;
-    const downloadUrl = href.includes('download_frd') ? href : href.split('?')[0] + '?download_frd=1';
-    if (links.find(l => l.url === downloadUrl || l.url === href)) return;
-    const isPptx = text.includes('.pptx') || text.includes('.ppt') || text.includes('powerpoint')
-                || href.toLowerCase().includes('.pptx') || href.toLowerCase().includes('.ppt')
-                || isOnPptxPage;
-    if (isPptx) links.push({ url: downloadUrl, text: a.innerText || 'PowerPoint file' });
+  // Canvas file links
+  document.querySelectorAll('a[href*="/files/"][href*="download"]').forEach(a => {
+    if (a.innerText.toLowerCase().includes('powerpoint') ||
+        a.innerText.toLowerCase().includes('.pptx') ||
+        a.innerText.toLowerCase().includes('.ppt')) {
+      links.push({ url: a.href, text: a.innerText });
+    }
   });
 
   return links;
@@ -645,27 +638,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ success: false, error: 'No PowerPoint links found' });
       }
       break;
-
-    case 'fetchPptxFile':
-      // Fetch the PPTX from within the page context so Canvas session cookies are sent.
-      fetch(request.url, { credentials: 'include' })
-        .then(r => {
-          if (!r.ok) { sendResponse({ success: false, error: `HTTP ${r.status}` }); return; }
-          return r.blob();
-        })
-        .then(blob => {
-          if (!blob) return;
-          if (blob.type.startsWith('text/') || blob.type === 'application/json') {
-            sendResponse({ success: false, error: 'auth_redirect' });
-            return;
-          }
-          const reader = new FileReader();
-          reader.onload = () => sendResponse({ success: true, dataUrl: reader.result, size: blob.size });
-          reader.onerror = () => sendResponse({ success: false, error: 'read_error' });
-          reader.readAsDataURL(blob);
-        })
-        .catch(e => sendResponse({ success: false, error: e.message }));
-      return true; // async
 
     case 'extractPdfText':
       const pdfResult = extractPdfContent();

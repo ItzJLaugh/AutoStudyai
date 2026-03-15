@@ -54,7 +54,7 @@ class GenerateResponse(BaseModel):
 class FlashcardRequest(BaseModel):
     """Request to generate flashcards only."""
     content_id: str = Field(..., min_length=1, max_length=100)
-    max_cards: int = Field(default=200, ge=1, le=200)
+    max_cards: int = Field(default=15, ge=1, le=30)
 
 
 class Flashcard(BaseModel):

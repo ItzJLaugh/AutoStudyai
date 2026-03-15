@@ -3,11 +3,8 @@ uvicorn
 pydantic[email]
 python-dotenv
 openai
-anthropic
 PyJWT
 supabase
 slowapi
 bleach
 stripe
-pypdf
-python-multipart

@@ -7,22 +7,16 @@ import os
 import re
 import logging
 import traceback
-import pypdf
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, field_validator
-from fastapi import FastAPI, HTTPException, Request, Header, UploadFile, File
+from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-
-from routers import auth, folders, guides, stats, search, quiz, billing, nclex
-from auth_utils import get_user_id
-from database import get_supabase
-from routers.billing import check_and_increment_usage
+import bleach
 
 from storage import InMemoryStorage
 from schemas import (
@@ -38,26 +32,11 @@ from services.text_processing import (
 )
 from services.llm import (
     generate_notes_ai, generate_study_guide,
-    generate_flashcards, answer_question, extract_image_text
+    generate_flashcards, answer_question
 )
-
-
-class ImageTextRequest(BaseModel):
-    image_data: str
-
-    @field_validator("image_data")
-    @classmethod
-    def validate_image(cls, v):
-        if not v or not v.startswith("data:image/"):
-            raise ValueError("Must be a base64 image data URL")
-        if len(v) > 2_000_000:
-            raise ValueError("Image too large")
-        return v
-
-
-class FeedbackRequest(BaseModel):
-    message: str = Field(..., min_length=5, max_length=2000)
-    type: str = Field(default="general", max_length=30)
+from routers import auth, folders, guides, stats, search, quiz, billing, nclex
+from auth_utils import get_user_id
+from routers.billing import check_and_increment_usage
 
 # Load environment variables
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
@@ -76,7 +55,7 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title="AutoStudyAI API",
     description="API for generating study materials from educational content",
-    version="1.1.0",
+    version="1.0.0",
     docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
     redoc_url=None,
 )
@@ -216,25 +195,6 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
         raise HTTPException(status_code=500, detail="Failed to ingest content")
 
 
-@app.post("/extract-image-text")
-@limiter.limit("120/minute")
-async def extract_image_text_endpoint(
-    body: ImageTextRequest,
-    request: Request,
-    authorization: str = Header(default="")
-):
-    """Extract text and visual content from a base64 slide image using GPT-4o Vision."""
-    try:
-        get_user_id(authorization)
-        text = extract_image_text(body.image_data)
-        return {"text": text}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in /extract-image-text: {e}")
-        raise HTTPException(status_code=500, detail="Failed to extract image text")
-
-
 @app.post("/generate", response_model=GenerateResponse)
 @limiter.limit("15/minute")
 async def generate(body: GenerateRequest, request: Request, authorization: str = Header(default="")):
@@ -302,13 +262,7 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
 
         if body.flashcards:
             logger.info("Generating flashcards...")
-            # Match flashcard count to Q&A pairs in study guide
-            fc_count = 200
-            if study_guide:
-                pairs = re.findall(r'^Q\d+:', study_guide, re.MULTILINE)
-                if pairs:
-                    fc_count = max(len(pairs), 10)
-            flashcards = generate_flashcards(chunks, max_cards=fc_count)
+            flashcards = generate_flashcards(chunks)
 
         return GenerateResponse(
             notes=notes_str,
@@ -335,7 +289,7 @@ async def create_flashcards(body: FlashcardRequest, request: Request, authorizat
         logger.info(f"Generating flashcards for user={user_id[:8]}...")
 
         # Enforce max_cards limit
-        max_cards = min(body.max_cards, 200)
+        max_cards = min(body.max_cards, 30)
 
         content_obj = storage.get_content(body.content_id)
         if not content_obj:
@@ -406,63 +360,4 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             status_code=500,
             content={"answer": "Error processing your question. Please try again."}
         )
-
-
-@app.post("/extract-pdf-text")
-@limiter.limit("10/minute")
-async def extract_pdf_text_endpoint(
-    request: Request,
-    file: UploadFile = File(...),
-    authorization: str = Header(default="")
-):
-    """Extract plain text from an uploaded PDF file."""
-    try:
-        get_user_id(authorization)
-        if not file.filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Only PDF files are accepted")
-        content = await file.read()
-        if len(content) > 10_000_000:
-            raise HTTPException(status_code=400, detail="File too large (max 10MB)")
-
-        
-        import io
-        reader = pypdf.PdfReader(io.BytesIO(content))
-        pages_text = []
-        for page in reader.pages:
-            t = page.extract_text()
-            if t and t.strip():
-                pages_text.append(t.strip())
-        text = "\n\n".join(pages_text).strip()
-        if len(text) < 50:
-            raise HTTPException(status_code=400, detail="Could not extract readable text from this PDF")
-        return {"text": text[:30000]}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in /extract-pdf-text: {e}")
-        raise HTTPException(status_code=500, detail="Failed to process PDF")
-
-
-@app.post("/feedback")
-@limiter.limit("5/minute")
-async def submit_feedback(
-    body: FeedbackRequest,
-    request: Request,
-    authorization: str = Header(default="")
-):
-    """Save user feedback to Supabase."""
-    try:
-        user_id = get_user_id(authorization)
-        supabase = get_supabase()
-        supabase.table("feedback").insert({
-            "user_id": user_id,
-            "message": body.message,
-            "type": body.type,
-        }).execute()
-        return {"success": True}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in /feedback: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save feedback")
 

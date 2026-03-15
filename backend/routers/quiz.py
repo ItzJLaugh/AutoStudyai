@@ -9,7 +9,7 @@ import random
 import logging
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List
 from database import get_supabase
 from services.llm import get_openai_client
 from auth_utils import get_user_id
@@ -29,9 +29,7 @@ def _validate_uuid(value: str, name: str = "ID") -> str:
 class QuizAnswer(BaseModel):
     """A single quiz answer with validation."""
     question_index: int = Field(..., ge=0, le=100)
-    selected_index: Optional[int] = Field(default=None, ge=0, le=10)
-    selected: Optional[int] = Field(default=None, ge=0, le=10)
-    correct: Optional[int] = Field(default=None, ge=0, le=10)
+    selected_index: int = Field(..., ge=0, le=10)
     is_correct: bool = False
 
 

@@ -1,14 +1,11 @@
 """
 LLM service for AI-powered study material generation.
-Text generation uses Anthropic Claude Sonnet 4.6.
-Image extraction uses OpenAI GPT-4o Vision (superior for diagrams/charts).
+Uses OpenAI GPT-4o for intelligent content processing.
 """
 
 import os
 import logging
 from typing import List, Optional
-
-import anthropic
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -17,17 +14,8 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 logger = logging.getLogger(__name__)
 
 
-def get_anthropic_client() -> Optional[anthropic.Anthropic]:
-    """Get configured Anthropic client for text generation."""
-    api_key = os.getenv('ANTHROPIC_API_KEY')
-    if not api_key:
-        logger.error("ANTHROPIC_API_KEY not set")
-        return None
-    return anthropic.Anthropic(api_key=api_key)
-
-
 def get_openai_client() -> Optional[OpenAI]:
-    """Get configured OpenAI client (used for GPT-4o Vision only)."""
+    """Get configured OpenAI client."""
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         logger.error("OPENAI_API_KEY not set")
@@ -40,7 +28,7 @@ def generate_notes_ai(content: str, max_notes: int = 25) -> List[str]:
     Use AI to extract key notes from educational content.
     Returns a list of concise, important points.
     """
-    client = get_anthropic_client()
+    client = get_openai_client()
     if not client:
         return _generate_notes_fallback(content)
 
@@ -70,13 +58,15 @@ Content:
 Return ONLY the bullet points, one per line, starting with "- ":"""
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2000,
+        response = client.chat.completions.create(
+            model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=2000,
+            temperature=0.3,
         )
-        result = response.content[0].text.strip()
+        result = response.choices[0].message.content.strip()
 
+        # Parse the response into individual notes
         notes = []
         for line in result.split('\n'):
             line = line.strip()
@@ -111,57 +101,57 @@ def generate_study_guide(chunks: List[str]) -> str:
     Identifies every term, concept, definition, and clinical fact and writes
     one question per identified item — no numeric targets.
     """
-    client = get_anthropic_client()
+    client = get_openai_client()
     if not client:
-        return "[Error: Anthropic API key not configured]"
+        return "[Error: OpenAI API key not configured]"
 
-    context = '\n\n'.join(chunks)[:50000]
+    context = '\n\n'.join(chunks)[:30000]
 
-    system = (
-        "You are an exhaustive study guide generator. "
-        "You MUST inventory every testable fact first, then produce one question per inventory item. "
-        "Stopping before every item has a question is a failure."
-    )
+    prompt = f"""Create a study guide Q&A from the text below.
 
-    prompt = f"""Create a comprehensive study guide Q&A from the text below.
+Step 1 — Identify every single testable item in the text:
+• Named terms and their definitions
+• Drug names, mechanisms, dosages, side effects
+• Conditions and their signs/symptoms/causes/treatments
+• Lab values and what they indicate
+• Procedures and how/when they are performed
+• Classifications and their members
+• Cause-and-effect relationships
+• Any other specific fact a student must know
 
-Before writing any questions, mentally catalog every testable item in the text:
-- Named terms, concepts, and their definitions
-- Processes, steps, or procedures and how/when they occur
-- Classifications, categories, and their members
-- Cause-and-effect and before/after relationships
-- Key people, events, dates, or named examples
-- Formulas, values, thresholds, or quantitative facts
-- Rules, principles, or laws and what they state
-- Any other specific fact a student could be tested on
+Step 2 — Write exactly ONE question for each item identified above.
+Do NOT group multiple items into one question.
+Do NOT skip any item.
+Do NOT stop until every identified item has been asked about.
 
-Skip only: course names/codes as labels, instructor names, semester info, slide numbers as organizational markers.
+EXAMPLE — if a slide contains:
+  "Hypokalemia: K+ < 3.5. Causes: vomiting, diuretics. Symptoms: muscle weakness, arrhythmia. Treatment: oral or IV KCl."
+You should produce FOUR questions:
+  Q: What is the definition of hypokalemia?
+  Q: What are common causes of hypokalemia?
+  Q: What are the symptoms of hypokalemia?
+  Q: How is hypokalemia treated?
+NOT one question that asks "describe hypokalemia."
 
-Write ONE question per catalogued item. Do NOT group multiple items into one question. Do NOT skip any item.
-
-EXAMPLE — slide containing "Hypokalemia: K+ < 3.5. Causes: vomiting, diuretics. Symptoms: muscle weakness, arrhythmia. Treatment: oral or IV KCl."
-→ 4 separate questions: one for the definition, one for causes, one for symptoms, one for treatment.
-
-TEXT:
 {context}
 
-Start your response IMMEDIATELY with Q1 — no preamble, no inventory list, no introduction:
+FORMAT:
 Q1: [question]
 A1: [answer in 1-2 sentences]
 
-Q2: [question]
-A2: [answer in 1-2 sentences]
-
-(continue until every catalogued item has a question — do not stop early)"""
+Continue until every item is covered."""
 
     try:
-        with client.messages.stream(
-            model="claude-sonnet-4-6",
-            max_tokens=20000,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-        ) as stream:
-            raw_result = stream.get_final_text().strip()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an exhaustive study guide generator. Never stop until every fact in the text has been turned into a question."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=12000,
+            temperature=0.1,
+        )
+        raw_result = response.choices[0].message.content.strip()
 
         # POST-PROCESS: Force short answers by truncating
         lines = raw_result.split('\n')
@@ -171,11 +161,14 @@ A2: [answer in 1-2 sentences]
             if not line:
                 processed_lines.append('')
                 continue
+            # If it's an answer line (starts with A followed by number)
             if line.startswith('A') and len(line) > 1 and (line[1].isdigit() or line[1] == ':'):
+                # Find the colon and get the answer part
                 colon_idx = line.find(':')
                 if colon_idx > 0:
-                    prefix = line[:colon_idx + 1]
-                    answer = line[colon_idx + 1:].strip()
+                    prefix = line[:colon_idx+1]
+                    answer = line[colon_idx+1:].strip()
+                    # Allow up to 2 sentences
                     sentences = answer.split('. ')
                     if len(sentences) > 2:
                         answer = '. '.join(sentences[:2]) + '.'
@@ -189,28 +182,31 @@ A2: [answer in 1-2 sentences]
 
         return '\n'.join(processed_lines)
 
-    except anthropic.RateLimitError:
-        return "[Error: Anthropic rate limit reached. Please try again later.]"
     except Exception as e:
         logger.error(f"Error generating study guide: {e}")
+        if hasattr(e, 'status_code') and e.status_code == 429:
+            return "[Error: OpenAI rate limit reached. Please try again later.]"
         return f"[Error generating study guide: {e}]"
 
 
 def generate_nclex_questions(content: str) -> list:
     """
     Generate NCLEX-style clinical scenario questions (MCQ and SATA) from content.
-    Generates one question per Q&A pair found in the study guide.
+    Generates one question per Q&A pair found in the study guide, so the student
+    encounters every concept from the study material in NCLEX format.
     Returns a list of question dicts with type, stem, options, correct_indices, rationale.
     """
     import re as _re
     import json as _json
 
-    client = get_anthropic_client()
+    client = get_openai_client()
     if not client:
         return []
 
     context = content[:25000]
 
+    # Count Q&A pairs already identified in the study guide so we can give
+    # GPT-4o an explicit target instead of letting it cluster into themes.
     qa_matches = _re.findall(r'^Q\d+:', context, _re.MULTILINE)
     n_pairs = len(qa_matches)
 
@@ -218,7 +214,7 @@ def generate_nclex_questions(content: str) -> list:
         count_instruction = (
             f"The study guide below contains {n_pairs} Q&A pairs (Q1/A1, Q2/A2, …). "
             f"Each pair represents ONE distinct clinical concept. "
-            f"Generate AT LEAST one NCLEX question per Q&A pair — that means a minimum of {n_pairs} questions. "
+            f"Generate exactly one NCLEX question per Q&A pair — that means a minimum of {n_pairs} questions. "
             f"Do NOT merge multiple Q&A pairs into a single question."
         )
     else:
@@ -262,21 +258,25 @@ Return ONLY a valid JSON array — no markdown, no extra text:
 
 Do NOT stop until every Q&A pair has a corresponding NCLEX question."""
 
-    system = (
-        "You are an expert NCLEX question writer with 20 years of nursing education experience. "
-        "You write AT LEAST one NCLEX question for each Q&A pair in the study material — never fewer. "
-        "Never merge multiple Q&A pairs into one question. "
-        "Always return valid JSON only — no markdown, no extra text."
-    )
-
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert NCLEX question writer with 20 years of nursing education experience. "
+                        "You write one NCLEX question for each Q&A pair in the study material — never fewer. "
+                        "Never merge multiple Q&A pairs into one question. "
+                        "Always return valid JSON only — no markdown, no extra text."
+                    )
+                },
+                {"role": "user", "content": prompt}
+            ],
             max_tokens=16000,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
+            temperature=0.6,
         )
-        raw = response.content[0].text.strip()
+        raw = response.choices[0].message.content.strip()
 
         # Strip markdown code fences if present
         if raw.startswith("```"):
@@ -284,6 +284,7 @@ Do NOT stop until every Q&A pair has a corresponding NCLEX question."""
             if raw.startswith("json"):
                 raw = raw[4:]
 
+        # Attempt to parse; if truncated mid-JSON, recover completed objects
         try:
             questions = _json.loads(raw)
         except _json.JSONDecodeError:
@@ -298,6 +299,7 @@ Do NOT stop until every Q&A pair has a corresponding NCLEX question."""
                 logger.error("NCLEX response was not valid JSON")
                 return []
 
+        # Validate basic structure
         validated = []
         for q in questions:
             if not all(k in q for k in ("type", "stem", "options", "correct_indices", "rationale")):
@@ -312,34 +314,33 @@ Do NOT stop until every Q&A pair has a corresponding NCLEX question."""
         return []
 
 
-def generate_flashcards(chunks: List[str], max_cards: int = 200) -> List[dict]:
+def generate_flashcards(chunks: List[str], max_cards: int = 15) -> List[dict]:
     """
     Generate flashcards from content.
     Returns list of {front: question, back: answer} dictionaries.
-    One flashcard per educational concept — no artificial cap.
     """
-    client = get_anthropic_client()
+    client = get_openai_client()
     if not client:
         return []
 
-    context = '\n\n'.join(chunks)[:40000]
+    context = '\n\n'.join(chunks)[:10000]
 
-    prompt = f"""Create one flashcard for EVERY distinct educational concept, term, definition, condition, or fact in this content.
+    prompt = f"""Create {max_cards} flashcards from this educational content.
 
 IGNORE completely:
 - Website navigation, menus, UI elements
 - Wikipedia/website metadata (edit, history, talk pages)
 - Login/sharing/social features
 - Table of contents or structural elements
-- Course codes, week numbers, module labels, instructor names
 
-FOCUS ONLY on actual educational content — every testable item deserves its own flashcard.
+FOCUS ONLY on actual educational content.
 
 Each flashcard should:
 1. Have a clear, specific question on the front
-2. Have a concise answer (1-3 sentences) on the back
+2. Have a concise answer (1-2 sentences) on the back
 3. Test one concept at a time
 4. Be useful for quick review and memorization
+5. NEVER ask about website features or navigation
 
 Content:
 {context}
@@ -351,16 +352,18 @@ BACK: [Answer]
 FRONT: [Question]
 BACK: [Answer]
 
-(continue for ALL concepts — do not stop early)"""
+(continue for all flashcards)"""
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=12000,
+        response = client.chat.completions.create(
+            model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=2048,
+            temperature=0.4,
         )
-        result = response.content[0].text.strip()
+        result = response.choices[0].message.content.strip()
 
+        # Parse flashcards
         flashcards = []
         current_front = None
 
@@ -392,37 +395,21 @@ def answer_question(question: str, context: str, mode: str = "short") -> str:
         return "[Error: OpenAI API key not configured]"
 
     if mode == "example":
-        system_prompt = (
-            "The student clicked the EXAMPLE button. You MUST illustrate your answer with a concrete real-world example — "
-            "do this regardless of how the question is phrased. "
-            "First find the relevant passage in the context and paraphrase it (1-2 sentences), "
-            "then always follow with 'For example: ...' and give a specific, practical illustration. "
-            "Never skip the example. Never add information not in the context."
-        )
-        max_tokens = 350
+        system_prompt = "You are a helpful tutor. Provide a concrete, real-world example that illustrates the answer to the question. Make it relatable and easy to understand."
+        max_tokens = 300
     elif mode == "detailed":
-        system_prompt = (
-            "The student clicked the DETAILED button. You MUST give a thorough, complete explanation — "
-            "do this regardless of how simple the question seems. "
-            "Find every relevant passage in the context and explain each point fully. "
-            "Use bullet points or numbered steps if there are multiple aspects. "
-            "Do not summarize or abbreviate. Do not add outside knowledge."
-        )
-        max_tokens = 600
+        system_prompt = "You are a helpful tutor. Provide a detailed, step-by-step explanation. Break down complex concepts and ensure thorough understanding."
+        max_tokens = 500
     else:  # short
-        system_prompt = (
-            "The student clicked the SHORT button. Give a direct 1-2 sentence answer only. "
-            "Find the exact relevant passage in the context and return it verbatim or as a close paraphrase. "
-            "Never expand beyond 2 sentences. Never add information not present in the context."
-        )
+        system_prompt = "You are a helpful tutor. Provide a brief, direct answer using only the information in the context. Keep it concise (1-2 sentences)."
         max_tokens = 200
 
-    prompt = f"""Context (student's scraped slides and notes):
+    prompt = f"""Context:
 {context[:25000]}
 
 Question: {question}
 
-Find and return the relevant information directly from the context above. Do not answer from general knowledge — only use what is written in the context."""
+Answer based on the context above:"""
 
     try:
         response = client.chat.completions.create(
@@ -432,7 +419,7 @@ Find and return the relevant information directly from the context above. Do not
                 {"role": "user", "content": prompt}
             ],
             max_tokens=max_tokens,
-            temperature=0.1,
+            temperature=0.5,
         )
         return response.choices[0].message.content.strip()
 
@@ -442,11 +429,14 @@ Find and return the relevant information directly from the context above. Do not
 
 
 def summarize_for_slideshow(slides: List[dict]) -> str:
-    """Summarize slideshow content into study material."""
-    client = get_anthropic_client()
+    """
+    Summarize slideshow content into study material.
+    """
+    client = get_openai_client()
     if not client:
         return ""
 
+    # Format slides for the prompt
     slides_text = ""
     for i, slide in enumerate(slides, 1):
         slides_text += f"\n--- Slide {i}: {slide.get('title', 'Untitled')} ---\n"
@@ -465,12 +455,13 @@ Create:
 Format as organized notes with clear sections."""
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1500,
+        response = client.chat.completions.create(
+            model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=1500,
+            temperature=0.4,
         )
-        return response.content[0].text.strip()
+        return response.choices[0].message.content.strip()
 
     except Exception as e:
         logger.error(f"Error summarizing slideshow: {e}")
@@ -487,47 +478,3 @@ def generate_notes(chunks: List[str]) -> List[str]:
 def generate_questions_from_notes(notes: List[str]) -> List[str]:
     """Legacy function - now handled by generate_study_guide."""
     return [f"What is {note[:50]}...?" for note in notes[:10] if len(note) > 10]
-
-
-def extract_image_text(image_data: str) -> str:
-    """
-    Extract text and describe visual content (diagrams, graphs, charts, illustrations)
-    from a base64-encoded image using GPT-4o Vision.
-    GPT-4o Vision is used here as it outperforms Claude on complex diagram interpretation.
-    Returns empty string for decorative/irrelevant images.
-    """
-    client = get_openai_client()
-    if not client:
-        return ''
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": image_data, "detail": "low"}
-                    },
-                    {
-                        "type": "text",
-                        "text": (
-                            "Analyze this image from a lecture slide. "
-                            "Extract all visible text. "
-                            "If it contains a diagram, flowchart, or illustration: describe every labeled component, arrow, and relationship. "
-                            "If it contains a graph or chart: describe the title, axes, values, and key trends. "
-                            "If it contains a table: transcribe the headers and data. "
-                            "If it is purely decorative (logo, background, photo with no educational content): respond only with DECORATIVE. "
-                            "Be thorough — your output will be used to create study questions."
-                        )
-                    }
-                ]
-            }],
-            max_tokens=600,
-            temperature=0.1,
-        )
-        result = response.choices[0].message.content.strip()
-        return '' if result == 'DECORATIVE' else result
-    except Exception as e:
-        logger.error(f"Error extracting image text: {e}")
-        return ''

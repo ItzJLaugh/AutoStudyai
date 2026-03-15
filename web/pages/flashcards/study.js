@@ -10,7 +10,6 @@ export default function FlashcardStudy() {
   const { ready } = useRequireAuth();
   const [flashcards, setFlashcards] = useState(null);
   const [guideTitle, setGuideTitle] = useState('');
-  const [initialSrs, setInitialSrs] = useState({});
 
   useEffect(() => {
     if (ready && guideId) loadFlashcards();
@@ -21,7 +20,6 @@ export default function FlashcardStudy() {
     if (data?.guide) {
       setFlashcards(data.guide.flashcards || []);
       setGuideTitle(data.guide.title);
-      setInitialSrs(data.guide.flashcard_progress?.srs || {});
     }
   }
 
@@ -34,7 +32,7 @@ export default function FlashcardStudy() {
         &larr; Back
       </a>
       <h2 style={{ marginTop: 8, marginBottom: 20 }}>{guideTitle}</h2>
-      <FlashcardViewer flashcards={flashcards} guideId={guideId} initialSrs={initialSrs} />
+      <FlashcardViewer flashcards={flashcards} guideId={guideId} />
     </div>
   );
 }
