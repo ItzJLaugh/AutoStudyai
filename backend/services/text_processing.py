@@ -208,15 +208,32 @@ def clean_text(text: str) -> str:
     return '\n'.join(cleaned_lines)
 
 
-def chunk_text(text: str, max_length: int = 1500) -> List[str]:
+# text_processing.py (replace chunk_text with this)
+def chunk_text(text: str, max_length: int = 1500, slides: List[dict] = None) -> List[str]:
     """
-    Split text into chunks for processing, respecting sentence boundaries.
-    Optimized for educational content.
+    Split text into chunks for processing, respecting slide boundaries when slides are provided.
+    If `slides` is given (list of {'title','content'}), prefer returning one chunk per slide.
+    Otherwise, fall back to paragraph/sentence chunking.
     """
+    if slides:
+        chunks = []
+        for i, slide in enumerate(slides, 1):
+            parts = []
+            title = slide.get('title', '').strip()
+            if title:
+                parts.append(f"=== Slide {i}: {title} ===")
+            content = slide.get('content', [])
+            if content:
+                parts.extend(content)
+            chunk = '\n'.join(parts).strip()
+            if chunk:
+                chunks.append(chunk)
+        return chunks
+
+    # fallback behavior for plain text (existing logic, simplified)
     if not text:
         return []
 
-    # Split by paragraph first, then by sentence
     paragraphs = re.split(r'\n\s*\n', text)
     chunks = []
     current_chunk = ""
@@ -226,15 +243,11 @@ def chunk_text(text: str, max_length: int = 1500) -> List[str]:
         if not para:
             continue
 
-        # If paragraph fits, add to current chunk
         if len(current_chunk) + len(para) + 2 <= max_length:
             current_chunk += ("\n\n" if current_chunk else "") + para
         else:
-            # Save current chunk if exists
             if current_chunk:
                 chunks.append(current_chunk.strip())
-
-            # If paragraph itself is too long, split by sentences
             if len(para) > max_length:
                 sentences = re.split(r'(?<=[.!?])\s+', para)
                 current_chunk = ""
@@ -248,7 +261,6 @@ def chunk_text(text: str, max_length: int = 1500) -> List[str]:
             else:
                 current_chunk = para
 
-    # Don't forget the last chunk
     if current_chunk:
         chunks.append(current_chunk.strip())
 

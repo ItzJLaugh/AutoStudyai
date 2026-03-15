@@ -95,19 +95,9 @@ def _generate_notes_fallback(content: str) -> List[str]:
     return notes[:15]
 
 
-def generate_study_guide(chunks: List[str]) -> str:
-    """
-    Generate a comprehensive study guide with AI-generated questions and answers.
-    Identifies every term, concept, definition, and clinical fact and writes
-    one question per identified item — no numeric targets.
-    """
-    client = get_openai_client()
-    if not client:
-        return "[Error: OpenAI API key not configured]"
-
-    context = '\n\n'.join(chunks)[:30000]
-
-    prompt = f"""Create a study guide Q&A from the text below.
+def _build_study_guide_prompt(context: str) -> str:
+    """Build the study guide generation prompt for a chunk of content."""
+    return f"""Create a study guide Q&A from the text below.
 
 Step 1 — Identify every single testable item in the text:
 • Named terms and their definitions
@@ -141,52 +131,114 @@ A1: [answer in 1-2 sentences]
 
 Continue until every item is covered."""
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are an exhaustive study guide generator. Never stop until every fact in the text has been turned into a question."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=12000,
-            temperature=0.1,
-        )
-        raw_result = response.choices[0].message.content.strip()
 
-        # POST-PROCESS: Force short answers by truncating
-        lines = raw_result.split('\n')
-        processed_lines = []
-        for line in lines:
-            line = line.strip()
-            if not line:
-                processed_lines.append('')
-                continue
-            # If it's an answer line (starts with A followed by number)
-            if line.startswith('A') and len(line) > 1 and (line[1].isdigit() or line[1] == ':'):
-                # Find the colon and get the answer part
-                colon_idx = line.find(':')
-                if colon_idx > 0:
-                    prefix = line[:colon_idx+1]
-                    answer = line[colon_idx+1:].strip()
-                    # Allow up to 2 sentences
-                    sentences = answer.split('. ')
-                    if len(sentences) > 2:
-                        answer = '. '.join(sentences[:2]) + '.'
-                    if len(answer) > 220:
-                        answer = answer[:217] + '...'
-                    processed_lines.append(f"{prefix} {answer}")
-                else:
-                    processed_lines.append(line)
-            else:
-                processed_lines.append(line)
+def _postprocess_study_guide(raw_result: str, start_index: int = 1) -> tuple:
+    """Post-process study guide output: truncate answers and renumber Q&A pairs.
+    Returns (processed_text, next_index)."""
+    import re
+    lines = raw_result.split('\n')
+    processed_lines = []
+    current_q_num = start_index
 
-        return '\n'.join(processed_lines)
+    for line in lines:
+        line = line.strip()
+        if not line:
+            processed_lines.append('')
+            continue
 
-    except Exception as e:
-        logger.error(f"Error generating study guide: {e}")
-        if hasattr(e, 'status_code') and e.status_code == 429:
-            return "[Error: OpenAI rate limit reached. Please try again later.]"
-        return f"[Error generating study guide: {e}]"
+        # Renumber question lines
+        q_match = re.match(r'^Q\d+:\s*(.*)', line)
+        if q_match:
+            processed_lines.append(f"Q{current_q_num}: {q_match.group(1)}")
+            continue
+
+        # Renumber and truncate answer lines
+        a_match = re.match(r'^A\d+:\s*(.*)', line)
+        if a_match:
+            answer = a_match.group(1)
+            sentences = answer.split('. ')
+            if len(sentences) > 2:
+                answer = '. '.join(sentences[:2]) + '.'
+            if len(answer) > 220:
+                answer = answer[:217] + '...'
+            processed_lines.append(f"A{current_q_num}: {answer}")
+            current_q_num += 1
+            continue
+
+        processed_lines.append(line)
+
+    return '\n'.join(processed_lines), current_q_num
+
+
+def generate_study_guide(chunks: List[str]) -> str:
+    """
+    Generate a comprehensive study guide with AI-generated questions and answers.
+    Uses chunked generation: splits content into ~8000-char batches and makes
+    a separate LLM call per batch, then merges and renumbers all Q&A pairs.
+    """
+    client = get_openai_client()
+    if not client:
+        return "[Error: OpenAI API key not configured]"
+
+    # Group chunks into batches of ~8000 chars each
+    MAX_BATCH_CHARS = 8000
+    batches = []
+    current_batch = []
+    current_len = 0
+
+    for chunk in chunks:
+        chunk_len = len(chunk)
+        if current_len + chunk_len > MAX_BATCH_CHARS and current_batch:
+            batches.append('\n\n'.join(current_batch))
+            current_batch = [chunk]
+            current_len = chunk_len
+        else:
+            current_batch.append(chunk)
+            current_len += chunk_len
+
+    if current_batch:
+        batches.append('\n\n'.join(current_batch))
+
+    # Single batch: use original single-call path
+    if len(batches) <= 1:
+        context = batches[0] if batches else '\n\n'.join(chunks)
+        context = context[:30000]
+        batches = [context]
+
+    logger.info(f"Study guide: processing {len(batches)} batch(es) from {len(chunks)} chunks")
+
+    all_results = []
+    for i, batch_text in enumerate(batches):
+        prompt = _build_study_guide_prompt(batch_text[:30000])
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an exhaustive study guide generator. Never stop until every fact in the text has been turned into a question."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=12000,
+                temperature=0.1,
+            )
+            result = response.choices[0].message.content.strip()
+            all_results.append(result)
+            logger.info(f"Study guide batch {i+1}/{len(batches)} complete")
+        except Exception as e:
+            logger.error(f"Error in study guide batch {i+1}: {e}")
+            if hasattr(e, 'status_code') and e.status_code == 429:
+                return "[Error: OpenAI rate limit reached. Please try again later.]"
+
+    if not all_results:
+        return "[Error generating study guide]"
+
+    # Merge all batch results and renumber sequentially
+    merged_parts = []
+    next_index = 1
+    for raw in all_results:
+        processed, next_index = _postprocess_study_guide(raw, start_index=next_index)
+        merged_parts.append(processed)
+
+    return '\n\n'.join(merged_parts)
 
 
 def generate_nclex_questions(content: str) -> list:
