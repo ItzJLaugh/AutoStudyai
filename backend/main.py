@@ -221,10 +221,11 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
 
         # Check if this is slideshow content
         slide_count = 0
+        slides = None
         if metadata.get("is_slideshow"):
             slides = extract_slideshow_content(raw_text)
             if slides:
-                # Format all slides as structured text — no AI compression step
+                # Format all slides as structured XML text — no AI compression
                 # so every slide's content reaches generate_study_guide intact
                 cleaned = format_slideshow_text(slides)
                 slide_count = len(slides)
@@ -234,8 +235,10 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         else:
             cleaned = clean_text(raw_text)
 
-        # Chunk the content for processing
-        chunks = chunk_text(cleaned)
+        # Chunk the content for processing.
+        # When slides are available, chunk_text produces one XML chunk per slide
+        # instead of re-splitting the formatted text by paragraphs.
+        chunks = chunk_text(cleaned, slides=slides)
 
         if not chunks:
             logger.warning("No content chunks after cleaning")

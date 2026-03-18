@@ -94,7 +94,6 @@ def _generate_notes_fallback(content: str) -> List[str]:
                 notes.append(line)
     return notes[:15]
 
-
 def _build_study_guide_prompt(context: str) -> str:
     """Build the study guide generation prompt for a chunk of content."""
     return f"""Create a study guide Q&A from the text below.
@@ -180,7 +179,8 @@ def generate_study_guide(chunks: List[str]) -> str:
     if not client:
         return "[Error: OpenAI API key not configured]"
 
-    # Group chunks into batches of ~8000 chars each
+    # Group chunks into batches of ~8000 chars each (works for both XML slides
+    # and regular text — matching the batch size that produced 92 Q&A for 59 slides)
     MAX_BATCH_CHARS = 8000
     batches = []
     current_batch = []
@@ -205,7 +205,10 @@ def generate_study_guide(chunks: List[str]) -> str:
         context = context[:30000]
         batches = [context]
 
-    logger.info(f"Study guide: processing {len(batches)} batch(es) from {len(chunks)} chunks")
+    logger.info(
+        f"Study guide: {len(chunks)} chunks, "
+        f"{len(batches)} batch(es), batch_chars=[{', '.join(str(len(b)) for b in batches)}]"
+    )
 
     all_results = []
     for i, batch_text in enumerate(batches):
@@ -222,7 +225,9 @@ def generate_study_guide(chunks: List[str]) -> str:
             )
             result = response.choices[0].message.content.strip()
             all_results.append(result)
-            logger.info(f"Study guide batch {i+1}/{len(batches)} complete")
+            import re as _re_log
+            q_count = len(_re_log.findall(r'^Q\d+:', result, _re_log.MULTILINE))
+            logger.info(f"Study guide batch {i+1}/{len(batches)} complete — {q_count} Q&A pairs, {len(batch_text)} chars input")
         except Exception as e:
             logger.error(f"Error in study guide batch {i+1}: {e}")
             if hasattr(e, 'status_code') and e.status_code == 429:
@@ -366,6 +371,129 @@ Do NOT stop until every Q&A pair has a corresponding NCLEX question."""
         return []
 
 
+def generate_practice_questions(content: str) -> list:
+    """
+    Generate practice questions (MCQ and multi-select) from any academic content.
+    Generic version — not nursing/NCLEX-specific.
+    Returns a list of question dicts with type, stem, options, correct_indices, rationale.
+    """
+    import re as _re
+    import json as _json
+
+    client = get_openai_client()
+    if not client:
+        return []
+
+    context = content[:25000]
+
+    # Count Q&A pairs in the study guide for target count
+    qa_matches = _re.findall(r'^Q\d+:', context, _re.MULTILINE)
+    n_pairs = len(qa_matches)
+
+    if n_pairs > 0:
+        count_instruction = (
+            f"The study guide below contains {n_pairs} Q&A pairs (Q1/A1, Q2/A2, …). "
+            f"Each pair represents ONE distinct concept. "
+            f"Generate exactly one practice question per Q&A pair — that means a minimum of {n_pairs} questions. "
+            f"Do NOT merge multiple Q&A pairs into a single question."
+        )
+    else:
+        count_instruction = (
+            "Identify every key concept, definition, process, cause-effect relationship, "
+            "and factual detail in the content. "
+            "Generate one practice question per identified item — do NOT group multiple items into one question."
+        )
+
+    prompt = f"""Create practice exam questions from the academic study material below.
+
+{count_instruction}
+
+QUESTION RULES:
+- Mix types: ~60% MCQ (4 options, 1 correct) and ~40% multi-select (5 options, 2-4 correct)
+- Each question should test understanding and application, not just memorization
+- Distractors must be plausible, not obviously wrong
+- Multi-select stems must end with "(Select all that apply)"
+- Rationale: 2-3 sentences — explain why correct answers are right AND why key distractors are wrong
+
+CONTENT:
+{context}
+
+Return ONLY a valid JSON array — no markdown, no extra text:
+[
+  {{
+    "type": "mcq",
+    "stem": "Which of the following best describes...?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correct_indices": [1],
+    "rationale": "Option B is correct because... Option A is incorrect because..."
+  }},
+  {{
+    "type": "sata",
+    "stem": "Which of the following are characteristics of...? (Select all that apply)",
+    "options": ["Option A", "Option B", "Option C", "Option D", "Option E"],
+    "correct_indices": [0, 2, 3],
+    "rationale": "Options A, C, and D are correct because... Options B and E are incorrect because..."
+  }}
+]
+
+Do NOT stop until every Q&A pair has a corresponding practice question."""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert exam question writer. "
+                        "You write one practice question for each Q&A pair in the study material — never fewer. "
+                        "Never merge multiple Q&A pairs into one question. "
+                        "Always return valid JSON only — no markdown, no extra text."
+                    )
+                },
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=16000,
+            temperature=0.6,
+        )
+        raw = response.choices[0].message.content.strip()
+
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+
+        # Parse JSON, recover if truncated
+        try:
+            questions = _json.loads(raw)
+        except _json.JSONDecodeError:
+            last_complete = raw.rfind('},')
+            if last_complete > 0:
+                try:
+                    questions = _json.loads(raw[:last_complete + 1] + ']')
+                except _json.JSONDecodeError:
+                    logger.error("Could not recover partial practice questions JSON")
+                    return []
+            else:
+                logger.error("Practice questions response was not valid JSON")
+                return []
+
+        # Validate structure
+        validated = []
+        for q in questions:
+            if not all(k in q for k in ("type", "stem", "options", "correct_indices", "rationale")):
+                continue
+            if q["type"] not in ("mcq", "sata"):
+                continue
+            validated.append(q)
+        return validated
+
+    except Exception as e:
+        logger.error(f"Error generating practice questions: {e}")
+        return []
+
+
 def generate_flashcards(chunks: List[str], max_cards: int = 15) -> List[dict]:
     """
     Generate flashcards from content.
@@ -447,11 +575,11 @@ def answer_question(question: str, context: str, mode: str = "short") -> str:
         return "[Error: OpenAI API key not configured]"
 
     if mode == "example":
-        system_prompt = "You are a helpful tutor. Provide a concrete, real-world example that illustrates the answer to the question. Make it relatable and easy to understand."
+        system_prompt = "If example is selectede, YOU MUST provide a concrete, real-world example that better helps the user understand what they mentioned in their prompt to you. Make it relatable and easy to understand."
         max_tokens = 300
     elif mode == "detailed":
-        system_prompt = "You are a helpful tutor. Provide a detailed, step-by-step explanation. Break down complex concepts and ensure thorough understanding."
-        max_tokens = 500
+        system_prompt = "If detailed is selected, YOU MUST provide a detailed explanation of the concept/question/topic the user inputted in their prompt. Break down the topic to a more complex to ensure thorough understanding. Make it about 3-7 sentences depending on what you think is best"
+        max_tokens = 700
     else:  # short
         system_prompt = "You are a helpful tutor. Provide a brief, direct answer using only the information in the context. Keep it concise (1-2 sentences)."
         max_tokens = 200

@@ -4,56 +4,66 @@ Handles LMS content, slideshows, and general educational material.
 """
 
 import re
+import logging
 from typing import List, Tuple
 
-# Navigation and UI elements to filter out (case-insensitive matching)
-LMS_NAVIGATION_PATTERNS = {
-    # Canvas LMS
-    "dashboard", "inbox", "history", "account", "courses", "calendar", "help",
-    "modules", "home", "announcements", "assignments", "discussions", "people",
-    "quizzes", "grades", "files", "pages", "syllabus", "outcomes", "rubrics",
+logger = logging.getLogger(__name__)
+
+# STRICT nav patterns: unambiguously UI/navigation — never educational content.
+# Filtered if line is shorter than pattern + 30 chars.
+STRICT_NAV_PATTERNS = {
+    # Canvas LMS nav-only
+    "dashboard", "inbox", "account", "calendar",
     "collaborations", "conferences", "settings",
-
-    # Blackboard
+    # Blackboard nav
     "course content", "course tools", "my grades", "discussion board",
-    "groups", "tools", "course menu",
-
-    # Moodle
+    "course menu",
+    # Moodle nav
     "site home", "site pages", "my courses", "participants", "badges",
-    "competencies", "reports",
-
-    # Wikipedia
-    "main page", "contents", "current events", "random article", "about wikipedia",
+    "competencies",
+    # Wikipedia chrome
+    "main page", "current events", "random article", "about wikipedia",
     "contact us", "donate", "contribute", "community portal", "recent changes",
     "upload file", "what links here", "related changes", "special pages",
     "permanent link", "page information", "cite this page", "wikidata item",
     "download as pdf", "printable version", "in other projects", "wikimedia commons",
-    "languages", "edit source", "view history", "talk", "article", "read",
-    "move to sidebar", "hide", "toggle", "from wikipedia", "free encyclopedia",
+    "move to sidebar", "from wikipedia", "free encyclopedia",
     "jump to navigation", "jump to search", "main menu", "personal tools",
-    "namespaces", "variants", "views", "more", "search wikipedia",
-
-    # Common UI elements
-    "previous", "next", "submit", "save", "cancel", "close", "menu",
-    "navigation", "breadcrumb", "footer", "header", "sidebar",
+    "namespaces", "variants", "search wikipedia",
+    # Unambiguous UI elements
+    "breadcrumb", "footer", "header", "sidebar",
     "click here", "read more", "learn more", "view all",
-    "links to an external site", "download", "upload", "print",
-    "share this", "bookmark", "subscribe", "follow us", "social media",
-    "table of contents", "show", "hide", "expand", "collapse",
-
-    # Video/Media players
-    "panopto", "kaltura", "youtube", "vimeo", "play", "pause", "volume",
-    "full screen", "captions", "transcript",
-
-    # Zoom/Virtual
-    "zoom", "meeting id", "passcode", "join meeting", "webex", "teams",
-
-    # Generic website elements
+    "links to an external site",
+    "share this", "bookmark", "follow us", "social media",
     "skip to content", "accessibility", "privacy policy", "terms of use",
-    "copyright", "all rights reserved", "cookie", "sign out", "log out",
-    "sign in", "log in", "register", "create account", "forgot password",
-    "newsletter", "subscribe", "unsubscribe", "contact us", "about us",
-    "feedback", "report", "flag", "share", "tweet", "like", "comment"
+    "copyright", "all rights reserved", "cookie",
+    "sign out", "log out", "sign in", "log in", "register",
+    "create account", "forgot password",
+    "newsletter", "unsubscribe", "about us",
+    # Video/media player controls
+    "panopto", "kaltura", "full screen", "captions",
+    # Virtual meeting
+    "meeting id", "passcode", "join meeting", "webex",
+}
+
+# CONTEXTUAL nav patterns: these words appear in both nav links AND educational
+# content. Only filtered if the line is essentially just the word itself
+# (a standalone nav link), i.e. shorter than pattern + 5 chars.
+CONTEXTUAL_NAV_PATTERNS = {
+    "modules", "home", "announcements", "assignments", "discussions",
+    "people", "quizzes", "grades", "files", "pages", "syllabus",
+    "outcomes", "rubrics", "groups", "tools", "reports", "courses",
+    "help", "history",
+    "contents", "languages", "edit source", "view history",
+    "talk", "article", "read", "views", "toggle", "hide", "show",
+    "more", "previous", "next", "submit", "save", "cancel",
+    "close", "menu", "navigation",
+    "download", "upload", "print", "expand", "collapse",
+    "table of contents",
+    "youtube", "vimeo", "play", "pause", "volume", "transcript",
+    "zoom", "teams",
+    "feedback", "report", "flag", "share", "tweet", "like", "comment",
+    "subscribe", "contact us",
 }
 
 # Patterns that indicate slideshow/presentation content
@@ -78,25 +88,32 @@ CONTENT_HEADERS = [
 
 
 def is_navigation_text(text: str) -> bool:
-    """Check if text is likely navigation/UI element."""
+    """Check if text is likely navigation/UI element rather than educational content."""
     text_lower = text.lower().strip()
 
     # Too short to be meaningful content
     if len(text_lower) < 3:
         return True
 
-    # Check against navigation patterns
-    for pattern in LMS_NAVIGATION_PATTERNS:
+    # STRICT patterns: filter if line is short-ish (pattern + 30 chars of context)
+    for pattern in STRICT_NAV_PATTERNS:
         if pattern in text_lower:
-            # But allow if it's part of a longer educational sentence
-            if len(text_lower) > len(pattern) + 20:
-                continue
+            if len(text_lower) > len(pattern) + 30:
+                continue  # Long enough to be real content containing this word
             return True
 
-    # Check for common non-content patterns
+    # CONTEXTUAL patterns: only filter if line is essentially just the nav word
+    # (a standalone link/button), not a sentence containing the word
+    for pattern in CONTEXTUAL_NAV_PATTERNS:
+        if pattern in text_lower:
+            if len(text_lower) > len(pattern) + 5:
+                continue  # Has substantial content beyond the pattern word
+            return True
+
+    # Non-content patterns
     if re.match(r'^[\d\s\-\./]+$', text_lower):  # Just numbers/dates
         return True
-    if re.match(r'^(mon|tue|wed|thu|fri|sat|sun)', text_lower):  # Day names alone
+    if re.match(r'^(mon|tue|wed|thu|fri|sat|sun)', text_lower) and len(text_lower) < 20:
         return True
     if text_lower.startswith('http') or text_lower.startswith('www'):  # URLs
         return True
@@ -108,18 +125,15 @@ def is_slideshow_content(text: str) -> Tuple[bool, str]:
     """
     Detect if content appears to be from a slideshow/presentation.
     Returns (is_slideshow, detected_type).
+    Only triggers on explicit slideshow indicators (regex patterns) such as
+    '--- Slide N ---' markers from the extension. The old short-lines heuristic
+    was removed because it caused false positives on LMS pages with bullet points.
     """
     text_lower = text.lower()
 
     for pattern in SLIDESHOW_INDICATORS:
         if re.search(pattern, text_lower, re.IGNORECASE):
             return True, "slideshow"
-
-    # Check for slide-like structure (short blocks separated by gaps)
-    lines = text.split('\n')
-    short_blocks = sum(1 for line in lines if 5 < len(line.strip()) < 100)
-    if short_blocks > len(lines) * 0.7 and len(lines) > 5:
-        return True, "presentation_style"
 
     return False, ""
 
@@ -170,27 +184,21 @@ def clean_text(text: str) -> str:
     """
     Clean and filter text content, removing navigation and UI elements.
     Preserves educational content structure.
+    Includes a safety net: if filtering removes >85% of lines, falls back
+    to minimal cleaning to avoid discarding real content.
     """
     if not text:
         return ""
 
     lines = text.splitlines()
+    non_empty_lines = [line.strip() for line in lines if line.strip()]
+
+    if not non_empty_lines:
+        return ""
+
     cleaned_lines = []
 
-    # Track if we've found content section
-    in_content_section = False
-
-    for line in lines:
-        line = line.strip()
-
-        if not line:
-            continue
-
-        # Check for content headers
-        line_lower = line.lower()
-        if any(header in line_lower for header in CONTENT_HEADERS):
-            in_content_section = True
-
+    for line in non_empty_lines:
         # Skip navigation elements
         if is_navigation_text(line):
             continue
@@ -205,6 +213,24 @@ def clean_text(text: str) -> str:
 
         cleaned_lines.append(line)
 
+    # SAFETY NET: if we removed >85% of content, the filter was too aggressive.
+    # Fall back to minimal cleaning (only strip URLs and truly empty/junk lines).
+    if len(cleaned_lines) < len(non_empty_lines) * 0.15:
+        logger.warning(
+            f"Aggressive filter removed {len(non_empty_lines) - len(cleaned_lines)}"
+            f"/{len(non_empty_lines)} lines — falling back to minimal cleaning"
+        )
+        cleaned_lines = []
+        for line in non_empty_lines:
+            line_l = line.lower()
+            if line_l.startswith('http') or line_l.startswith('www'):
+                continue
+            if len(line) < 3:
+                continue
+            if re.match(r'^[\W\d]+$', line):
+                continue
+            cleaned_lines.append(line)
+
     return '\n'.join(cleaned_lines)
 
 
@@ -218,16 +244,16 @@ def chunk_text(text: str, max_length: int = 1500, slides: List[dict] = None) -> 
     if slides:
         chunks = []
         for i, slide in enumerate(slides, 1):
-            parts = []
-            title = slide.get('title', '').strip()
-            if title:
-                parts.append(f"=== Slide {i}: {title} ===")
+            title = slide.get('title', '').strip() or f'Untitled Slide {i}'
             content = slide.get('content', [])
-            if content:
-                parts.extend(content)
-            chunk = '\n'.join(parts).strip()
-            if chunk:
-                chunks.append(chunk)
+            content_text = '\n'.join(content) if isinstance(content, list) else content
+            if not content_text.strip():
+                continue
+            chunk = (
+                f"<SLIDE>\n<NUMBER>{i}</NUMBER>\n<TITLE>{title}</TITLE>\n"
+                f"<CONTENT>\n{content_text.strip()}\n</CONTENT>\n</SLIDE>"
+            )
+            chunks.append(chunk)
         return chunks
 
     # fallback behavior for plain text (existing logic, simplified)
@@ -269,19 +295,20 @@ def chunk_text(text: str, max_length: int = 1500, slides: List[dict] = None) -> 
 
 def format_slideshow_text(slides: List[dict]) -> str:
     """
-    Format extracted slides into structured text without AI summarization.
+    Format extracted slides into XML-structured text.
+    Uses XML tags for clear slide boundaries that LLMs parse reliably.
     Preserves all slide content so nothing is lost to compression.
     """
     parts = []
     for i, slide in enumerate(slides, 1):
-        title = slide.get('title', '')
+        title = slide.get('title', '') or f'Untitled Slide {i}'
         content = slide.get('content', [])
-        if title:
-            parts.append(f"=== Slide {i}: {title} ===")
-        if content:
-            parts.extend(content)
-        parts.append('')  # blank line between slides
-    return '\n'.join(parts)
+        content_text = '\n'.join(content) if isinstance(content, list) else content
+        parts.append(
+            f"<SLIDE>\n<NUMBER>{i}</NUMBER>\n<TITLE>{title}</TITLE>\n"
+            f"<CONTENT>\n{content_text.strip()}\n</CONTENT>\n</SLIDE>"
+        )
+    return '\n\n'.join(parts)
 
 
 def extract_key_terms(text: str) -> List[str]:

@@ -5,7 +5,7 @@ Handles streak tracking, study session logging, and overview statistics.
 
 import re
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
@@ -84,48 +84,77 @@ def _update_streak(user_id: str):
 
 
 @router.get("/streak")
-def get_streak(authorization: str = Header(default="")):
-    """Get current user's streak info."""
+def get_streak(authorization: str = Header(default=""), tz_offset: int = 0):
+    """Get current user's streak info.
+
+    tz_offset: minutes from UTC (e.g. -300 for EST). Used to determine
+    the user's local day boundaries (12:00 AM - 11:59:59 PM).
+    """
     try:
+        # Clamp offset to valid range (-720 to +840 minutes)
+        tz_offset = max(-720, min(840, tz_offset))
+
         user_id = get_user_id(authorization)
         supabase = get_supabase()
+
+        # Determine "today" in the user's local timezone
+        user_now = datetime.utcnow() + timedelta(minutes=tz_offset)
+        user_today = user_now.date()
 
         result = supabase.table("user_streaks").select("*").eq("user_id", user_id).execute()
 
         if not result.data:
+            # Build empty Sunday-aligned week
+            days_since_sunday = (user_today.weekday() + 1) % 7
+            sunday = user_today - timedelta(days=days_since_sunday)
+            week = [{"date": str(sunday + timedelta(days=i)), "active": False} for i in range(7)]
             return {
                 "current_streak": 0,
                 "longest_streak": 0,
                 "last_study_date": None,
                 "studied_today": False,
-                "week": []
+                "week": week
             }
 
         streak = result.data[0]
-        today = date.today()
         last_date = date.fromisoformat(streak["last_study_date"]) if streak["last_study_date"] else None
-        studied_today = last_date == today
+        studied_today = last_date == user_today
 
         current = streak["current_streak"]
-        if last_date and last_date < today - timedelta(days=1):
+        if last_date and last_date < user_today - timedelta(days=1):
             current = 0
 
-        # Get last 7 days of activity
-        week_ago = today - timedelta(days=6)
+        # Sunday-aligned week: find most recent Sunday
+        # weekday(): Mon=0 .. Sun=6  →  days_since_sunday = (weekday+1)%7
+        days_since_sunday = (user_today.weekday() + 1) % 7
+        sunday = user_today - timedelta(days=days_since_sunday)
+        saturday = sunday + timedelta(days=6)
+
+        # Convert local day boundaries to UTC for querying
+        utc_start = datetime(sunday.year, sunday.month, sunday.day) - timedelta(minutes=tz_offset)
+        utc_end = datetime(saturday.year, saturday.month, saturday.day, 23, 59, 59) - timedelta(minutes=tz_offset)
+
         sessions = supabase.table("study_sessions") \
             .select("started_at") \
             .eq("user_id", user_id) \
-            .gte("started_at", str(week_ago)) \
+            .gte("started_at", utc_start.isoformat()) \
+            .lte("started_at", utc_end.isoformat()) \
             .execute()
 
+        # Convert each session's UTC timestamp to the user's local date
         active_days = set()
         for s in (sessions.data or []):
-            d = s["started_at"][:10]
-            active_days.add(d)
+            ts = s["started_at"]
+            try:
+                utc_dt = datetime.fromisoformat(ts.replace("Z", "+00:00").replace("+00:00", ""))
+                local_dt = utc_dt + timedelta(minutes=tz_offset)
+                active_days.add(str(local_dt.date()))
+            except (ValueError, AttributeError):
+                active_days.add(ts[:10])
 
         week = []
         for i in range(7):
-            d = week_ago + timedelta(days=i)
+            d = sunday + timedelta(days=i)
             week.append({"date": str(d), "active": str(d) in active_days})
 
         return {
