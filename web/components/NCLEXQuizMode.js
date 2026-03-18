@@ -107,7 +107,13 @@ export default function NCLEXQuizMode({ questions, guideId, onComplete }) {
       return `Q${i + 1}: ${q.stem}\nA${i + 1}: ${correctAnswers} — ${q.rationale || ''}`;
     }).join('\n');
 
-    const body = { title: saveTitle.trim(), study_guide: studyGuide };
+    // One flashcard per question
+    const flashcards = questions.map(q => ({
+      front: q.stem,
+      back: q.correct_indices.map(ci => q.options[ci]).join('; ') + (q.rationale ? ' — ' + q.rationale : '')
+    }));
+
+    const body = { title: saveTitle.trim(), study_guide: studyGuide, flashcards };
     if (saveFolderId) body.folder_id = saveFolderId;
 
     const saved = await apiFetch('/guides', { method: 'POST', body: JSON.stringify(body) });

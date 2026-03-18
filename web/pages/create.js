@@ -83,7 +83,13 @@ export default function CreateGuidePage() {
         `Q${i + 1}: ${p.term.trim()}\nA${i + 1}: ${p.definition.trim()}`
       ).join('\n');
 
-      const body = { title: title.trim(), study_guide: studyGuide };
+      // Create one flashcard per Q&A pair
+      const flashcards = validPairs.map(p => ({
+        front: p.term.trim(),
+        back: p.definition.trim()
+      }));
+
+      const body = { title: title.trim(), study_guide: studyGuide, flashcards };
       if (selectedFolder) body.folder_id = selectedFolder;
 
       const savedData = await apiFetch('/guides', { method: 'POST', body: JSON.stringify(body) });
