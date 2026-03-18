@@ -33,14 +33,17 @@ const authErrorDiv = document.getElementById('auth-error');
 // =====================
 // Auth functions
 // =====================
-function initAuth() {
-  chrome.storage.local.get(['authToken', 'userEmail'], (result) => {
-    if (result.authToken) {
+async function initAuth() {
+  const token = await getValidToken();
+  if (token) {
+    chrome.storage.local.get(['userEmail'], (result) => {
       showLoggedIn(result.userEmail || 'Logged in');
-    } else {
-      showLoginForm();
-    }
-  });
+    });
+  } else {
+    // Both access and refresh tokens are expired/invalid
+    chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
+    showLoginForm();
+  }
 }
 
 function showLoginForm() {
@@ -326,7 +329,9 @@ captureBtn.addEventListener('click', async () => {
         chrome.tabs.sendMessage(tabId, {action: 'captureSlideshow'}, (slideResp) => {
           if (slideResp && slideResp.success && slideResp.slides && slideResp.slides.length > 0) {
             showProgress(`Slideshow found - captured ${slideResp.slides.length} slides!`, true);
-            const slideContent = slideResp.slides.map(s => s.content).join('\n\n');
+            // Use the formatted content which includes --- Slide N --- markers
+            // so the backend can split slides properly
+            const slideContent = slideResp.content || slideResp.slides.map(s => s.content).join('\n\n');
             showProgress('Processing slideshow content...');
             sendToBackend(slideContent, tabUrl, lastPageTitle);
           } else {
