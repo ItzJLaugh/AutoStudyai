@@ -264,7 +264,22 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
 
         if body.flashcards:
             logger.info("Generating flashcards...")
-            flashcards = generate_flashcards(chunks)
+            # Derive flashcards from study guide Q&A pairs (1:1) instead of separate AI call
+            if study_guide:
+                flashcards = []
+                lines = study_guide.split('\n')
+                current_q = None
+                for line in lines:
+                    q_match = re.match(r'^Q\d+:\s*(.+)', line)
+                    a_match = re.match(r'^A\d+:\s*(.+)', line)
+                    if q_match:
+                        current_q = q_match.group(1).strip()
+                    elif a_match and current_q:
+                        flashcards.append({'front': current_q, 'back': a_match.group(1).strip()})
+                        current_q = None
+                logger.info(f"Created {len(flashcards)} flashcards from study guide Q&A pairs")
+            else:
+                flashcards = generate_flashcards(chunks)
 
         return GenerateResponse(
             notes=notes_str,
