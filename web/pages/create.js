@@ -13,6 +13,7 @@ export default function CreateGuidePage() {
   const [content, setContent] = useState('');
   const [pdfFile, setPdfFile] = useState(null);
   const [pdfName, setPdfName] = useState('');
+  const [manualPairs, setManualPairs] = useState([{ term: '', definition: '' }, { term: '', definition: '' }]);
   const [folders, setFolders] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState('');
   const [generateNotes, setGenerateNotes] = useState(true);
@@ -45,10 +46,49 @@ export default function CreateGuidePage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
+  function updatePair(index, field, value) {
+    setManualPairs(prev => prev.map((p, i) => i === index ? { ...p, [field]: value } : p));
+  }
+
+  function addPair() {
+    setManualPairs(prev => [...prev, { term: '', definition: '' }]);
+  }
+
+  function removePair(index) {
+    if (manualPairs.length <= 1) return;
+    setManualPairs(prev => prev.filter((_, i) => i !== index));
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
     if (!title.trim()) return;
     setError('');
+
+    // Manual mode — skip AI pipeline, save directly
+    if (inputMode === 'manual') {
+      const validPairs = manualPairs.filter(p => p.term.trim() && p.definition.trim());
+      if (validPairs.length === 0) {
+        setError('Add at least one term and definition.');
+        return;
+      }
+      setStatus('saving');
+      const studyGuide = validPairs.map((p, i) =>
+        `Q${i + 1}: ${p.term.trim()}\nA${i + 1}: ${p.definition.trim()}`
+      ).join('\n');
+
+      const body = { title: title.trim(), study_guide: studyGuide };
+      if (selectedFolder) body.folder_id = selectedFolder;
+
+      const savedData = await apiFetch('/guides', { method: 'POST', body: JSON.stringify(body) });
+      if (savedData?.guide) {
+        setStatus('done');
+        router.push('/guide/' + savedData.guide.id);
+      } else {
+        setError('Failed to save guide.');
+        setStatus('error');
+      }
+      return;
+    }
 
     let finalContent = content.trim();
 
@@ -143,14 +183,18 @@ export default function CreateGuidePage() {
   };
 
   const canSubmit = !isLoading && title.trim() && (
-    inputMode === 'pdf' ? !!pdfFile : content.trim().length >= 10
+    inputMode === 'manual'
+      ? manualPairs.some(p => p.term.trim() && p.definition.trim())
+      : inputMode === 'pdf' ? !!pdfFile : content.trim().length >= 10
   );
 
   return (
     <div className="fade-in" style={{ maxWidth: 740 }}>
       <h2 style={{ marginBottom: 4 }}>Create Study Guide</h2>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginBottom: 20 }}>
-        Paste your notes or upload a PDF — AI will generate a study guide, notes, and flashcards automatically.
+        {inputMode === 'manual'
+          ? 'Add your own terms and definitions — like Quizlet, but integrated with your study tools.'
+          : 'Paste your notes or upload a PDF — AI will generate a study guide, notes, and flashcards automatically.'}
       </p>
 
       {isLoading && (
@@ -176,7 +220,7 @@ export default function CreateGuidePage() {
       <form onSubmit={handleCreate}>
         {/* Input mode toggle */}
         <div style={{ display: 'flex', gap: 0, marginBottom: 20, border: '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden', width: 'fit-content' }}>
-          {[['text', 'Paste Text'], ['pdf', 'Upload PDF']].map(([mode, label]) => (
+          {[['manual', 'Manual'], ['text', 'Paste Text'], ['pdf', 'Upload PDF']].map(([mode, label]) => (
             <button
               key={mode}
               type="button"
@@ -210,7 +254,67 @@ export default function CreateGuidePage() {
           />
         </div>
 
-        {inputMode === 'text' ? (
+        {inputMode === 'manual' ? (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: 10 }}>
+              Terms &amp; Definitions
+            </label>
+            {manualPairs.map((pair, i) => (
+              <div key={i} style={{
+                display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-start',
+                background: 'var(--bg-secondary)', border: '1px solid var(--border-default)',
+                borderRadius: 8, padding: 12, position: 'relative'
+              }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.8em', minWidth: 20, paddingTop: 8 }}>{i + 1}</span>
+                <div style={{ flex: 1 }}>
+                  <input
+                    type="text"
+                    placeholder="Term / Question"
+                    value={pair.term}
+                    onChange={e => updatePair(i, 'term', e.target.value)}
+                    disabled={isLoading}
+                    style={{ marginBottom: 6, width: '100%' }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Definition / Answer"
+                    value={pair.definition}
+                    onChange={e => updatePair(i, 'definition', e.target.value)}
+                    disabled={isLoading}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                {manualPairs.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removePair(i)}
+                    disabled={isLoading}
+                    style={{
+                      background: 'none', border: 'none', color: 'var(--text-muted)',
+                      cursor: 'pointer', fontSize: '1.2em', padding: '4px 8px', lineHeight: 1
+                    }}
+                    title="Remove"
+                  >&times;</button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addPair}
+              disabled={isLoading}
+              style={{
+                width: '100%', padding: '10px', border: '2px dashed var(--border-default)',
+                borderRadius: 8, background: 'transparent', color: 'var(--accent)',
+                cursor: 'pointer', fontSize: '0.9em', fontWeight: 500
+              }}
+            >
+              + Add Card
+            </button>
+            <div style={{ fontSize: '0.75em', color: 'var(--text-muted)', marginTop: 6 }}>
+              {manualPairs.filter(p => p.term.trim() && p.definition.trim()).length} card{manualPairs.filter(p => p.term.trim() && p.definition.trim()).length !== 1 ? 's' : ''} ready
+            </div>
+          </div>
+        ) : inputMode === 'text' ? (
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: 6 }}>
               Content * <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(paste your notes, slides, or reading material)</span>
@@ -295,28 +399,30 @@ export default function CreateGuidePage() {
           </select>
         </div>
 
-        <div style={{ marginBottom: 24, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.9em', color: 'var(--text-secondary)' }}>
-            <input
-              type="checkbox"
-              checked={generateNotes}
-              onChange={e => setGenerateNotes(e.target.checked)}
-              disabled={isLoading}
-              style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
-            />
-            Generate Notes
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.9em', color: 'var(--text-secondary)' }}>
-            <input
-              type="checkbox"
-              checked={generateFlashcards}
-              onChange={e => setGenerateFlashcards(e.target.checked)}
-              disabled={isLoading}
-              style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
-            />
-            Generate Flashcards
-          </label>
-        </div>
+        {inputMode !== 'manual' && (
+          <div style={{ marginBottom: 24, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+              <input
+                type="checkbox"
+                checked={generateNotes}
+                onChange={e => setGenerateNotes(e.target.checked)}
+                disabled={isLoading}
+                style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
+              />
+              Generate Notes
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+              <input
+                type="checkbox"
+                checked={generateFlashcards}
+                onChange={e => setGenerateFlashcards(e.target.checked)}
+                disabled={isLoading}
+                style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
+              />
+              Generate Flashcards
+            </label>
+          </div>
+        )}
 
         <button
           type="submit"
@@ -324,7 +430,7 @@ export default function CreateGuidePage() {
           disabled={!canSubmit}
           style={{ padding: '12px 32px', fontSize: '1em' }}
         >
-          {isLoading ? 'Generating...' : 'Generate Study Guide'}
+          {isLoading ? (inputMode === 'manual' ? 'Saving...' : 'Generating...') : (inputMode === 'manual' ? 'Save Study Guide' : 'Generate Study Guide')}
         </button>
       </form>
     </div>

@@ -13,7 +13,8 @@ export default function StreakCounter() {
 
   async function loadStreak() {
     try {
-      const data = await apiFetch('/stats/streak');
+      const tzOffset = -new Date().getTimezoneOffset(); // minutes from UTC (e.g. -300 for EST)
+      const data = await apiFetch('/stats/streak?tz_offset=' + tzOffset);
       if (data) setStreak(data);
     } catch (e) {
       // Silently ignore — polling failures shouldn't log the user out
@@ -28,9 +29,15 @@ export default function StreakCounter() {
       <div className="streak-label">Day Streak</div>
 
       <div className="streak-week">
-        {(streak.week || []).map((day, i) => (
-          <div key={i} className={'streak-dot' + (day.active ? ' active' : '')} title={day.date} />
-        ))}
+        {(streak.week || []).map((day, i) => {
+          const labels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+          return (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: '0.6em', color: 'var(--text-muted)' }}>{labels[i]}</span>
+              <div className={'streak-dot' + (day.active ? ' active' : '')} title={day.date} />
+            </div>
+          );
+        })}
       </div>
 
       <div className={'streak-today' + (streak.studied_today ? '' : ' not-yet')}>
