@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { apiFetch } from '../lib/api';
 
 export default function NCLEXQuizMode({ questions, guideId, onComplete }) {
@@ -9,6 +9,11 @@ export default function NCLEXQuizMode({ questions, guideId, onComplete }) {
   const [answers, setAnswers] = useState([]);
   const [done, setDone] = useState(false);
   const [score, setScore] = useState(null);
+  const [showSave, setShowSave] = useState(false);
+  const [saveTitle, setSaveTitle] = useState('');
+  const [saveFolderId, setSaveFolderId] = useState('');
+  const [folders, setFolders] = useState([]);
+  const [saveStatus, setSaveStatus] = useState(''); // '' | 'saving' | 'saved' | 'error'
 
   const q = questions[currentIndex];
   const isSata = q.type === 'sata';
@@ -85,16 +90,92 @@ export default function NCLEXQuizMode({ questions, guideId, onComplete }) {
     setScore(null);
   }
 
+  async function openSaveForm() {
+    setShowSave(true);
+    setSaveTitle('NCLEX Practice — ' + new Date().toLocaleDateString());
+    const data = await apiFetch('/folders');
+    if (data?.folders) setFolders(data.folders);
+  }
+
+  async function saveAsGuide() {
+    if (!saveTitle.trim()) return;
+    setSaveStatus('saving');
+
+    // Format NCLEX questions as Q/A study guide
+    const studyGuide = questions.map((q, i) => {
+      const correctAnswers = q.correct_indices.map(ci => q.options[ci]).join('; ');
+      return `Q${i + 1}: ${q.stem}\nA${i + 1}: ${correctAnswers} — ${q.rationale || ''}`;
+    }).join('\n');
+
+    const body = { title: saveTitle.trim(), study_guide: studyGuide };
+    if (saveFolderId) body.folder_id = saveFolderId;
+
+    const saved = await apiFetch('/guides', { method: 'POST', body: JSON.stringify(body) });
+    if (saved?.guide) {
+      setSaveStatus('saved');
+    } else {
+      setSaveStatus('error');
+    }
+  }
+
   if (done && score) {
     return (
       <div className="quiz-result">
         <div className="quiz-score">{score.score}%</div>
         <div className="quiz-score-label">NCLEX Practice Score</div>
         <div className="quiz-breakdown">{score.correct} out of {score.total} correct</div>
-        <div className="completion-actions" style={{ marginTop: 20 }}>
+        <div className="completion-actions" style={{ marginTop: 20, gap: 8 }}>
           <button className="btn" onClick={retake}>Retake</button>
+          {saveStatus === 'saved' ? (
+            <button className="btn" disabled style={{ opacity: 0.7 }}>Saved!</button>
+          ) : (
+            <button className="btn" onClick={openSaveForm} disabled={showSave}>Save as Study Guide</button>
+          )}
           <button className="btn-outline" onClick={() => window.history.back()}>Back to Guide</button>
         </div>
+
+        {showSave && saveStatus !== 'saved' && (
+          <div style={{
+            marginTop: 16, padding: 16, background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-default)', borderRadius: 10
+          }}>
+            <label style={{ display: 'block', fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Title
+            </label>
+            <input
+              type="text"
+              value={saveTitle}
+              onChange={e => setSaveTitle(e.target.value)}
+              style={{ marginBottom: 10, width: '100%' }}
+            />
+            <label style={{ display: 'block', fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Save to Class (optional)
+            </label>
+            <select
+              value={saveFolderId}
+              onChange={e => setSaveFolderId(e.target.value)}
+              style={{
+                width: '100%', padding: '8px 12px', background: 'var(--bg-deepest)',
+                border: '1px solid var(--border-default)', borderRadius: 8,
+                color: 'var(--text-primary)', fontSize: '0.9em', marginBottom: 12
+              }}
+            >
+              <option value="">No class</option>
+              {folders.map(f => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" onClick={saveAsGuide} disabled={saveStatus === 'saving' || !saveTitle.trim()}>
+                {saveStatus === 'saving' ? 'Saving...' : 'Save'}
+              </button>
+              <button className="btn-outline" onClick={() => setShowSave(false)}>Cancel</button>
+            </div>
+            {saveStatus === 'error' && (
+              <div style={{ color: 'var(--error)', fontSize: '0.85em', marginTop: 8 }}>Failed to save. Try again.</div>
+            )}
+          </div>
+        )}
       </div>
     );
   }

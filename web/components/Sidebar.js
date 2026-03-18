@@ -13,6 +13,7 @@ export default function Sidebar() {
 
   const tabs = [
     { label: 'Dashboard', href: '/dashboard', icon: dashboardIcon, match: '/dashboard' },
+    { label: 'Create Guide', href: '/create', icon: createIcon, match: '/create' },
     { label: 'Classes', href: '/dashboard?view=classes', icon: classesIcon, match: 'view=classes' },
     { label: 'Study Guides', href: '/dashboard?view=guides', icon: guidesIcon, match: 'view=guides' },
     { label: 'Flashcards', href: '/flashcards', icon: flashcardsIcon, match: '/flashcards' },
@@ -64,4 +65,5 @@ const dashboardIcon = <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x=
 const classesIcon = <><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /></>;
 const guidesIcon = <><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></>;
 const flashcardsIcon = <><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M12 4v16" /></>;
+const createIcon = <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>;
 const billingIcon = <><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></>;

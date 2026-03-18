@@ -111,9 +111,14 @@ export default function FolderPage() {
 
       <div className="section-header" style={{ marginTop: 12 }}>
         <h2>{folder.name}</h2>
-        <button className="btn btn-red" style={{ fontSize: '0.8em', padding: '6px 14px' }} onClick={deleteFolder}>
-          Delete Folder
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" style={{ fontSize: '0.8em', padding: '6px 14px' }} onClick={() => router.push('/create?folder=' + id)}>
+            + Create Guide
+          </button>
+          <button className="btn btn-red" style={{ fontSize: '0.8em', padding: '6px 14px' }} onClick={deleteFolder}>
+            Delete Folder
+          </button>
+        </div>
       </div>
 
       <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>{guides.length} study guides &middot; Right-click a guide for options</p>

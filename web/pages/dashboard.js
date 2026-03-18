@@ -174,7 +174,10 @@ export default function Dashboard() {
       <div className="fade-in">
         <div className="section-header">
           <h2>My Classes</h2>
-          <button className="btn" onClick={() => setShowNewFolder(true)}>+ New Class</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" onClick={() => router.push('/create')}>+ Create Guide</button>
+            <button className="btn" onClick={() => setShowNewFolder(true)}>+ New Class</button>
+          </div>
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: 16 }}>
           {folders.length} classes &middot; Drag study guides onto a class to organize them
@@ -277,6 +280,7 @@ export default function Dashboard() {
         <div className="section-header">
           <h2>Study Guides</h2>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" onClick={() => router.push('/create')} style={{ fontSize: '0.8em' }}>+ Create Guide</button>
             <input
               type="search" placeholder="Search guides... (Ctrl+K)"
               onClick={() => setShowSearch(true)} readOnly
@@ -529,9 +533,12 @@ export default function Dashboard() {
       {/* Recent guides */}
       <div className="section-header" id="guides" style={{ marginTop: 28 }}>
         <h2>Recent Study Guides</h2>
-        <button className="btn-outline" onClick={() => router.push('/dashboard?view=guides')} style={{ fontSize: '0.8em' }}>
-          View All &rarr;
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={() => router.push('/create')} style={{ fontSize: '0.8em' }}>+ Create Guide</button>
+          <button className="btn-outline" onClick={() => router.push('/dashboard?view=guides')} style={{ fontSize: '0.8em' }}>
+            View All &rarr;
+          </button>
+        </div>
       </div>
 
       {guides.length === 0 ? (

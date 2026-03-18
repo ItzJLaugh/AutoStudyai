@@ -34,3 +34,7 @@ NUL
 
 # Logs
 *.log
+
+# Debug Tools
+.understand-anything
+

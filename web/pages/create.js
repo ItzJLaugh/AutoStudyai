@@ -25,7 +25,14 @@ export default function CreateGuidePage() {
   useEffect(() => {
     if (ready) {
       apiFetch('/folders').then(data => {
-        if (data?.folders) setFolders(data.folders);
+        if (data?.folders) {
+          setFolders(data.folders);
+          // Pre-select class if ?folder=ID is in the URL
+          const folderId = router.query.folder;
+          if (folderId && data.folders.some(f => f.id === folderId)) {
+            setSelectedFolder(folderId);
+          }
+        }
       });
     }
   }, [ready]);
