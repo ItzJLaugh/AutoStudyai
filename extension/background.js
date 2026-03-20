@@ -27,15 +27,27 @@ async function authedFetch(path, options = {}) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Screenshot handler for slide-by-slide capture with images
+  if (message.action === 'screenshotTab') {
+    chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 70 }, (dataUrl) => {
+      sendResponse({ screenshot: dataUrl || null });
+    });
+    return true;
+  }
+
   if (message.action === 'sendContent') {
     (async () => {
       try {
+        const ingestBody = {
+          content: message.content,
+          page_url: message.url
+        };
+        if (message.images && message.images.length > 0) {
+          ingestBody.images = message.images;
+        }
         const ingestResp = await authedFetch('/ingest', {
           method: 'POST',
-          body: JSON.stringify({
-            content: message.content,
-            page_url: message.url
-          })
+          body: JSON.stringify(ingestBody)
         });
         const ingestData = await ingestResp.json();
 

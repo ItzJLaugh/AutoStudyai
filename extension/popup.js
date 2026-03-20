@@ -292,6 +292,199 @@ function displayResults(response) {
 }
 
 // =====================
+// Image capture helpers
+// =====================
+
+// Promisified chrome.tabs.sendMessage with timeout
+function sendTabMessage(tabId, message, timeoutMs = 30000) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), timeoutMs);
+    chrome.tabs.sendMessage(tabId, message, (response) => {
+      clearTimeout(timer);
+      if (chrome.runtime.lastError) { resolve(null); return; }
+      resolve(response || null);
+    });
+  });
+}
+
+// Take a screenshot of the active tab via background.js
+function takeScreenshot() {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ action: 'screenshotTab' }, (response) => {
+      resolve(response?.screenshot || null);
+    });
+  });
+}
+
+// Single-message slideshow capture — content.js handles the entire loop
+// and takes screenshots inline via background.js (no per-slide popup round-trip)
+async function captureSlideshowWithImages(tabId) {
+  showProgress('Capturing slideshow (text + images)...');
+  const result = await sendTabMessage(tabId, { action: 'captureSlideshowWithImages' }, 120000);
+  if (!result || !result.success) {
+    return { success: false, content: '', images: [] };
+  }
+  showProgress('Captured ' + result.totalSlides + ' slides' +
+    (result.images && result.images.length > 0 ? ' + ' + result.images.length + ' screenshots' : ''), true);
+  return {
+    success: true,
+    content: result.content,
+    images: result.images || []
+  };
+}
+
+// =====================
+// Content script injection + capture flow
+// =====================
+
+// Ensure content script is loaded on the tab. If not, inject it programmatically.
+function ensureContentScript(tabId, callback) {
+  chrome.tabs.sendMessage(tabId, { action: 'ping' }, (response) => {
+    if (chrome.runtime.lastError || !response) {
+      // Content script not loaded — inject it
+      showProgress('Injecting content script...');
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['content.js']
+      }, () => {
+        if (chrome.runtime.lastError) {
+          showProgress('Could not inject content script: ' + chrome.runtime.lastError.message);
+          // Still try the callback — fallback will use executeScript for body.innerText
+        }
+        // Small delay to let the content script initialize
+        setTimeout(callback, 200);
+      });
+    } else {
+      callback();
+    }
+  });
+}
+
+// Full capture flow: PDF → slideshow → PPTX → page content
+function runCaptureFlow(tabId, tabUrl, subjectName) {
+  console.log('[CAPTURE-FLOW] Starting. URL:', tabUrl);
+  chrome.tabs.sendMessage(tabId, { action: 'extractPdfText' }, (pdfResp) => {
+    if (chrome.runtime.lastError) {
+      console.log('[CAPTURE-FLOW] extractPdfText lastError:', chrome.runtime.lastError.message);
+      showProgress('Content script unavailable, using page text...');
+      rawPageFallback(tabId, tabUrl, subjectName);
+      return;
+    }
+
+    console.log('[CAPTURE-FLOW] PDF check result:', pdfResp);
+    if (pdfResp && pdfResp.content && pdfResp.content.trim().length > 100) {
+      console.log('[CAPTURE-FLOW] → PDF path (content length:', pdfResp.content.length, ')');
+      showProgress('PDF detected - extracting text...', true);
+      showProgress('Processing PDF content...');
+      sendToBackend(pdfResp.content, tabUrl, subjectName);
+    } else {
+      showProgress('Checking for slideshows...');
+      chrome.tabs.sendMessage(tabId, { action: 'detectSlideshow' }, (slideInfo) => {
+        console.log('[CAPTURE-FLOW] Slideshow check:', JSON.stringify(slideInfo));
+        if (slideInfo && slideInfo.hasSlideshow && slideInfo.hasNavigation) {
+          console.log('[CAPTURE-FLOW] → Slideshow path');
+          showProgress('Slideshow detected — capturing slides...');
+          captureSlideshowWithImages(tabId).then((result) => {
+            if (result.success && result.content) {
+              showProgress('Processing slideshow content...');
+              sendToBackend(result.content, tabUrl, subjectName, result.images || []);
+            } else {
+              showProgress('Slideshow capture failed, trying page content...');
+              fallbackToPageContent(tabId, tabUrl, subjectName);
+            }
+          });
+        } else {
+          console.log('[CAPTURE-FLOW] → Checking PPTX...');
+          chrome.tabs.sendMessage(tabId, { action: 'downloadPptx' }, (pptxResp) => {
+            console.log('[CAPTURE-FLOW] PPTX check:', JSON.stringify(pptxResp));
+            if (pptxResp && pptxResp.success && pptxResp.url) {
+              console.log('[CAPTURE-FLOW] → PPTX path. URL:', pptxResp.url);
+              showProgress('PowerPoint file detected - downloading...', true);
+              capturePptx(pptxResp.url, tabId, tabUrl, subjectName);
+            } else {
+              console.log('[CAPTURE-FLOW] → Page content fallback');
+              showProgress('Grabbing page content...');
+              fallbackToPageContent(tabId, tabUrl, subjectName);
+            }
+          });
+        }
+      });
+    }
+  });
+}
+
+// Download and parse a PPTX file
+function capturePptx(pptxUrl, tabId, tabUrl, subjectName) {
+  console.log('[PPTX-CAPTURE] Starting. PPTX URL:', pptxUrl);
+  // Use content script to fetch (has session cookies for Canvas auth)
+  sendTabMessage(tabId, { action: 'fetchBlob', url: pptxUrl }).then((blobResp) => {
+    console.log('[PPTX-CAPTURE] fetchBlob response:', blobResp ? ('data length: ' + (blobResp.data ? blobResp.data.length : 'null')) : 'null');
+    if (blobResp && blobResp.data) {
+      showProgress('Extracting slideshow content...');
+      // blobResp.data is base64 — convert to ArrayBuffer for pptxParser
+      const binary = atob(blobResp.data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+      console.log('[PPTX-CAPTURE] Blob created. size:', blob.size, 'type:', blob.type);
+      console.log('[PPTX-CAPTURE] window.extractPptxText exists?', typeof window.extractPptxText);
+      console.log('[PPTX-CAPTURE] window["pptx-parser"] exists?', typeof window["pptx-parser"]);
+
+      const pptxParser = window.extractPptxText || (() => Promise.resolve(''));
+      console.log('[PPTX-CAPTURE] Calling extractPptxText...');
+      pptxParser(blob).then((slideText) => {
+        console.log('[PPTX-CAPTURE] extractPptxText result length:', slideText ? slideText.length : 0);
+        console.log('[PPTX-CAPTURE] extractPptxText result (first 500):', slideText ? slideText.substring(0, 500) : '(empty)');
+        if (slideText && slideText.length > 50) {
+          console.log('[PPTX-CAPTURE] → Sending to backend');
+          sendToBackend(slideText, pptxUrl, subjectName);
+        } else {
+          console.log('[PPTX-CAPTURE] → slideText too short, falling back to page content');
+          fallbackToPageContent(tabId, tabUrl, subjectName);
+        }
+      });
+    } else {
+      console.log('[PPTX-CAPTURE] fetchBlob failed, trying direct fetch...');
+      // Direct fetch fallback (won't have cookies for cross-origin)
+      fetch(pptxUrl)
+        .then(r => r.blob())
+        .then(async (blob) => {
+          console.log('[PPTX-CAPTURE] Direct fetch blob size:', blob.size);
+          showProgress('Extracting slideshow content...');
+          const pptxParser = window.extractPptxText || (() => Promise.resolve(''));
+          const slideText = await pptxParser(blob);
+          console.log('[PPTX-CAPTURE] Direct fetch parse result length:', slideText ? slideText.length : 0);
+          sendToBackend(slideText, pptxUrl, subjectName);
+        })
+        .catch((err) => {
+          console.error('[PPTX-CAPTURE] Direct fetch failed:', err);
+          showProgress('Falling back to page content...');
+          fallbackToPageContent(tabId, tabUrl, subjectName);
+        });
+    }
+  });
+}
+
+// Last resort: raw body.innerText via executeScript (no content script needed)
+function rawPageFallback(tabId, tabUrl, subjectName) {
+  chrome.scripting.executeScript({
+    target: { tabId: tabId },
+    func: () => {
+      let main = document.querySelector('main, article, [role="main"]') || document.body;
+      return main.innerText;
+    }
+  }, (results) => {
+    if (results && results[0] && results[0].result && results[0].result.trim().length > 50) {
+      showProgress('Page content captured!', true);
+      sendToBackend(results[0].result, tabUrl, subjectName);
+    } else {
+      statusDiv.innerText = 'Failed to capture content from this page.';
+      showProgress('No content found', false);
+    }
+  });
+}
+
+// =====================
 // Capture button handler
 // =====================
 const platformBanner = document.getElementById('platform-banner');
@@ -313,80 +506,49 @@ captureBtn.addEventListener('click', async () => {
 
     showProgress(`Analyzing page: "${lastPageTitle}"...`);
 
-    chrome.tabs.sendMessage(tabId, {action: 'extractPdfText'}, (pdfResp) => {
-      if (chrome.runtime.lastError) {
-        showProgress('Scanning page for content...');
-        fallbackToPageContent(tabId, tabUrl, lastPageTitle);
-        return;
-      }
-
-      if (pdfResp && pdfResp.content && pdfResp.content.trim().length > 100) {
-        showProgress('PDF detected - extracting text...', true);
-        showProgress('Processing PDF content...');
-        sendToBackend(pdfResp.content, tabUrl, lastPageTitle);
-      } else {
-        showProgress('Checking for slideshows...');
-        chrome.tabs.sendMessage(tabId, {action: 'captureSlideshow'}, (slideResp) => {
-          if (slideResp && slideResp.success && slideResp.slides && slideResp.slides.length > 0) {
-            showProgress(`Slideshow found - captured ${slideResp.slides.length} slides!`, true);
-            // Use the formatted content which includes --- Slide N --- markers
-            // so the backend can split slides properly
-            const slideContent = slideResp.content || slideResp.slides.map(s => s.content).join('\n\n');
-            showProgress('Processing slideshow content...');
-            sendToBackend(slideContent, tabUrl, lastPageTitle);
-          } else {
-            chrome.tabs.sendMessage(tabId, {action: 'downloadPptx'}, (pptxResp) => {
-              if (pptxResp && pptxResp.success && pptxResp.url) {
-                showProgress('PowerPoint file detected - downloading...', true);
-                fetch(pptxResp.url)
-                  .then(r => r.blob())
-                  .then(async (blob) => {
-                    showProgress('Extracting slideshow content...');
-                    const pptxParser = window.extractPptxText || (() => Promise.resolve(''));
-                    const slideText = await pptxParser(blob);
-                    sendToBackend(slideText, pptxResp.url, lastPageTitle);
-                  })
-                  .catch(() => {
-                    showProgress('Falling back to page content...');
-                    fallbackToPageContent(tabId, tabUrl, lastPageTitle);
-                  });
-              } else {
-                showProgress('Grabbing page content...');
-                fallbackToPageContent(tabId, tabUrl, lastPageTitle);
-              }
-            });
-          }
-        });
-      }
+    // Ensure content script is loaded before starting detection
+    ensureContentScript(tabId, () => {
+      runCaptureFlow(tabId, tabUrl, lastPageTitle);
     });
   });
 });
 
 function fallbackToPageContent(tabId, tabUrl, subjectName = 'content') {
   statusDiv.innerText = 'Capturing page content...';
-  chrome.scripting.executeScript({
-    target: {tabId: tabId},
-    func: () => {
-      let main = document.querySelector('main') || document.body;
-      return main.innerText;
-    }
-  }, (results) => {
-    if (results && results[0]) {
-      const pageText = results[0].result;
+
+  // First try smart extraction (LMS selectors, nav filtering, image collection)
+  sendTabMessage(tabId, { action: 'extractContent' }).then((resp) => {
+    if (resp && resp.content && resp.content.trim().length > 50) {
       showProgress('Page content captured!', true);
-      sendToBackend(pageText, tabUrl, subjectName);
+      sendToBackend(resp.content, tabUrl, subjectName, resp.images || []);
     } else {
-      statusDiv.innerText = 'Failed to capture page content.';
-      showProgress('Failed to capture content', false);
+      // Fallback: raw body.innerText as safety net
+      showProgress('Smart extract too short, using full page text...');
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: () => {
+          let main = document.querySelector('main') || document.body;
+          return main.innerText;
+        }
+      }, (results) => {
+        if (results && results[0]) {
+          const pageText = results[0].result;
+          showProgress('Page content captured!', true);
+          sendToBackend(pageText, tabUrl, subjectName);
+        } else {
+          statusDiv.innerText = 'Failed to capture page content.';
+          showProgress('Failed to capture content', false);
+        }
+      });
     }
   });
 }
 
-function sendToBackend(content, url, subjectName = 'content') {
+function sendToBackend(content, url, subjectName = 'content', images = []) {
   statusDiv.innerText = 'Processing...';
-  showProgress('Sending to AI for analysis...');
+  showProgress('Sending to AI for analysis...' + (images.length > 0 ? ' (' + images.length + ' images)' : ''));
 
-  chrome.runtime.sendMessage({action: 'sendContent', content: content, url: url}, (response) => {
+  chrome.runtime.sendMessage({action: 'sendContent', content: content, url: url, images: images}, (response) => {
     if (response && response.success) {
       showProgress('Complete!', true);
       displayResults(response);
