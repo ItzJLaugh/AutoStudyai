@@ -34,7 +34,8 @@ class InMemoryStorage:
         content_id: str,
         content: str,
         page_url: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        images: Optional[list] = None
     ) -> None:
         """Save content with size and count limits."""
         # Enforce content size limit
@@ -53,6 +54,7 @@ class InMemoryStorage:
                 "content": content,
                 "page_url": page_url,
                 "metadata": metadata or {},
+                "images": images or [],
                 "created_at": datetime.utcnow().isoformat()
             }
 

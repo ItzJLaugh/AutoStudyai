@@ -27,11 +27,13 @@ from schemas import (
 from services.text_processing import (
     clean_text, chunk_text,
     is_slideshow_content, extract_slideshow_content,
-    format_slideshow_text
+    format_slideshow_text, inject_image_descriptions,
+    inject_page_image_descriptions
 )
 from services.llm import (
     generate_notes_ai, generate_study_guide,
-    generate_flashcards, answer_question
+    generate_flashcards, answer_question,
+    analyze_images_for_slides
 )
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex
 from auth_utils import get_user_id
@@ -166,6 +168,17 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
         # Detect if content is from a slideshow
         is_slideshow, slideshow_type = is_slideshow_content(content)
 
+        # Convert image models to dicts for storage
+        images_data = []
+        if body.images:
+            for img in body.images[:10]:  # Max 10 images
+                images_data.append({
+                    "data": img.data,
+                    "slide_index": img.slide_index,
+                    "context": img.context,
+                    "alt": img.alt,
+                })
+
         # Store content with metadata (keyed by user to prevent cross-user access)
         storage.save_content(
             content_id,
@@ -176,10 +189,11 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
                 "is_slideshow": is_slideshow,
                 "slideshow_type": slideshow_type,
                 "user_id": user_id,
-            }
+            },
+            images=images_data
         )
 
-        logger.info(f"Ingested content_id={content_id}, slideshow={is_slideshow}")
+        logger.info(f"Ingested content_id={content_id}, slideshow={is_slideshow}, images={len(images_data)}")
 
         return IngestResponse(
             content_id=content_id,
@@ -240,6 +254,30 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         # instead of re-splitting the formatted text by paragraphs.
         chunks = chunk_text(cleaned, slides=slides)
 
+        # Analyze images via GPT-4o vision if present, then inject descriptions
+        stored_images = content_obj.get("images", [])
+        has_images = False
+        if stored_images:
+            logger.info(f"Analyzing {len(stored_images)} images via vision API...")
+            # Build slide text context for vision prompts
+            slide_text_map = {}
+            if slides:
+                for i, s in enumerate(slides):
+                    slide_text_map[i] = s.get("content", [])
+            image_descs = analyze_images_for_slides(stored_images, slide_text_map)
+            if image_descs:
+                has_images = True
+                logger.info(f"Got {len(image_descs)} image descriptions")
+                if slides:
+                    slides = inject_image_descriptions(slides, image_descs)
+                    cleaned = format_slideshow_text(slides)
+                    chunks = chunk_text(cleaned, slides=slides)
+                else:
+                    cleaned = inject_page_image_descriptions(cleaned, image_descs)
+                    chunks = chunk_text(cleaned)
+            # Free image data from memory after analysis
+            content_obj["images"] = []
+
         if not chunks:
             logger.warning("No content chunks after cleaning")
             return GenerateResponse(
@@ -260,7 +298,7 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
 
         if body.study_guide:
             logger.info("Generating study guide...")
-            study_guide = generate_study_guide(chunks)
+            study_guide = generate_study_guide(chunks, has_images=has_images)
 
         if body.flashcards:
             logger.info("Generating flashcards...")

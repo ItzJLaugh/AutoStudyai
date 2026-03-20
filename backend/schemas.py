@@ -7,11 +7,20 @@ from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 
 
+class ImageData(BaseModel):
+    """Single captured image for vision analysis."""
+    data: str = Field(..., max_length=2_000_000)  # base64 data URL (~1.5MB max)
+    slide_index: Optional[int] = None  # which slide this image belongs to
+    context: Optional[str] = Field(None, max_length=1_000)  # nearby text context
+    alt: Optional[str] = Field(None, max_length=500)  # alt text if available
+
+
 class IngestRequest(BaseModel):
     """Request to ingest page content."""
     content: str = Field(..., min_length=10, max_length=500_000)
     page_url: str = Field(..., max_length=2_048)
     content_type: str = Field(default="webpage", max_length=20)
+    images: Optional[List[ImageData]] = Field(default=[])
 
     @field_validator("content_type")
     @classmethod

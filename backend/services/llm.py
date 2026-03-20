@@ -34,14 +34,16 @@ def generate_notes_ai(content: str, max_notes: int = 25) -> List[str]:
 
     prompt = f"""Analyze the following educational content and extract the most important key points as study notes.
 
+CRITICAL: ONLY extract facts that are explicitly stated in the content below. NEVER invent, assume, or hallucinate any information. If the content contains no educational material (only navigation, UI elements, or unrelated text), respond with exactly: "NO_EDUCATIONAL_CONTENT"
+
 IGNORE completely:
 - Website navigation (Main Page, Contents, menus, sidebars)
 - UI elements (Edit, View history, Talk, buttons, links)
-- Wikipedia metadata (contributions, donations, community portal)
-- Login/account features
+- Wikipedia/LMS metadata (contributions, donations, community portal)
+- Login/account features, unread message counts, notification badges
 - Social media or sharing features
-- Table of contents listings
-- Any text about how to use the website
+- Table of contents listings, lecture recording lists, file listings
+- Any text about how to use the website or LMS
 
 FOCUS ONLY on actual educational/academic content that would be on an exam.
 
@@ -65,6 +67,11 @@ Return ONLY the bullet points, one per line, starting with "- ":"""
             temperature=0.3,
         )
         result = response.choices[0].message.content.strip()
+
+        # Detect if AI found no educational content
+        if "NO_EDUCATIONAL_CONTENT" in result:
+            logger.warning("Notes generation: no educational content detected")
+            return ["No educational content found in the captured page. Try capturing a page with actual course material."]
 
         # Parse the response into individual notes
         notes = []
@@ -97,6 +104,12 @@ def _generate_notes_fallback(content: str) -> List[str]:
 def _build_study_guide_prompt(context: str) -> str:
     """Build the study guide generation prompt for a chunk of content."""
     return f"""Create a study guide Q&A from the text below.
+
+CRITICAL RULES:
+• ONLY use information that is explicitly stated in the text below.
+• NEVER invent, assume, or hallucinate any facts, terms, or answers.
+• If the text contains no educational content (e.g., only navigation menus, UI elements, or unrelated text), respond with exactly: "NO_EDUCATIONAL_CONTENT"
+• Every answer MUST be directly supported by the text provided.
 
 Step 1 — Identify every single testable item in the text:
 • Named terms and their definitions
@@ -156,10 +169,10 @@ def _postprocess_study_guide(raw_result: str, start_index: int = 1) -> tuple:
         if a_match:
             answer = a_match.group(1)
             sentences = answer.split('. ')
-            if len(sentences) > 2:
-                answer = '. '.join(sentences[:2]) + '.'
-            if len(answer) > 220:
-                answer = answer[:217] + '...'
+            if len(sentences) > 3:
+                answer = '. '.join(sentences[:3]) + '.'
+            if len(answer) > 350:
+                answer = answer[:347] + '...'
             processed_lines.append(f"A{current_q_num}: {answer}")
             current_q_num += 1
             continue
@@ -169,11 +182,14 @@ def _postprocess_study_guide(raw_result: str, start_index: int = 1) -> tuple:
     return '\n'.join(processed_lines), current_q_num
 
 
-def generate_study_guide(chunks: List[str]) -> str:
+def generate_study_guide(chunks: List[str], has_images: bool = False) -> str:
     """
     Generate a comprehensive study guide with AI-generated questions and answers.
     Uses chunked generation: splits content into ~8000-char batches and makes
     a separate LLM call per batch, then merges and renumbers all Q&A pairs.
+
+    When has_images is True, uses gpt-4o instead of gpt-4o-mini for better
+    comprehension of image-described content.
     """
     client = get_openai_client()
     if not client:
@@ -214,8 +230,10 @@ def generate_study_guide(chunks: List[str]) -> str:
     for i, batch_text in enumerate(batches):
         prompt = _build_study_guide_prompt(batch_text[:30000])
         try:
+            # Use gpt-4o when images present for better visual content comprehension
+            model = "gpt-4o" if has_images else "gpt-4o-mini"
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=model,
                 messages=[
                     {"role": "system", "content": "You are an exhaustive study guide generator. Never stop until every fact in the text has been turned into a question."},
                     {"role": "user", "content": prompt}
@@ -224,6 +242,10 @@ def generate_study_guide(chunks: List[str]) -> str:
                 temperature=0.1,
             )
             result = response.choices[0].message.content.strip()
+            # Detect if AI found no educational content (anti-hallucination guard)
+            if "NO_EDUCATIONAL_CONTENT" in result:
+                logger.warning(f"Study guide batch {i+1}: no educational content detected, skipping")
+                continue
             all_results.append(result)
             import re as _re_log
             q_count = len(_re_log.findall(r'^Q\d+:', result, _re_log.MULTILINE))
@@ -658,3 +680,101 @@ def generate_notes(chunks: List[str]) -> List[str]:
 def generate_questions_from_notes(notes: List[str]) -> List[str]:
     """Legacy function - now handled by generate_study_guide."""
     return [f"What is {note[:50]}...?" for note in notes[:10] if len(note) > 10]
+
+
+def analyze_images_for_slides(images: list, slide_texts: dict = None) -> dict:
+    """
+    Analyze images using GPT-4o vision. Returns {slide_index: description}.
+
+    Args:
+        images: list of dicts with keys: data (base64), slide_index (int|None),
+                context (str|None), alt (str|None)
+        slide_texts: {slide_index: text_content} for providing context to vision
+
+    Returns:
+        dict mapping slide_index (or sequential int for page images) to description text
+    """
+    client = get_openai_client()
+    if not client:
+        logger.error("No OpenAI client for vision analysis")
+        return {}
+
+    if not images:
+        return {}
+
+    slide_texts = slide_texts or {}
+    results = {}
+
+    # Group images by slide_index for batching
+    grouped = {}
+    page_idx = 1000  # High offset for non-slide images
+    for img in images:
+        idx = img.get("slide_index")
+        if idx is None:
+            idx = page_idx
+            page_idx += 1
+        if idx not in grouped:
+            grouped[idx] = []
+        grouped[idx].append(img)
+
+    for slide_idx, slide_images in grouped.items():
+        try:
+            # Build context from slide text if available
+            text_context = ""
+            if slide_idx < 1000 and slide_idx in slide_texts:
+                text_content = slide_texts[slide_idx]
+                if isinstance(text_content, list):
+                    text_context = "\n".join(text_content)
+                else:
+                    text_context = str(text_content)
+            elif slide_images[0].get("context"):
+                text_context = slide_images[0]["context"]
+
+            # Build the message content with text prompt + image(s)
+            content_parts = [
+                {
+                    "type": "text",
+                    "text": (
+                        "You are analyzing educational content. "
+                        "Describe ALL factual and educational information visible in this image: "
+                        "labels, values, relationships, processes, data in charts/tables, "
+                        "diagram structures, and key concepts shown visually. "
+                        "Do NOT describe decorative elements, backgrounds, or layout. "
+                        "Be specific and thorough — every piece of information matters for study questions."
+                        + (f"\n\nSlide text for context:\n{text_context[:1000]}" if text_context else "")
+                    )
+                }
+            ]
+
+            for img in slide_images[:3]:  # Max 3 images per slide
+                data_url = img["data"]
+                # Ensure it's a proper data URL
+                if not data_url.startswith("data:"):
+                    data_url = "data:image/jpeg;base64," + data_url
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": data_url, "detail": "low"}
+                })
+
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": content_parts}],
+                max_tokens=500,
+                temperature=0.2,
+            )
+
+            description = response.choices[0].message.content.strip()
+
+            # Skip if the description adds nothing beyond what's in the text
+            if text_context and len(description) < 20:
+                logger.info(f"Skipping image for slide {slide_idx} — no new info")
+                continue
+
+            results[slide_idx] = description
+            logger.info(f"Vision analysis for slide {slide_idx}: {len(description)} chars")
+
+        except Exception as e:
+            logger.error(f"Vision analysis failed for slide {slide_idx}: {e}")
+            continue
+
+    return results

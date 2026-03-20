@@ -68,13 +68,12 @@ CONTEXTUAL_NAV_PATTERNS = {
 
 # Patterns that indicate slideshow/presentation content
 SLIDESHOW_INDICATORS = [
-    r"slide\s*\d+",
-    r"page\s*\d+\s*of\s*\d+",
-    r"^\d+\s*/\s*\d+$",  # "1 / 10" format
-    r"presentation",
-    r"powerpoint",
-    r"\.pptx?",
-    r"google\s*slides",
+    r"---\s*slide\s*\d+\s*---",     # Extension's "--- Slide N ---" markers (primary)
+    r"^\[slideshow captured:",       # Extension's header "[Slideshow Captured: N slides]"
+    r"page\s*\d+\s*of\s*\d+",       # PDF-like pagination "Page 3 of 10"
+    r"^\d+\s*/\s*\d+$",             # "1 / 10" format
+    # Removed: "presentation", "powerpoint", ".pptx", "google slides"
+    # These cause false positives on pages that merely mention these words
 ]
 
 # Content section headers that indicate educational content
@@ -341,3 +340,53 @@ def extract_key_terms(text: str) -> List[str]:
             terms.add(term)
 
     return list(terms)
+
+
+def inject_image_descriptions(slides: list, image_descriptions: dict) -> list:
+    """
+    Merge image analysis results into slide content.
+
+    Args:
+        slides: list of dicts from extract_slideshow_content(), each with
+                'title' (str) and 'content' (list of str)
+        image_descriptions: {slide_index (int): description_text (str)}
+
+    Returns:
+        slides list with image descriptions appended to the matching slide's content
+    """
+    if not image_descriptions:
+        return slides
+
+    for slide_idx, description in image_descriptions.items():
+        if not description or not description.strip():
+            continue
+        # slide_index 0 → slides[0], etc.
+        if isinstance(slide_idx, int) and 0 <= slide_idx < len(slides):
+            slides[slide_idx]["content"].append(f"[Visual Content]: {description.strip()}")
+
+    return slides
+
+
+def inject_page_image_descriptions(text: str, image_descriptions: dict) -> str:
+    """
+    Append image analysis results to cleaned page text (non-slideshow).
+
+    Args:
+        text: cleaned page text
+        image_descriptions: {index: description_text}
+
+    Returns:
+        text with image descriptions appended
+    """
+    if not image_descriptions:
+        return text
+
+    additions = []
+    for idx, description in image_descriptions.items():
+        if description and description.strip():
+            additions.append(f"[Visual Content]: {description.strip()}")
+
+    if additions:
+        text += "\n\n" + "\n\n".join(additions)
+
+    return text
