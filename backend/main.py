@@ -35,7 +35,7 @@ from services.llm import (
     generate_flashcards, answer_question,
     analyze_images_for_slides
 )
-from routers import auth, folders, guides, stats, search, quiz, billing, nclex
+from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback
 from auth_utils import get_user_id
 from routers.billing import check_and_increment_usage
 
@@ -108,7 +108,9 @@ app.include_router(stats.router)
 app.include_router(search.router)
 app.include_router(quiz.router)
 app.include_router(nclex.router)
+app.include_router(exam.router)
 app.include_router(billing.router)
+app.include_router(feedback.router)
 
 # Initialize storage with limits
 storage = InMemoryStorage()
@@ -140,6 +142,13 @@ def _validate_url(url: str) -> str:
 def health_check():
     """Health check endpoint."""
     return {"status": "ok", "version": "1.0.0"}
+
+
+@app.get("/domains")
+def list_domains():
+    """Return available academic domains and their exam modes."""
+    from domains import DOMAIN_LIST
+    return {"domains": DOMAIN_LIST}
 
 
 @app.post("/ingest", response_model=IngestResponse)
@@ -189,6 +198,7 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
                 "is_slideshow": is_slideshow,
                 "slideshow_type": slideshow_type,
                 "user_id": user_id,
+                "domain": body.domain,
             },
             images=images_data
         )
@@ -298,7 +308,9 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
 
         if body.study_guide:
             logger.info("Generating study guide...")
-            study_guide = generate_study_guide(chunks, has_images=has_images)
+            # Use domain from request body, or fall back to what was stored at ingest
+            domain = body.domain or metadata.get("domain")
+            study_guide = generate_study_guide(chunks, has_images=has_images, domain=domain)
 
         if body.flashcards:
             logger.info("Generating flashcards...")

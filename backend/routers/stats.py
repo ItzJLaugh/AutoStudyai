@@ -4,9 +4,10 @@ Handles streak tracking, study session logging, and overview statistics.
 """
 
 import re
+import json
 import logging
 from datetime import date, datetime, timedelta
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Request
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from database import get_supabase
@@ -27,7 +28,7 @@ class LogSessionRequest(BaseModel):
     @field_validator("session_type")
     @classmethod
     def validate_session_type(cls, v):
-        allowed = {"flashcard", "quiz", "read", "timer"}
+        allowed = {"flashcard", "quiz", "read", "timer", "browse"}
         if v not in allowed:
             raise ValueError(f"session_type must be one of: {allowed}")
         return v
@@ -266,3 +267,44 @@ def log_session(request: LogSessionRequest, authorization: str = Header(default=
     except Exception as e:
         logger.error(f"Error logging session: {e}")
         raise HTTPException(status_code=500, detail="Failed to log session")
+
+
+@router.post("/beacon")
+async def beacon_session(request: Request):
+    """Log a session via navigator.sendBeacon (fires on page unload).
+    Parses raw body since sendBeacon may send as text/plain."""
+    try:
+        body = await request.body()
+        data = json.loads(body)
+
+        auth = data.get("authorization", "")
+        if not auth:
+            return {"logged": False}
+
+        user_id = get_user_id(auth)
+        supabase = get_supabase()
+
+        session_type = data.get("session_type", "browse")
+        allowed = {"flashcard", "quiz", "read", "timer", "browse"}
+        if session_type not in allowed:
+            session_type = "browse"
+
+        duration = min(max(int(data.get("duration_seconds", 0)), 0), 86400)
+
+        row = {
+            "user_id": user_id,
+            "session_type": session_type,
+            "duration_seconds": duration,
+            "metadata": {}
+        }
+        guide_id = data.get("guide_id")
+        if guide_id and _UUID_RE.match(guide_id):
+            row["guide_id"] = guide_id
+
+        supabase.table("study_sessions").insert(row).execute()
+        _update_streak(user_id)
+
+        return {"logged": True}
+    except Exception as e:
+        logger.error(f"Error in beacon session: {e}")
+        return {"logged": False}

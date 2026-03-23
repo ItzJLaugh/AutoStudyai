@@ -31,6 +31,7 @@ class SaveGuideRequest(BaseModel):
     study_guide: Optional[str] = None
     flashcards: Optional[list] = None
     source_url: Optional[str] = None
+    domain: Optional[str] = None
 
     model_config = {"str_max_length": 500_000}
 
@@ -102,8 +103,11 @@ def save_guide(request: SaveGuideRequest, authorization: str = Header(default=""
             "title": request.title,
             "notes": request.notes,
             "study_guide": request.study_guide,
-            "source_url": request.source_url
+            "source_url": request.source_url,
         }
+
+        if request.domain:
+            data["domain"] = request.domain
 
         if request.folder_id:
             data["folder_id"] = request.folder_id
@@ -171,6 +175,50 @@ def delete_guide(guide_id: str, authorization: str = Header(default="")):
     except Exception as e:
         logger.error(f"Error deleting guide: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete guide")
+
+
+class RenameGuideRequest(BaseModel):
+    title: str
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Title is required")
+        if len(v) > 500:
+            raise ValueError("Title too long")
+        return v.strip()
+
+
+@router.patch("/{guide_id}/rename")
+def rename_guide(guide_id: str, request: RenameGuideRequest, authorization: str = Header(default="")):
+    """Rename a study guide."""
+    try:
+        _validate_uuid(guide_id, "guide ID")
+        user_id = get_user_id(authorization)
+        supabase = get_supabase()
+
+        current = supabase.table("study_guides") \
+            .select("id") \
+            .eq("id", guide_id) \
+            .eq("user_id", user_id) \
+            .execute()
+
+        if not current.data:
+            raise HTTPException(status_code=404, detail="Guide not found")
+
+        supabase.table("study_guides") \
+            .update({"title": request.title}) \
+            .eq("id", guide_id) \
+            .eq("user_id", user_id) \
+            .execute()
+
+        return {"title": request.title}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error renaming guide: {e}")
+        raise HTTPException(status_code=500, detail="Failed to rename guide")
 
 
 @router.patch("/{guide_id}/bookmark")

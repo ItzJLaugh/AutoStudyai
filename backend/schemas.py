@@ -21,6 +21,7 @@ class IngestRequest(BaseModel):
     page_url: str = Field(..., max_length=2_048)
     content_type: str = Field(default="webpage", max_length=20)
     images: Optional[List[ImageData]] = Field(default=[])
+    domain: Optional[str] = Field(default=None, max_length=30)
 
     @field_validator("content_type")
     @classmethod
@@ -51,6 +52,7 @@ class GenerateRequest(BaseModel):
     notes: bool = True
     study_guide: bool = True
     flashcards: bool = False
+    domain: Optional[str] = Field(default=None, max_length=30)
 
 
 class GenerateResponse(BaseModel):

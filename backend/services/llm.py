@@ -101,45 +101,68 @@ def _generate_notes_fallback(content: str) -> List[str]:
                 notes.append(line)
     return notes[:15]
 
-def _build_study_guide_prompt(context: str) -> str:
+def _build_study_guide_prompt(context: str, domain_context: str = "") -> str:
     """Build the study guide generation prompt for a chunk of content."""
+    domain_block = ""
+    if domain_context:
+        domain_block = f"\n[DOMAIN CONTEXT]\n{domain_context}\n\n"
+
     return f"""Create a study guide Q&A from the text below.
+{domain_block}
 
 CRITICAL RULES:
 • ONLY use information that is explicitly stated in the text below.
 • NEVER invent, assume, or hallucinate any facts, terms, or answers.
 • If the text contains no educational content (e.g., only navigation menus, UI elements, or unrelated text), respond with exactly: "NO_EDUCATIONAL_CONTENT"
 • Every answer MUST be directly supported by the text provided.
+• NEVER generate a question where the answer is "no additional information is provided" or similar — if the text doesn't explain a term, skip it.
+• IGNORE these non-educational sections entirely — do NOT generate questions from them:
+  - References, citations, bibliographies, footnotes, ISBNs, DOIs
+  - "See also", "Further reading", "External links" sections
+  - Author names, publication dates, journal names, and book titles that are citations (not the subject being taught)
+  - Navigation elements, categories, tags, sidebar links
+  - Lists of names, terms, or entities without substantive explanation — only ask about a named item if the text provides meaningful detail (definition, role, contribution, context, or relationship)
 
-Step 1 — Identify every single testable item in the text:
+Step 1 — Identify every single testable item in the text. Testable items include:
 • Named terms and their definitions
-• Drug names, mechanisms, dosages, side effects
-• Conditions and their signs/symptoms/causes/treatments
-• Lab values and what they indicate
-• Procedures and how/when they are performed
-• Classifications and their members
-• Cause-and-effect relationships
-• Any other specific fact a student must know
+• Named entities (people, places, works, organisms, events, theories, laws)
+• Classifications, categories, periods, or taxonomies and what distinguishes them
+• Cause-and-effect relationships (why something happens or happened)
+• Processes, procedures, methods, or sequences of steps
+• Comparisons or contrasts between related items
+• Significance — why something matters, its impact or implications
+• Key facts a student would need to know for an exam on this subject
 
-Step 2 — Write exactly ONE question for each item identified above.
-Do NOT group multiple items into one question.
-Do NOT skip any item.
-Do NOT stop until every identified item has been asked about.
+Step 2 — Write questions following these rules:
 
-EXAMPLE — if a slide contains:
-  "Hypokalemia: K+ < 3.5. Causes: vomiting, diuretics. Symptoms: muscle weakness, arrhythmia. Treatment: oral or IV KCl."
-You should produce FOUR questions:
-  Q: What is the definition of hypokalemia?
-  Q: What are common causes of hypokalemia?
-  Q: What are the symptoms of hypokalemia?
-  Q: How is hypokalemia treated?
-NOT one question that asks "describe hypokalemia."
+CONSOLIDATE identification details: When multiple facts describe ONE entity (e.g., a person's name, role, and dates; an artwork's title, medium, date, and dimensions; a compound's name, formula, and properties), write ONE question that asks to identify or describe that entity — not separate questions for each detail.
+  BAD (4 trivial questions about one item):
+    Q: What material is X made of?
+    Q: What is the height of X?
+    Q: Where was X found?
+    Q: When was X created?
+  GOOD (1 consolidated question):
+    Q: Identify X — its origin, date, material, and dimensions.
+    A: [All details in one answer]
+
+SEPARATE distinct concepts: When the text covers multiple distinct aspects of a topic (e.g., causes vs. symptoms vs. treatment; structure vs. function; characteristics of Period A vs. Period B), write a separate question for each aspect.
+
+FULL COVERAGE: Every named entity, concept, and key term in the text MUST appear in at least one question. After drafting all questions, re-scan the text to check for anything you missed.
+
+INCLUDE HIGHER-ORDER QUESTIONS where supported by the text:
+  • "Why" questions (causes, reasons, explanations)
+  • "How" questions (processes, mechanisms, relationships)
+  • Significance questions (why something is important or notable)
+  • Comparison questions (how two or more related items differ)
+  • Classification questions (what are the types/periods/categories)
+
+Do NOT skip any item. Do NOT stop until every identified item has been asked about.
 
 {context}
 
 FORMAT:
 Q1: [question]
-A1: [answer in 1-2 sentences]
+A1: [answer in 1-3 sentences]
 
 Continue until every item is covered."""
 
@@ -182,7 +205,7 @@ def _postprocess_study_guide(raw_result: str, start_index: int = 1) -> tuple:
     return '\n'.join(processed_lines), current_q_num
 
 
-def generate_study_guide(chunks: List[str], has_images: bool = False) -> str:
+def generate_study_guide(chunks: List[str], has_images: bool = False, domain: Optional[str] = None) -> str:
     """
     Generate a comprehensive study guide with AI-generated questions and answers.
     Uses chunked generation: splits content into ~8000-char batches and makes
@@ -190,6 +213,9 @@ def generate_study_guide(chunks: List[str], has_images: bool = False) -> str:
 
     When has_images is True, uses gpt-4o instead of gpt-4o-mini for better
     comprehension of image-described content.
+
+    When domain is set, injects domain-specific terminology and context to
+    steer vocabulary and focus without changing the core prompt rules.
     """
     client = get_openai_client()
     if not client:
@@ -226,16 +252,26 @@ def generate_study_guide(chunks: List[str], has_images: bool = False) -> str:
         f"{len(batches)} batch(es), batch_chars=[{', '.join(str(len(b)) for b in batches)}]"
     )
 
+    # Load domain context once (empty string if no domain)
+    domain_context = ""
+    if domain:
+        from domains import get_study_guide_context
+        domain_context = get_study_guide_context(domain)
+        if domain_context:
+            logger.info(f"Study guide using domain context: {domain}")
+
     all_results = []
     for i, batch_text in enumerate(batches):
-        prompt = _build_study_guide_prompt(batch_text[:30000])
+        prompt = _build_study_guide_prompt(batch_text[:30000], domain_context=domain_context)
         try:
-            # Use gpt-4o when images present for better visual content comprehension
-            model = "gpt-4o" if has_images else "gpt-4o-mini"
+            # Use gpt-4o when images present or when input is small enough
+            # that the cost difference is negligible — gpt-4o is more thorough
+            # at exhaustive coverage than mini
+            model = "gpt-4o" if (has_images or len(batch_text) < 10000) else "gpt-4o-mini"
             response = client.chat.completions.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": "You are an exhaustive study guide generator. Never stop until every fact in the text has been turned into a question."},
+                    {"role": "system", "content": "You are an exhaustive study guide generator. You MUST cover every single named entity, concept, and key term in the text — no exceptions. After generating questions, re-read the source text and add questions for anything you missed. Stopping early or skipping items is a failure."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=12000,
@@ -513,6 +549,149 @@ Do NOT stop until every Q&A pair has a corresponding practice question."""
 
     except Exception as e:
         logger.error(f"Error generating practice questions: {e}")
+        return []
+
+
+def generate_exam_questions(content: str, domain_id: str, exam_mode_id: str) -> list:
+    """
+    Generate domain-specific exam questions using few-shot examples from domain config.
+    Generalized version that works for any domain with exam modes (NAPLEX, Bar, etc.).
+    Returns a list of question dicts with type, stem, options, correct_indices, rationale.
+    """
+    import re as _re
+    import json as _json
+    from domains import get_domain, get_exam_examples
+
+    client = get_openai_client()
+    if not client:
+        return []
+
+    domain = get_domain(domain_id)
+    if not domain:
+        logger.warning(f"Unknown domain '{domain_id}', falling back to generic practice questions")
+        return generate_practice_questions(content)
+
+    # Find the exam mode config
+    exam_mode = None
+    for mode in domain.get('exam_modes', []):
+        if mode['id'] == exam_mode_id:
+            exam_mode = mode
+            break
+    if not exam_mode:
+        logger.warning(f"Unknown exam mode '{exam_mode_id}' for domain '{domain_id}', falling back")
+        return generate_practice_questions(content)
+
+    context = content[:25000]
+
+    # Count Q&A pairs for target count
+    qa_matches = _re.findall(r'^Q\d+:', context, _re.MULTILINE)
+    n_pairs = len(qa_matches)
+
+    if n_pairs > 0:
+        count_instruction = (
+            f"The study guide below contains {n_pairs} Q&A pairs (Q1/A1, Q2/A2, …). "
+            f"Each pair represents ONE distinct concept. "
+            f"Generate exactly one exam question per Q&A pair — that means a minimum of {n_pairs} questions. "
+            f"Do NOT merge multiple Q&A pairs into a single question."
+        )
+    else:
+        count_instruction = (
+            "Identify every key concept, definition, process, and factual detail in the content. "
+            "Generate one exam question per identified item — do NOT group multiple items into one question."
+        )
+
+    # Build few-shot examples block from domain config
+    examples = get_exam_examples(domain_id, exam_mode_id)
+    examples_block = ""
+    if examples:
+        examples_json = _json.dumps(examples[:2], indent=2)
+        examples_block = f"\nHere are example questions in the correct style:\n{examples_json}\n\nGenerate questions in a similar style and format.\n"
+
+    prompt = f"""Create {exam_mode['display_name']} practice exam questions from the study material below.
+
+{count_instruction}
+
+QUESTION RULES:
+- Mix types: ~60% MCQ (4 options, 1 correct) and ~40% multi-select (5 options, 2-4 correct)
+- Each question should test understanding and application, not just memorization
+- Distractors must be plausible, not obviously wrong
+- Multi-select stems must end with "(Select all that apply)"
+- Rationale: 2-3 sentences — explain why correct answers are right AND why key distractors are wrong
+{examples_block}
+CONTENT:
+{context}
+
+Return ONLY a valid JSON array — no markdown, no extra text:
+[
+  {{
+    "type": "mcq",
+    "stem": "...",
+    "options": ["A", "B", "C", "D"],
+    "correct_indices": [1],
+    "rationale": "..."
+  }}
+]
+
+Do NOT stop until every Q&A pair has a corresponding exam question."""
+
+    system_persona = exam_mode.get('system_persona',
+        f"You are an expert {domain['display_name']} exam question writer.")
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        f"{system_persona} "
+                        "You write one exam question for each Q&A pair in the study material — never fewer. "
+                        "Never merge multiple Q&A pairs into one question. "
+                        "Always return valid JSON only — no markdown, no extra text."
+                    )
+                },
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=16000,
+            temperature=0.6,
+        )
+        raw = response.choices[0].message.content.strip()
+
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+
+        # Parse JSON, recover if truncated
+        try:
+            questions = _json.loads(raw)
+        except _json.JSONDecodeError:
+            last_complete = raw.rfind('},')
+            if last_complete > 0:
+                try:
+                    questions = _json.loads(raw[:last_complete + 1] + ']')
+                except _json.JSONDecodeError:
+                    logger.error(f"Could not recover partial {exam_mode_id} exam JSON")
+                    return []
+            else:
+                logger.error(f"{exam_mode_id} exam response was not valid JSON")
+                return []
+
+        # Validate structure
+        validated = []
+        for q in questions:
+            if not all(k in q for k in ("type", "stem", "options", "correct_indices", "rationale")):
+                continue
+            if q["type"] not in ("mcq", "sata"):
+                continue
+            validated.append(q)
+
+        logger.info(f"Generated {len(validated)} {exam_mode_id} exam questions for domain {domain_id}")
+        return validated
+
+    except Exception as e:
+        logger.error(f"Error generating {exam_mode_id} exam questions: {e}")
         return []
 
 

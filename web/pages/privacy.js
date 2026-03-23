@@ -12,13 +12,13 @@ export default function PrivacyPolicy() {
         margin: '0 auto',
         padding: '60px 24px',
         fontFamily: "'Segoe UI', -apple-system, sans-serif",
-        color: '#e0e0e0',
+        color: 'var(--text-secondary)',
         lineHeight: '1.8',
       }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: '#ffffff', marginBottom: '8px' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
           Privacy Policy
         </h1>
-        <p style={{ color: '#90a4ae', marginBottom: '40px', fontSize: '0.9rem' }}>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '40px', fontSize: '0.9rem' }}>
           Effective Date: February 25, 2026 &nbsp;|&nbsp; Last Updated: February 25, 2026
         </p>
 
@@ -30,19 +30,19 @@ export default function PrivacyPolicy() {
         </p>
 
         <Section title="1. Information We Collect">
-          <p><strong style={{ color: '#ffffff' }}>a. Account Information</strong></p>
+          <p><strong style={{ color: 'var(--text-primary)' }}>a. Account Information</strong></p>
           <p>When you create an account, we collect your email address and a hashed password. We do not store plaintext passwords.</p>
 
-          <p style={{ marginTop: '16px' }}><strong style={{ color: '#ffffff' }}>b. Page Content</strong></p>
+          <p style={{ marginTop: '16px' }}><strong style={{ color: 'var(--text-primary)' }}>b. Page Content</strong></p>
           <p>When you use the Chrome extension to capture a page, the visible text content of that page is temporarily transmitted to our servers for AI processing. This content is used solely to generate your study materials and is not stored long-term on our servers after processing is complete.</p>
 
-          <p style={{ marginTop: '16px' }}><strong style={{ color: '#ffffff' }}>c. Generated Study Materials</strong></p>
+          <p style={{ marginTop: '16px' }}><strong style={{ color: 'var(--text-primary)' }}>c. Generated Study Materials</strong></p>
           <p>Study guides, notes, and flashcards you generate are stored in our database associated with your account so you can access them through the platform.</p>
 
-          <p style={{ marginTop: '16px' }}><strong style={{ color: '#ffffff' }}>d. Usage Data</strong></p>
+          <p style={{ marginTop: '16px' }}><strong style={{ color: 'var(--text-primary)' }}>d. Usage Data</strong></p>
           <p>We track the number of study guides generated per month per account to enforce plan limits. We do not collect detailed analytics, browsing history, or behavioral tracking data.</p>
 
-          <p style={{ marginTop: '16px' }}><strong style={{ color: '#ffffff' }}>e. Payment Information</strong></p>
+          <p style={{ marginTop: '16px' }}><strong style={{ color: 'var(--text-primary)' }}>e. Payment Information</strong></p>
           <p>Payments are processed by Stripe. We do not collect or store your full credit card number, card verification code, or bank account details. Stripe provides us with a customer identifier and subscription status. Stripe's privacy policy governs their handling of your payment data and can be found at stripe.com/privacy.</p>
         </Section>
 
@@ -65,9 +65,9 @@ export default function PrivacyPolicy() {
         <Section title="3. How We Share Your Information">
           <p>We do not sell, trade, or rent your personal information to third parties. We may share data only in the following limited circumstances:</p>
           <ul style={{ paddingLeft: '20px', marginTop: '8px' }}>
-            <li><strong style={{ color: '#ffffff' }}>Service Providers:</strong> We use trusted third-party providers to operate the Service, including Supabase (database and authentication), OpenAI (AI content generation), Stripe (payment processing), and Fly.io (backend hosting). These providers are contractually obligated to protect your data and may only use it to perform services on our behalf.</li>
-            <li style={{ marginTop: '8px' }}><strong style={{ color: '#ffffff' }}>Legal Requirements:</strong> We may disclose your information if required to do so by law, regulation, or valid legal process (e.g., a court order or subpoena).</li>
-            <li style={{ marginTop: '8px' }}><strong style={{ color: '#ffffff' }}>Business Transfers:</strong> In the event of a merger, acquisition, or sale of all or a portion of our assets, your information may be transferred as part of that transaction. We will notify you of any such change via email or a prominent notice on our platform.</li>
+            <li><strong style={{ color: 'var(--text-primary)' }}>Service Providers:</strong> We use trusted third-party providers to operate the Service, including Supabase (database and authentication), OpenAI (AI content generation), Stripe (payment processing), and Fly.io (backend hosting). These providers are contractually obligated to protect your data and may only use it to perform services on our behalf.</li>
+            <li style={{ marginTop: '8px' }}><strong style={{ color: 'var(--text-primary)' }}>Legal Requirements:</strong> We may disclose your information if required to do so by law, regulation, or valid legal process (e.g., a court order or subpoena).</li>
+            <li style={{ marginTop: '8px' }}><strong style={{ color: 'var(--text-primary)' }}>Business Transfers:</strong> In the event of a merger, acquisition, or sale of all or a portion of our assets, your information may be transferred as part of that transaction. We will notify you of any such change via email or a prominent notice on our platform.</li>
           </ul>
         </Section>
 
@@ -83,11 +83,11 @@ export default function PrivacyPolicy() {
         <Section title="5. Chrome Extension — Data Practices">
           <p>The AutoStudyAI Chrome extension:</p>
           <ul style={{ paddingLeft: '20px', marginTop: '8px' }}>
-            <li>Reads page content <strong style={{ color: '#ffffff' }}>only</strong> when you explicitly click "Capture Page"</li>
+            <li>Reads page content <strong style={{ color: 'var(--text-primary)' }}>only</strong> when you explicitly click "Capture Page"</li>
             <li>Does not run in the background or monitor your browsing activity</li>
             <li>Does not collect your browsing history, URLs visited, or any data outside of the page you choose to capture</li>
             <li>Stores your authentication token locally using Chrome's storage API so you remain logged in between sessions</li>
-            <li>Transmits captured text only to <strong style={{ color: '#ffffff' }}>autostudy-ai.fly.dev</strong>, our own API — no data is sent to any other third-party host</li>
+            <li>Transmits captured text only to <strong style={{ color: 'var(--text-primary)' }}>autostudy-ai.fly.dev</strong>, our own API — no data is sent to any other third-party host</li>
           </ul>
         </Section>
 
@@ -151,9 +151,9 @@ export default function PrivacyPolicy() {
             please contact us at:
           </p>
           <p style={{ marginTop: '12px' }}>
-            <strong style={{ color: '#ffffff' }}>AutoStudyAI</strong><br />
-            Email: <a href="mailto:jackson.laughlin0804@gmail.com" style={{ color: '#4fc3f7' }}>support@autostudyai.vercel.app</a><br />
-            Website: <a href="https://autostudyai.online" style={{ color: '#4fc3f7' }}>https://autostudyai.online</a>
+            <strong style={{ color: 'var(--text-primary)' }}>AutoStudyAI</strong><br />
+            Email: <a href="mailto:jackson.laughlin0804@gmail.com" style={{ color: 'var(--accent)' }}>support@autostudyai.vercel.app</a><br />
+            Website: <a href="https://autostudyai.online" style={{ color: 'var(--accent)' }}>https://autostudyai.online</a>
           </p>
         </Section>
       </div>
@@ -167,14 +167,14 @@ function Section({ title, children }) {
       <h2 style={{
         fontSize: '1.15rem',
         fontWeight: '600',
-        color: '#4fc3f7',
+        color: 'var(--accent)',
         marginBottom: '12px',
         paddingBottom: '6px',
-        borderBottom: '1px solid rgba(79, 195, 247, 0.15)',
+        borderBottom: '1px solid var(--border-default)',
       }}>
         {title}
       </h2>
-      <div style={{ color: '#cfd8dc', fontSize: '0.95rem' }}>
+      <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
         {children}
       </div>
     </div>

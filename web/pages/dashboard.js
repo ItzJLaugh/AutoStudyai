@@ -3,11 +3,13 @@ import { useRouter } from 'next/router';
 import { apiFetch } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
 import { formatDate } from '../lib/formatters';
+import useSessionTracker from '../lib/useSessionTracker';
 import SearchModal from '../components/SearchModal';
 
 export default function Dashboard() {
   const router = useRouter();
   const { ready } = useRequireAuth();
+  useSessionTracker('browse');
   const view = router.query.view || null; // null = dashboard, 'classes', 'guides'
   const [folders, setFolders] = useState([]);
   const [guides, setGuides] = useState([]);
@@ -397,6 +399,18 @@ export default function Dashboard() {
         </div>
         <div className="context-menu-item" onClick={() => { toggleBookmark(contextMenu.guide.id, { stopPropagation: () => {} }); setContextMenu(null); }}>
           {contextMenu.guide.is_bookmarked ? '★ Remove Bookmark' : '☆ Add Bookmark'}
+        </div>
+        <div className="context-menu-item" onClick={() => {
+          const newTitle = prompt('Rename guide:', contextMenu.guide.title);
+          if (newTitle && newTitle.trim()) {
+            apiFetch('/guides/' + contextMenu.guide.id + '/rename', {
+              method: 'PATCH',
+              body: JSON.stringify({ title: newTitle.trim() })
+            }).then(data => { if (data?.title) loadData(); });
+          }
+          setContextMenu(null);
+        }}>
+          &#9998; Rename
         </div>
         <div className="context-menu-divider" />
         <div className="context-menu-label">Move to Class:</div>

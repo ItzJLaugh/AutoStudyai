@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { apiFetch } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
+import useSessionTracker from '../lib/useSessionTracker';
 
 export default function FlashcardsHub() {
   const router = useRouter();
   const { ready } = useRequireAuth();
+  useSessionTracker('browse');
   const [guides, setGuides] = useState([]);
 
   useEffect(() => {

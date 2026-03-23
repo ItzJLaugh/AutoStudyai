@@ -189,11 +189,49 @@ def clean_text(text: str) -> str:
     if not text:
         return ""
 
+    # Strip non-educational sections (References, See also, etc.)
+    # These are section-level blocks, not individual nav lines
+    NON_EDUCATIONAL_SECTIONS = {
+        "see also", "references", "further reading", "external links",
+        "bibliography", "citations", "notes and references", "footnotes",
+        "notable people", "notable figures", "key figures", "noted scholars",
+    }
+    EDUCATIONAL_SECTIONS = {
+        "overview", "introduction", "history", "background", "definition",
+        "description", "characteristics", "types", "classification",
+        "structure", "function", "process", "method", "example",
+        "summary", "key points", "conclusion",
+    }
+
     lines = text.splitlines()
     non_empty_lines = [line.strip() for line in lines if line.strip()]
 
     if not non_empty_lines:
         return ""
+
+    # First pass: remove non-educational sections
+    filtered_lines = []
+    skipping = False
+    for line in non_empty_lines:
+        line_lower = line.lower().strip().rstrip('[]')
+        # Check if this line is a non-educational section header
+        if line_lower in NON_EDUCATIONAL_SECTIONS or any(
+            line_lower.startswith(s) for s in NON_EDUCATIONAL_SECTIONS
+        ):
+            skipping = True
+            continue
+        # Check if we've hit an educational section header (resume capturing)
+        if skipping and (
+            line_lower in EDUCATIONAL_SECTIONS or
+            any(line_lower.startswith(s) for s in EDUCATIONAL_SECTIONS)
+        ):
+            skipping = False
+        if not skipping:
+            filtered_lines.append(line)
+
+    # Use filtered lines if we didn't remove too much
+    if len(filtered_lines) >= len(non_empty_lines) * 0.15:
+        non_empty_lines = filtered_lines
 
     cleaned_lines = []
 
