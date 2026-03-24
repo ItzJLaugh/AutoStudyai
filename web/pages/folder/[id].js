@@ -4,6 +4,7 @@ import { apiFetch } from '../../lib/api';
 import { useRequireAuth } from '../../lib/auth';
 import { formatDate } from '../../lib/formatters';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import AILoadingSphere from '../../components/AILoadingSphere';
 
 export default function FolderPage() {
   const router = useRouter();
@@ -92,7 +93,12 @@ export default function FolderPage() {
     }
   }
 
-  if (!folder) return <div style={{ padding: 40, color: 'var(--text-muted)' }}>Loading...</div>;
+  if (!folder) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+      <AILoadingSphere size={100} />
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>Loading class...</p>
+    </div>
+  );
 
   return (
     <div className="fade-in">

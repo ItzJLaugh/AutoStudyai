@@ -3,11 +3,13 @@ import { useRouter } from 'next/router';
 import { apiFetch } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
 import useSessionTracker from '../lib/useSessionTracker';
+import AILoadingSphere from '../components/AILoadingSphere';
 
 export default function FlashcardsHub() {
   const router = useRouter();
   const { ready } = useRequireAuth();
   useSessionTracker('browse');
+  const [loading, setLoading] = useState(true);
   const [guides, setGuides] = useState([]);
 
   useEffect(() => {
@@ -15,12 +17,21 @@ export default function FlashcardsHub() {
   }, [ready]);
 
   async function loadGuides() {
+    setLoading(true);
     const data = await apiFetch('/guides');
     const withCards = (data?.guides || []).filter(g => g.flashcards && g.flashcards.length > 0);
     setGuides(withCards);
+    setLoading(false);
   }
 
-  if (!ready) return null;
+  if (!ready || loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+        <AILoadingSphere size={100} />
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>Loading your flashcards...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="fade-in">

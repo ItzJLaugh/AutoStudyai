@@ -276,9 +276,9 @@ export default function SettingsPage() {
         .plan-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; color: var(--text-primary); }
         .plan-price { font-size: 2rem; font-weight: 800; margin-bottom: 16px; color: var(--text-primary); }
         .plan-price span { font-size: 1rem; font-weight: 400; color: var(--text-muted); }
-        .plan-features { list-style: none; padding: 0; margin: 0 0 20px; }
-        .plan-features li { padding: 6px 0; font-size: 0.9rem; color: var(--text-secondary); }
-        .plan-features li::before { content: "\\2713  "; color: var(--accent); font-weight: 700; }
+        .plan-features { list-style: none !important; list-style-type: none !important; padding: 0 !important; margin: 0 0 20px; }
+        .plan-features li { list-style: none; list-style-type: none; padding: 6px 0; font-size: 0.9rem; color: var(--text-secondary); display: flex; align-items: baseline; gap: 6px; }
+        .plan-features li::before { content: "\2713"; color: var(--accent); font-weight: 700; flex-shrink: 0; }
         .plan-current-label { color: var(--accent); font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; }
         .btn-upgrade { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
         .btn-upgrade:hover { background: var(--accent-secondary); }

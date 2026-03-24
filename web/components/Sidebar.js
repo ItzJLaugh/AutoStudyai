@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { clearAuth, getUserEmail } from '../lib/api';
+import FeedbackModal from './FeedbackModal';
 
 export default function Sidebar() {
   const router = useRouter();
   const path = router.pathname;
   const [email, setEmail] = useState('');
+  const [showFeedback, setShowFeedback] = useState(false);
 
   useEffect(() => {
     setEmail(getUserEmail() || '');
@@ -54,9 +56,16 @@ export default function Sidebar() {
       </div>
 
       <div className="sidebar-footer">
+        <button className="sidebar-feedback" onClick={() => setShowFeedback(true)}>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+          </svg>
+          Send Feedback
+        </button>
         <div className="sidebar-email">{email}</div>
         <button className="sidebar-logout" onClick={logout}>Log Out</button>
       </div>
+      {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
     </nav>
   );
 }

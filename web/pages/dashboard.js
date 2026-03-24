@@ -5,12 +5,14 @@ import { useRequireAuth } from '../lib/auth';
 import { formatDate } from '../lib/formatters';
 import useSessionTracker from '../lib/useSessionTracker';
 import SearchModal from '../components/SearchModal';
+import AILoadingSphere from '../components/AILoadingSphere';
 
 export default function Dashboard() {
   const router = useRouter();
   const { ready } = useRequireAuth();
   useSessionTracker('browse');
   const view = router.query.view || null; // null = dashboard, 'classes', 'guides'
+  const [loading, setLoading] = useState(true);
   const [folders, setFolders] = useState([]);
   const [guides, setGuides] = useState([]);
   const [stats, setStats] = useState(null);
@@ -28,7 +30,10 @@ export default function Dashboard() {
   const contextRef = useRef(null);
 
   useEffect(() => {
-    if (ready) loadData();
+    if (ready) {
+      setLoading(true);
+      loadData();
+    }
     function onKey(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setShowSearch(true); }
       if (e.key === 'Escape') setContextMenu(null);
@@ -47,6 +52,7 @@ export default function Dashboard() {
   }
 
   async function loadData() {
+    setLoading(true);
     const [foldersData, guidesData, statsData] = await Promise.all([
       apiFetch('/folders'),
       apiFetch('/guides'),
@@ -55,6 +61,7 @@ export default function Dashboard() {
     setFolders(foldersData?.folders || []);
     setGuides(guidesData?.guides || []);
     setStats(statsData);
+    setLoading(false);
   }
 
   async function createFolder() {
@@ -169,6 +176,16 @@ export default function Dashboard() {
   }
 
   if (!ready) return null;
+
+  // ============== LOADING STATE ==============
+  if (!ready || loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+        <AILoadingSphere size={100} />
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>Loading your content...</p>
+      </div>
+    );
+  }
 
   // ============== CLASSES VIEW ==============
   if (view === 'classes') {

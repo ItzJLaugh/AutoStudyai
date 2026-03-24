@@ -4,6 +4,7 @@ import { apiFetch } from '../../lib/api';
 import { useRequireAuth } from '../../lib/auth';
 import { parseQAPairs, parseNotes, formatDate } from '../../lib/formatters';
 import useSessionTracker from '../../lib/useSessionTracker';
+import AILoadingSphere from '../../components/AILoadingSphere';
 import FlashcardViewer from '../../components/FlashcardViewer';
 import QuizMode from '../../components/QuizMode';
 
@@ -66,7 +67,12 @@ export default function GuidePage() {
     });
   }
 
-  if (!guide) return <div style={{ padding: 40, color: 'var(--text-muted)' }}>Loading...</div>;
+  if (!guide) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+      <AILoadingSphere size={100} />
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>Loading study guide...</p>
+    </div>
+  );
 
   const qaPairs = parseQAPairs(guide.study_guide);
   const notes = parseNotes(guide.notes);
