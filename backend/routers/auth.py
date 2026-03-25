@@ -8,6 +8,7 @@ import time
 import logging
 from collections import defaultdict
 from fastapi import APIRouter, HTTPException, Request, Header
+from typing import Optional
 from pydantic import BaseModel, EmailStr, field_validator
 from database import get_supabase
 
@@ -48,6 +49,9 @@ def _check_rate_limit(request: Request, store: defaultdict, max_attempts: int):
 class SignupRequest(BaseModel):
     email: EmailStr
     password: str
+    name: Optional[str] = None
+    university: Optional[str] = None
+    major: Optional[str] = None
 
     @field_validator("password")
     @classmethod
@@ -69,6 +73,26 @@ class SignupRequest(BaseModel):
     def validate_email_length(cls, v):
         if len(v) > 254:
             raise ValueError("Email too long")
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v):
+        if v is not None:
+            v = v.strip()
+            if len(v) > 200:
+                raise ValueError("Name too long")
+            return v if v else None
+        return v
+
+    @field_validator("university", "major")
+    @classmethod
+    def validate_optional_field(cls, v):
+        if v is not None:
+            v = v.strip()
+            if len(v) > 300:
+                raise ValueError("Field value too long")
+            return v if v else None
         return v
 
 
@@ -104,6 +128,20 @@ def signup(request: SignupRequest, req: Request):
 
         if not result.user:
             raise HTTPException(status_code=400, detail="Signup failed")
+
+        # Store profile data in user_profiles table for Make.com integration
+        try:
+            profile_data = {
+                "id": result.user.id,
+                "email": request.email,
+                "name": request.name,
+                "university": request.university,
+                "major": request.major,
+            }
+            supabase.table("user_profiles").insert(profile_data).execute()
+        except Exception as profile_err:
+            # Don't fail signup if profile insert fails — user is already created
+            logger.warning(f"Failed to save user profile: {profile_err}")
 
         return AuthResponse(
             user_id=result.user.id,
