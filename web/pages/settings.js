@@ -170,7 +170,7 @@ export default function SettingsPage() {
 
                   <div className={'plan-card plan-card-pro' + (isPro ? ' plan-card-current' : '')}>
                     <div className="plan-name">Pro</div>
-                    <div className="plan-price">$6.99 <span>/month</span></div>
+                    <div className="plan-price">$9.99 <span>/month</span></div>
                     <ul className="plan-features">
                       <li><strong>Unlimited</strong> guide generations</li>
                       <li>Everything in Free</li>

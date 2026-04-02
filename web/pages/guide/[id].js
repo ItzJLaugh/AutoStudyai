@@ -8,7 +8,7 @@ import AILoadingSphere from '../../components/AILoadingSphere';
 import FlashcardViewer from '../../components/FlashcardViewer';
 import QuizMode from '../../components/QuizMode';
 
-export default function GuidePage() {
+export default function GuidePage({ setGuideContent }) {
   const router = useRouter();
   const { id } = router.query;
   const { ready } = useRequireAuth();
@@ -45,7 +45,10 @@ export default function GuidePage() {
 
   async function loadGuide() {
     const data = await apiFetch('/guides/' + id);
-    if (data?.guide) setGuide(data.guide);
+    if (data?.guide) {
+      setGuide(data.guide);
+      if (setGuideContent) setGuideContent(data.guide.study_guide || '');
+    }
   }
 
   async function loadQuizHistory() {
@@ -134,9 +137,18 @@ export default function GuidePage() {
             <span className="timestamp">{formatDate(guide.created_at)}</span>
           </p>
         </div>
-        <button className={'bookmark-btn' + (guide.is_bookmarked ? ' active' : '')} onClick={toggleBookmark} style={{ fontSize: '1.6em', marginTop: 8 }}>
-          {guide.is_bookmarked ? '\u2605' : '\u2606'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+          <button
+            className="btn"
+            onClick={() => router.push('/create?editGuideId=' + id)}
+            style={{ padding: '6px 14px', fontSize: '0.8em' }}
+          >
+            Edit Guide
+          </button>
+          <button className={'bookmark-btn' + (guide.is_bookmarked ? ' active' : '')} onClick={toggleBookmark} style={{ fontSize: '1.6em' }}>
+            {guide.is_bookmarked ? '\u2605' : '\u2606'}
+          </button>
+        </div>
       </div>
 
       {/* Progress overview */}
@@ -200,6 +212,9 @@ export default function GuidePage() {
                 </div>
                 <div className={'qa-answer' + (revealedQs.has(i) ? ' visible' : '')}>
                   {pair.answer}
+                  {pair.image && (
+                    <img src={pair.image} alt="Study image" style={{ display: 'block', maxWidth: '100%', maxHeight: 300, borderRadius: 6, marginTop: 10, border: '1px solid var(--border-subtle)' }} />
+                  )}
                 </div>
               </div>
             ))

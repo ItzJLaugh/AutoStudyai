@@ -6,14 +6,19 @@ export function parseQAPairs(text) {
   const pairs = [];
   const lines = text.split('\n');
   let currentQ = null;
+  let lastPair = null;
   for (const line of lines) {
     const qMatch = line.match(/^Q(\d+):\s*(.+)/);
     const aMatch = line.match(/^A(\d+):\s*(.+)/);
+    const imgMatch = line.match(/^\[IMG:(data:image\/.+)\]$/);
     if (qMatch) {
       currentQ = { index: parseInt(qMatch[1]), question: qMatch[2].trim() };
     } else if (aMatch && currentQ) {
-      pairs.push({ ...currentQ, answer: aMatch[2].trim() });
+      lastPair = { ...currentQ, answer: aMatch[2].trim(), image: null };
+      pairs.push(lastPair);
       currentQ = null;
+    } else if (imgMatch && lastPair) {
+      lastPair.image = imgMatch[1];
     }
   }
   return pairs;

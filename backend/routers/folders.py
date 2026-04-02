@@ -7,7 +7,6 @@ import re
 import logging
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel, field_validator
-from typing import Optional
 from database import get_supabase
 from auth_utils import get_user_id
 
@@ -96,7 +95,7 @@ def delete_folder(folder_id: str, authorization: str = Header(default="")):
         user_id = get_user_id(authorization)
         supabase = get_supabase()
 
-        result = supabase.table("folders") \
+        supabase.table("folders") \
             .delete() \
             .eq("id", folder_id) \
             .eq("user_id", user_id) \

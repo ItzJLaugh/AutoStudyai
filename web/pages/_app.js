@@ -1,4 +1,5 @@
 import '../styles/globals.css';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
@@ -15,14 +16,42 @@ export default function App({ Component, pageProps }) {
   const [timerState, setTimerState] = useState({
     mode: 'focus', minutes: 25, seconds: 0, isRunning: false
   });
+  const [guideContent, setGuideContent] = useState(null);
+
+  // Clear guide content when navigating away from a guide page
+  useEffect(() => {
+    const handleRouteChange = (url) => {
+      if (!url.startsWith('/guide/')) setGuideContent(null);
+    };
+    router.events.on('routeChangeStart', handleRouteChange);
+    return () => router.events.off('routeChangeStart', handleRouteChange);
+  }, [router]);
 
   if (isLoginPage) {
-    return <Component {...pageProps} />;
+    return (
+      <>
+        <Head>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet" />
+          <link rel="icon" href="/favicon.png" type="image/png" />
+        </Head>
+        <Component {...pageProps} />
+      </>
+    );
   }
 
   return (
-    <Layout timerState={timerState} setTimerState={setTimerState}>
-      <Component {...pageProps} />
-    </Layout>
+    <>
+      <Head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet" />
+        <link rel="icon" href="/favicon.png" type="image/png" />
+      </Head>
+      <Layout timerState={timerState} setTimerState={setTimerState} guideContent={guideContent}>
+        <Component {...pageProps} setGuideContent={setGuideContent} />
+      </Layout>
+    </>
   );
 }

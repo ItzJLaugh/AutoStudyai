@@ -135,13 +135,13 @@ Step 1 — Identify every single testable item in the text. Testable items inclu
 
 Step 2 — Write questions following these rules:
 
-CONSOLIDATE identification details: When multiple facts describe ONE entity (e.g., a person's name, role, and dates; an artwork's title, medium, date, and dimensions; a compound's name, formula, and properties), write ONE question that asks to identify or describe that entity — not separate questions for each detail.
-  BAD (4 trivial questions about one item):
+CONSOLIDATE identification details: When multiple facts describe ONE entity (e.g., a person's name, role, and dates; an artwork's title, medium, date, and dimensions; a compound's name, formula, and properties), write 2-4 questions that ask to identify or describe that entity — separate questions for each detail.
+  GOOD (4 trivial questions about one item):
     Q: What material is X made of?
     Q: What is the height of X?
     Q: Where was X found?
     Q: When was X created?
-  GOOD (1 consolidated question):
+  BAD (1 consolidated question):
     Q: Identify X — its origin, date, material, and dimensions.
     A: [All details in one answer]
 
@@ -469,7 +469,8 @@ def generate_practice_questions(content: str) -> list:
 QUESTION RULES:
 - Mix types: ~60% MCQ (4 options, 1 correct) and ~40% multi-select (5 options, 2-4 correct)
 - Each question should test understanding and application, not just memorization
-- Distractors must be plausible, not obviously wrong
+- Distractors must be plausible and relevant to the topic, not obviously wrong
+- ALL options (correct and incorrect) MUST be similar in length and level of detail — never make the correct answer longer or more specific than the distractors
 - Multi-select stems must end with "(Select all that apply)"
 - Rationale: 2-3 sentences — explain why correct answers are right AND why key distractors are wrong
 
@@ -614,7 +615,8 @@ def generate_exam_questions(content: str, domain_id: str, exam_mode_id: str) -> 
 QUESTION RULES:
 - Mix types: ~60% MCQ (4 options, 1 correct) and ~40% multi-select (5 options, 2-4 correct)
 - Each question should test understanding and application, not just memorization
-- Distractors must be plausible, not obviously wrong
+- Distractors must be plausible and relevant to the topic, not obviously wrong
+- ALL options (correct and incorrect) MUST be similar in length and level of detail — never make the correct answer longer or more specific than the distractors
 - Multi-select stems must end with "(Select all that apply)"
 - Rationale: 2-3 sentences — explain why correct answers are right AND why key distractors are wrong
 {examples_block}
@@ -794,7 +796,7 @@ Answer based on the context above:"""
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}

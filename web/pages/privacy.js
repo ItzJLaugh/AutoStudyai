@@ -152,7 +152,7 @@ export default function PrivacyPolicy() {
           </p>
           <p style={{ marginTop: '12px' }}>
             <strong style={{ color: 'var(--text-primary)' }}>AutoStudyAI</strong><br />
-            Email: <a href="mailto:jackson.laughlin0804@gmail.com" style={{ color: 'var(--accent)' }}>support@autostudyai.vercel.app</a><br />
+            Email: <a href="mailto:jackson.laughlin0804@gmail.com" style={{ color: 'var(--accent)' }}>support@autostudyai.online</a><br />
             Website: <a href="https://autostudyai.online" style={{ color: 'var(--accent)' }}>https://autostudyai.online</a>
           </p>
         </Section>

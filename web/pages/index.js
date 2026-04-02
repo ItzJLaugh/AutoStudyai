@@ -151,8 +151,8 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit}>
           {isSignup && (
             <input
-              type="text" placeholder="Full Name (optional)" value={name}
-              onChange={e => setName(e.target.value)}
+              type="text" placeholder="Full Name" value={name}
+              onChange={e => setName(e.target.value)} required
             />
           )}
           <input

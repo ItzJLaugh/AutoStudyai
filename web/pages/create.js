@@ -1,33 +1,120 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { apiFetch, getToken } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const AUTOSAVE_KEY = 'autostudy_manual_draft';
 
 export default function CreateGuidePage() {
   const router = useRouter();
   const { ready } = useRequireAuth();
-  const [inputMode, setInputMode] = useState('text'); // 'text' | 'pdf'
+  const [inputMode, setInputMode] = useState('text'); // 'text' | 'pdf' | 'manual'
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [pdfFile, setPdfFile] = useState(null);
   const [pdfName, setPdfName] = useState('');
   const [manualPairs, setManualPairs] = useState([{ term: '', definition: '' }, { term: '', definition: '' }]);
+  const [cardCount, setCardCount] = useState('');
   const [folders, setFolders] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState('');
   const [generateNotes, setGenerateNotes] = useState(true);
   const [generateFlashcards, setGenerateFlashcards] = useState(true);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [autoSaved, setAutoSaved] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Prevent two-finger swipe back-navigation while on this page
+  useEffect(() => {
+    const preventSwipeBack = (e) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('wheel', preventSwipeBack, { passive: false });
+    return () => window.removeEventListener('wheel', preventSwipeBack);
+  }, []);
+
+  // Load autosaved draft on mount
+  useEffect(() => {
+    // Skip if loading an existing guide for editing
+    if (router.query.editGuideId) return;
+    try {
+      const saved = localStorage.getItem(AUTOSAVE_KEY);
+      if (saved) {
+        const draft = JSON.parse(saved);
+        if (draft.title) setTitle(draft.title);
+        if (draft.pairs?.length) setManualPairs(draft.pairs);
+        if (draft.inputMode === 'manual') setInputMode('manual');
+      }
+    } catch {}
+  }, []);
+
+  // Autosave manual guide drafts every 3 seconds
+  useEffect(() => {
+    if (inputMode !== 'manual') return;
+    const timer = setTimeout(() => {
+      const hasContent = title.trim() || manualPairs.some(p => p.term.trim() || p.definition.trim());
+      if (hasContent) {
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
+          title, pairs: manualPairs, inputMode: 'manual'
+        }));
+        setAutoSaved(true);
+        setTimeout(() => setAutoSaved(false), 1500);
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [title, manualPairs, inputMode]);
+
+  // Apply card count — adjust pairs array to match
+  const applyCardCount = useCallback((count) => {
+    const num = parseInt(count);
+    if (!num || num < 1) return;
+    const clamped = Math.min(num, 100);
+    setManualPairs(prev => {
+      if (prev.length < clamped) {
+        return [...prev, ...Array(clamped - prev.length).fill(null).map(() => ({ term: '', definition: '' }))];
+      }
+      return prev.slice(0, clamped);
+    });
+  }, []);
+
+  // Load existing guide for editing if ?editGuideId= is in URL
+  useEffect(() => {
+    const editId = router.query.editGuideId;
+    if (ready && editId) {
+      apiFetch('/guides/' + editId).then(data => {
+        if (data?.guide) {
+          setTitle(data.guide.title || '');
+          setInputMode('manual');
+          // Parse existing Q&A pairs from study guide
+          const guideText = data.guide.study_guide || '';
+          const pairs = [];
+          const lines = guideText.split('\n');
+          let currentQ = '';
+          for (const line of lines) {
+            const qMatch = line.match(/^Q\d+:\s*(.+)/);
+            const aMatch = line.match(/^A\d+:\s*(.+)/);
+            if (qMatch) currentQ = qMatch[1].trim();
+            else if (aMatch && currentQ) {
+              pairs.push({ term: currentQ, definition: aMatch[1].trim() });
+              currentQ = '';
+            }
+          }
+          if (pairs.length > 0) setManualPairs(pairs);
+          // Clear autosave draft since we're loading an existing guide
+          localStorage.removeItem(AUTOSAVE_KEY);
+        }
+      });
+    }
+  }, [ready, router.query.editGuideId]);
 
   useEffect(() => {
     if (ready) {
       apiFetch('/folders').then(data => {
         if (data?.folders) {
           setFolders(data.folders);
-          // Pre-select class if ?folder=ID is in the URL
           const folderId = router.query.folder;
           if (folderId && data.folders.some(f => f.id === folderId)) {
             setSelectedFolder(folderId);
@@ -79,9 +166,11 @@ export default function CreateGuidePage() {
         return;
       }
       setStatus('saving');
-      const studyGuide = validPairs.map((p, i) =>
-        `Q${i + 1}: ${p.term.trim()}\nA${i + 1}: ${p.definition.trim()}`
-      ).join('\n');
+      const studyGuide = validPairs.map((p, i) => {
+        let entry = `Q${i + 1}: ${p.term.trim()}\nA${i + 1}: ${p.definition.trim()}`;
+        if (p.image) entry += `\n[IMG:${p.image}]`;
+        return entry;
+      }).join('\n');
 
       // Create one flashcard per Q&A pair
       const flashcards = validPairs.map(p => ({
@@ -92,9 +181,17 @@ export default function CreateGuidePage() {
       const body = { title: title.trim(), study_guide: studyGuide, flashcards };
       if (selectedFolder) body.folder_id = selectedFolder;
 
-      const savedData = await apiFetch('/guides', { method: 'POST', body: JSON.stringify(body) });
+      const editId = router.query.editGuideId;
+      let savedData;
+      if (editId) {
+        // Update existing guide
+        savedData = await apiFetch('/guides/' + editId, { method: 'PATCH', body: JSON.stringify(body) });
+      } else {
+        savedData = await apiFetch('/guides', { method: 'POST', body: JSON.stringify(body) });
+      }
       if (savedData?.guide) {
         setStatus('done');
+        localStorage.removeItem(AUTOSAVE_KEY);
         router.push('/guide/' + savedData.guide.id);
       } else {
         setError('Failed to save guide.');
@@ -206,7 +303,7 @@ export default function CreateGuidePage() {
       <h2 style={{ marginBottom: 4 }}>Create Study Guide</h2>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginBottom: 20 }}>
         {inputMode === 'manual'
-          ? 'Add your own terms and definitions — like Quizlet, but integrated with your study tools.'
+          ? 'Add your own terms and definitions to create a custom study guide.'
           : 'Paste your notes or upload a PDF — AI will generate a study guide, notes, and flashcards automatically.'}
       </p>
 
@@ -269,9 +366,31 @@ export default function CreateGuidePage() {
 
         {inputMode === 'manual' ? (
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: 10 }}>
-              Terms &amp; Definitions
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <label style={{ fontSize: '0.85em', color: 'var(--text-secondary)' }}>
+                Terms &amp; Definitions
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {autoSaved && (
+                  <span style={{ fontSize: '0.72em', color: 'var(--accent)', opacity: 0.8 }}>Draft saved</span>
+                )}
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  placeholder="# of cards"
+                  value={cardCount}
+                  onChange={e => setCardCount(e.target.value)}
+                  onBlur={() => applyCardCount(cardCount)}
+                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), applyCardCount(cardCount))}
+                  style={{
+                    width: 90, padding: '5px 8px', fontSize: '0.8em',
+                    background: 'var(--bg-secondary)', border: '1px solid var(--border-default)',
+                    borderRadius: 6, color: 'var(--text-primary)', textAlign: 'center'
+                  }}
+                />
+              </div>
+            </div>
             {manualPairs.map((pair, i) => (
               <div key={i} style={{
                 display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-start',
@@ -296,6 +415,44 @@ export default function CreateGuidePage() {
                     disabled={isLoading}
                     style={{ width: '100%' }}
                   />
+                  {pair.image ? (
+                    <div style={{ marginTop: 6, position: 'relative', display: 'inline-block' }}>
+                      <img src={pair.image} alt="Card image" style={{ maxWidth: '100%', maxHeight: 150, borderRadius: 6, border: '1px solid var(--border-default)' }} />
+                      <button
+                        type="button"
+                        onClick={() => updatePair(i, 'image', null)}
+                        style={{
+                          position: 'absolute', top: 4, right: 4,
+                          background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff',
+                          borderRadius: '50%', width: 22, height: 22, cursor: 'pointer',
+                          fontSize: '0.8em', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                      >&times;</button>
+                    </div>
+                  ) : (
+                    <label style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6,
+                      fontSize: '0.78em', color: 'var(--text-muted)', cursor: 'pointer'
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
+                      </svg>
+                      Add image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={e => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => updatePair(i, 'image', reader.result);
+                          reader.readAsDataURL(file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  )}
                 </div>
                 {manualPairs.length > 1 && (
                   <button
@@ -443,7 +600,7 @@ export default function CreateGuidePage() {
           disabled={!canSubmit}
           style={{ padding: '12px 32px', fontSize: '1em' }}
         >
-          {isLoading ? (inputMode === 'manual' ? 'Saving...' : 'Generating...') : (inputMode === 'manual' ? 'Save Study Guide' : 'Generate Study Guide')}
+          {isLoading ? (inputMode === 'manual' ? 'Saving...' : 'Generating...') : (inputMode === 'manual' ? (router.query.editGuideId ? 'Update Study Guide' : 'Save Study Guide') : 'Generate Study Guide')}
         </button>
       </form>
     </div>
