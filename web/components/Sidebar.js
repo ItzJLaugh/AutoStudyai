@@ -19,7 +19,6 @@ export default function Sidebar() {
     { label: 'Classes', href: '/dashboard?view=classes', icon: classesIcon, match: 'view=classes' },
     { label: 'Study Guides', href: '/dashboard?view=guides', icon: guidesIcon, match: 'view=guides' },
     { label: 'Flashcards', href: '/flashcards', icon: flashcardsIcon, match: '/flashcards' },
-    { label: 'Our Mission', href: '/mission', icon: missionIcon, match: '/mission' },
     { label: 'Settings', href: '/settings', icon: settingsIcon, match: '/settings' },
   ];
 
@@ -57,6 +56,16 @@ export default function Sidebar() {
       </div>
 
       <div className="sidebar-footer">
+        <div
+          className={'sidebar-tab' + (path === '/mission' ? ' sidebar-tab-active' : '')}
+          onClick={() => router.push('/mission')}
+          style={{ marginBottom: 8 }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {missionIcon}
+          </svg>
+          AutoStudyAI Features
+        </div>
         <button className="sidebar-feedback" onClick={() => setShowFeedback(true)}>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />

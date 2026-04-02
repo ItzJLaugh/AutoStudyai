@@ -34,7 +34,7 @@ export default function MissionPage() {
 
   return (
     <div className="fade-in" style={{ maxWidth: 760 }}>
-      <h2 style={{ marginBottom: 4 }}>Our Mission</h2>
+      <h2 style={{ marginBottom: 4 }}>AutoStudyAI Features</h2>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.92em', marginBottom: 28, lineHeight: 1.6 }}>
         AutoStudyAI was built by a college student, for college students. Our mission is to make studying smarter, faster, and more accessible for every student — regardless of major or learning style.
       </p>
@@ -61,6 +61,9 @@ export default function MissionPage() {
           </div>
         ))}
       </div>
+      <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85em', marginTop: 24, fontStyle: 'italic' }}>
+        Founder: Jackson Laughlin
+      </p>
     </div>
   );
 }

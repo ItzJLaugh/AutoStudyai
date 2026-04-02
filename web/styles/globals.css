@@ -525,6 +525,34 @@ input::placeholder { color: var(--text-muted); }
 }
 .login-box h2 { text-align: center; margin-bottom: 24px; color: var(--accent); font-size: 1.5em; }
 
+.login-features {
+  width: 100%; max-width: 520px; margin-top: 32px;
+  position: relative; z-index: 1; text-align: left;
+}
+.login-features h3 {
+  font-size: 1.15em; color: var(--text-primary);
+  margin-bottom: 16px; text-align: center;
+}
+.login-feature-item {
+  background: var(--bg-primary); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 10px;
+}
+.login-feature-item strong {
+  display: block; font-size: 0.9em; color: var(--text-primary); margin-bottom: 4px;
+}
+.login-feature-item p {
+  font-size: 0.82em; color: var(--text-secondary); line-height: 1.55; margin: 0;
+}
+.login-feature-tag {
+  display: inline-block; font-size: 0.68em; color: var(--accent);
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.login-feature-founder {
+  text-align: center; font-size: 0.82em; color: var(--text-muted);
+  margin-top: 12px; font-style: italic;
+}
+
 /* === Empty State === */
 .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 1em; }
 .empty-state-icon { font-size: 2.5em; margin-bottom: 12px; opacity: 0.5; }

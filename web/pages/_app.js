@@ -34,7 +34,7 @@ export default function App({ Component, pageProps }) {
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
           <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet" />
-          <link rel="icon" href="/favicon.png" type="image/png" />
+          <link rel="icon" href="/autostudyai_logo.ico" type="image/x-icon" />
         </Head>
         <Component {...pageProps} />
       </>
@@ -47,7 +47,7 @@ export default function App({ Component, pageProps }) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet" />
-        <link rel="icon" href="/favicon.png" type="image/png" />
+        <link rel="icon" href="/autostudyai_logo.ico" type="image/x-icon" />
       </Head>
       <Layout timerState={timerState} setTimerState={setTimerState} guideContent={guideContent}>
         <Component {...pageProps} setGuideContent={setGuideContent} />

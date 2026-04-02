@@ -193,6 +193,38 @@ export default function LoginPage() {
           </a>
         </p>
       </div>
+
+      <div className="login-features">
+        <h3>Why use AutoStudyAI?</h3>
+        <div className="login-feature-item">
+          <strong>Instant Extraction</strong>
+          <p>Unlike any other study platform, AutoStudyAI allows you to skip the copy and paste/upload process. Simply navigate to the material you want to extract and click the &quot;Capture Content&quot; button within the extension. That&apos;s it!</p>
+        </div>
+        <div className="login-feature-item">
+          <strong>NCLEX Question Generation</strong>
+          <span className="login-feature-tag">Nursing User Group</span>
+          <p>There is no other platform that offers NCLEX question generation. AutoStudyAI is the one platform to achieve this task to assist Nursing students in making study guides exactly like their exams with two button clicks.</p>
+        </div>
+        <div className="login-feature-item">
+          <strong>AutoStudyAI Never Allows the AI to Search for Answers on the Web!</strong>
+          <p>The main issue with simply asking an LLM to create a study guide is that the answers and questions are DIRECTLY from your class material. AutoStudyAI makes this super simple and easy. It only uses the context that was captured as its knowledge!</p>
+        </div>
+        <div className="login-feature-item">
+          <strong>AI Chat</strong>
+          <p>Allows the user to get a regular response about the study guide; a detailed (longer) response; or an example response, which takes the users keyword in their AI chat prompt and provides an example that will help you better understand!</p>
+        </div>
+        <div className="login-feature-item">
+          <strong>The Cost</strong>
+          <p>First off, a one month free trial&hellip; that DOES NOT automatically start the subscription. Nobody wants to do a free trial and forget to cancel it! Don&apos;t worry, I&apos;m a college student too and have too much to think about, also. Not only is there a benefit there, but we beat other platforms by offering every single imaginable feature for $9.99 a month.</p>
+        </div>
+        <div className="login-feature-item">
+          <strong>Users Are &quot;Cofounders&quot;</strong>
+          <p>Got a new recommendation or said something along the lines of &quot;I wish it would do this?&quot; Send feedback! Our goal is to get your recommendation ASAP! This is a college study platform made for the people.</p>
+        </div>
+        <div className="login-feature-founder">
+          Founder: Jackson Laughlin
+        </div>
+      </div>
     </div>
 
     <style jsx>{`
