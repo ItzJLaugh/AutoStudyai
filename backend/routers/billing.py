@@ -41,11 +41,28 @@ def get_user_plan(user_id: str) -> dict:
     sub = supabase.table("user_subscriptions").select("*").eq("user_id", user_id).execute()
     plan = "free"
     period_end = None
+    is_trial = False
+    trial_ends_at = None
+    trial_used = False
+
     if sub.data:
         row = sub.data[0]
+        trial_used = row.get("trial_used", False)
+        trial_ends_at = row.get("trial_ends_at")
+
+        # Active Stripe subscription takes precedence
         if row.get("plan") == "pro" and row.get("status") == "active":
             plan = "pro"
-        period_end = row.get("current_period_end")
+            period_end = row.get("current_period_end")
+        # Otherwise check if trial is active
+        elif trial_ends_at:
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+            trial_end_dt = datetime.fromisoformat(trial_ends_at.replace("Z", "+00:00"))
+            if now < trial_end_dt:
+                plan = "trial"
+                is_trial = True
+                period_end = trial_ends_at
 
     # Get usage
     usage = supabase.table("monthly_usage") \
@@ -57,8 +74,11 @@ def get_user_plan(user_id: str) -> dict:
 
     return {
         "plan": plan,
+        "is_trial": is_trial,
+        "trial_used": trial_used,
+        "trial_ends_at": trial_ends_at,
         "guides_used": guides_used,
-        "guides_limit": None if plan == "pro" else FREE_TIER_LIMIT,
+        "guides_limit": None if plan in ("pro", "trial") else FREE_TIER_LIMIT,
         "period_end": period_end,
     }
 
@@ -103,6 +123,50 @@ def billing_status(authorization: str = Header(default="")):
     except Exception as e:
         logger.error(f"Error getting billing status: {e}")
         raise HTTPException(status_code=500, detail="Failed to get billing status")
+
+
+@router.post("/start-trial")
+def start_trial(authorization: str = Header(default="")):
+    """Start a 30-day free trial for a user who has never had one."""
+    try:
+        user_id = get_user_id(authorization)
+        supabase = get_supabase()
+
+        # Check if trial already used
+        existing = supabase.table("user_subscriptions").select("trial_used, plan, status").eq("user_id", user_id).execute()
+        if existing.data:
+            row = existing.data[0]
+            if row.get("trial_used"):
+                raise HTTPException(status_code=409, detail="Free trial already used")
+            # Active paid subscription — no need for trial
+            if row.get("plan") == "pro" and row.get("status") == "active":
+                raise HTTPException(status_code=409, detail="Already on Pro plan")
+            # Update existing row — only touch trial columns
+            from datetime import timezone, timedelta
+            trial_ends = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+            supabase.table("user_subscriptions").update({
+                "trial_ends_at": trial_ends,
+                "trial_used": True,
+            }).eq("user_id", user_id).execute()
+        else:
+            from datetime import timezone, timedelta
+            trial_ends = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+            supabase.table("user_subscriptions").insert({
+                "user_id": user_id,
+                "trial_ends_at": trial_ends,
+                "trial_used": True,
+                "plan": "free",
+                "status": "inactive",
+            }).execute()
+
+        logger.info(f"Trial started for user={user_id[:8]}")
+        return {"started": True, "trial_ends_at": trial_ends}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error starting trial: {e}")
+        raise HTTPException(status_code=500, detail="Failed to start trial")
 
 
 @router.post("/create-checkout-session")

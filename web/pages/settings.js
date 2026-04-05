@@ -73,6 +73,18 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleStartTrial() {
+    setUpgrading(true);
+    const data = await apiFetch('/billing/start-trial', { method: 'POST' });
+    if (data?.started) {
+      setMessage('Your 30-day free trial has started! Enjoy unlimited access.');
+      loadStatus();
+    } else {
+      setMessage('Failed to start trial. Please try again.');
+    }
+    setUpgrading(false);
+  }
+
   async function handleCancel() {
     if (!confirm('Cancel your Pro subscription? You will keep access until the end of the billing period.')) return;
     setCancelling(true);
@@ -96,9 +108,11 @@ export default function SettingsPage() {
   if (!ready) return null;
 
   const isPro = status?.plan === 'pro';
+  const isTrial = status?.plan === 'trial';
+  const isProOrTrial = isPro || isTrial;
   const guidesUsed = status?.guides_used ?? 0;
   const guidesLimit = status?.guides_limit ?? 2;
-  const usagePct = isPro ? 100 : Math.min(100, (guidesUsed / guidesLimit) * 100);
+  const usagePct = isProOrTrial ? 100 : Math.min(100, (guidesUsed / guidesLimit) * 100);
 
   const sections = [
     { key: 'subscription', label: 'Subscription' },
@@ -133,11 +147,11 @@ export default function SettingsPage() {
             ) : (
               <>
                 <div className="billing-current-plan">
-                  <div className="plan-badge" data-plan={status?.plan}>
-                    {isPro ? 'Pro' : 'Free'}
+                  <div className="plan-badge" data-plan={isProOrTrial ? 'pro' : 'free'}>
+                    {isPro ? 'Pro' : isTrial ? 'Trial' : 'Free'}
                   </div>
                   <div className="plan-usage">
-                    {isPro ? (
+                    {isProOrTrial ? (
                       <span>Unlimited guide generations</span>
                     ) : (
                       <>
@@ -148,6 +162,11 @@ export default function SettingsPage() {
                       </>
                     )}
                   </div>
+                  {isTrial && status?.period_end && (
+                    <div className="plan-renews">
+                      Trial ends {new Date(status.period_end).toLocaleDateString()}
+                    </div>
+                  )}
                   {isPro && status?.period_end && (
                     <div className="plan-renews">
                       Renews {new Date(status.period_end).toLocaleDateString()}
@@ -168,7 +187,7 @@ export default function SettingsPage() {
                     {!isPro && <div className="plan-current-label">Current plan</div>}
                   </div>
 
-                  <div className={'plan-card plan-card-pro' + (isPro ? ' plan-card-current' : '')}>
+                  <div className={'plan-card plan-card-pro' + (isProOrTrial ? ' plan-card-current' : '')}>
                     <div className="plan-name">Pro</div>
                     <div className="plan-price">$9.99 <span>/month</span></div>
                     <ul className="plan-features">
@@ -184,10 +203,24 @@ export default function SettingsPage() {
                           {cancelling ? 'Cancelling...' : 'Cancel subscription'}
                         </button>
                       </div>
-                    ) : (
+                    ) : isTrial ? (
+                      <div className="plan-actions">
+                        <div className="plan-current-label">Free trial active</div>
+                        <button className="btn-upgrade" onClick={handleUpgrade} disabled={upgrading}>
+                          {upgrading ? 'Redirecting...' : 'Subscribe — $9.99/mo'}
+                        </button>
+                      </div>
+                    ) : status?.trial_used ? (
                       <button className="btn-upgrade" onClick={handleUpgrade} disabled={upgrading}>
                         {upgrading ? 'Redirecting...' : 'Upgrade to Pro'}
                       </button>
+                    ) : (
+                      <div className="plan-actions">
+                        <button className="btn-upgrade" onClick={handleStartTrial} disabled={upgrading}>
+                          {upgrading ? 'Starting...' : 'Start Free Trial — 30 days'}
+                        </button>
+                        <div className="plan-trial-note">No credit card required. Won&apos;t auto-charge.</div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -285,6 +318,7 @@ export default function SettingsPage() {
         .btn-upgrade:disabled { opacity: 0.6; cursor: default; }
         .btn-cancel { background: none; border: none; color: var(--error); font-size: 0.85rem; cursor: pointer; text-decoration: underline; padding: 0; }
         .btn-cancel:disabled { opacity: 0.6; cursor: default; }
+        .plan-trial-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 8px; text-align: center; }
         @media (max-width: 600px) { .billing-plans { flex-direction: column; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>

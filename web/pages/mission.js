@@ -11,20 +11,20 @@ export default function MissionPage() {
     },
     {
       title: 'NCLEX Question Generation',
-      subtitle: 'Nursing User Group',
-      description: 'There is no other platform that offers NCLEX question generation. AutoStudyAI is the one platform to achieve this task to assist Nursing students in making study guides exactly like their exams with two button clicks.',
+      subtitle: 'Nursing User Group (More specific user groups to be added soon!)',
+      description: 'There is no other platform that offers NCLEX question generation. AutoStudyAI allows for you to use the material you are learning to generate NCLEX questions. This task is used to assist Nursing students in making study guides exactly like their exams with two button clicks.',
     },
     {
       title: 'AutoStudyAI Never Allows the AI to Search for Answers on the Web!',
-      description: 'The main issue with simply asking an LLM to create a study guide is that the answers and questions are DIRECTLY from your class material. AutoStudyAI makes this super simple and easy. It only uses the context that was captured as its knowledge!',
+      description: 'The main issue with simply asking an LLM to create a study guide is that the answers and questions are NOT DIRECTLY from your class material. AutoStudyAI makes this super simple and easy. It only uses the context that was captured as its knowledge! This way it is the exact material from your classes.',
     },
     {
       title: 'AI Chat',
-      description: 'Allows the user to get a regular response about the study guide; a detailed (longer) response; or an example response, which takes the users keyword in their AI chat prompt and provides an example that will help you better understand!',
+      description: 'This allows the user to get a regular response about the study guide; a detailed (longer & in-depth) response; or an example response, which takes the users key word/concept in their AI chat prompt and provides an example that will help you better understand!',
     },
     {
       title: 'The Cost',
-      description: 'First off, a one month free trial\u2026 that DOES NOT automatically start the subscription. Nobody wants to do a free trial and forget to cancel it! Don\'t worry, I\'m a college student too and have too much to think about, also. Not only is there a benefit there, but we beat other platforms by offering every single imaginable feature for $9.99 a month.',
+      description: 'First off, a one month free trial\u2026 that DOES NOT automatically start the subscription. Nobody wants to do a free trial and forget to cancel it! Don\'t worry, I\'m a college student too and have too much to think about just like you. Not only is there a benefit there, but we beat other platforms by offering many features just for $9.99 a month.',
     },
     {
       title: 'Users Are "Cofounders"',
@@ -62,7 +62,7 @@ export default function MissionPage() {
         ))}
       </div>
       <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85em', marginTop: 24, fontStyle: 'italic' }}>
-        Founder: Jackson Laughlin
+        Founder - Jackson Laughlin
       </p>
     </div>
   );
