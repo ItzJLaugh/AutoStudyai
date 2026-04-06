@@ -870,6 +870,8 @@ input::placeholder { color: var(--text-muted); }
   transition: transform 0.15s;
 }
 .ai-chat-new-btn:hover { transform: scale(1.08); background: var(--accent-glow); }
+.ai-chat-new-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ai-chat-new-label { font-size: 0.68em; color: var(--text-muted); white-space: nowrap; font-weight: 500; }
 
 /* Floating draggable chat window */
 .ai-chat-window {

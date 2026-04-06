@@ -117,13 +117,12 @@ export default function AIChatWidget({ guideContent }) {
             <button className="ai-bubble-delete" onClick={() => deleteChat(chat.id)} title="Delete chat">×</button>
           </div>
         ))}
-        <button className="ai-chat-new-btn" onClick={addChat} title="New AI Chat">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-            <line x1="12" y1="8" x2="12" y2="16" />
-            <line x1="8" y1="12" x2="16" y2="12" />
-          </svg>
-        </button>
+        <div className="ai-chat-new-wrap">
+          <button className="ai-chat-new-btn" onClick={addChat} title="Create AI Chat">
+            <span style={{ fontSize: '1.5em', lineHeight: 1, fontWeight: 300 }}>+</span>
+          </button>
+          <span className="ai-chat-new-label">Create AI Chat</span>
+        </div>
       </div>
     </>
   );
