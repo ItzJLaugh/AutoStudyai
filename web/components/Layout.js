@@ -3,7 +3,7 @@ import StreakCounter from './StreakCounter';
 import StudyTimer from './StudyTimer';
 import AIChatWidget from './AIChatWidget';
 
-export default function Layout({ children, timerState, setTimerState, guideContent }) {
+export default function Layout({ children, timerState, setTimerState, guideContent, guideTitle }) {
   return (
     <div className="app-layout">
       <Sidebar />
@@ -14,7 +14,7 @@ export default function Layout({ children, timerState, setTimerState, guideConte
         <StreakCounter />
         <StudyTimer timerState={timerState} setTimerState={setTimerState} />
       </aside>
-      <AIChatWidget guideContent={guideContent} />
+      <AIChatWidget guideContent={guideContent} guideTitle={guideTitle} />
     </div>
   );
 }

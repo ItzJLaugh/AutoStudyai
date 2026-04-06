@@ -17,11 +17,12 @@ export default function App({ Component, pageProps }) {
     mode: 'focus', minutes: 25, seconds: 0, isRunning: false
   });
   const [guideContent, setGuideContent] = useState(null);
+  const [guideTitle, setGuideTitle] = useState(null);
 
   // Clear guide content when navigating away from a guide page
   useEffect(() => {
     const handleRouteChange = (url) => {
-      if (!url.startsWith('/guide/')) setGuideContent(null);
+      if (!url.startsWith('/guide/')) { setGuideContent(null); setGuideTitle(null); }
     };
     router.events.on('routeChangeStart', handleRouteChange);
     return () => router.events.off('routeChangeStart', handleRouteChange);
@@ -49,8 +50,8 @@ export default function App({ Component, pageProps }) {
         <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet" />
         <link rel="icon" href="/autostudyai_logo.ico" type="image/x-icon" />
       </Head>
-      <Layout timerState={timerState} setTimerState={setTimerState} guideContent={guideContent}>
-        <Component {...pageProps} setGuideContent={setGuideContent} />
+      <Layout timerState={timerState} setTimerState={setTimerState} guideContent={guideContent} guideTitle={guideTitle}>
+        <Component {...pageProps} setGuideContent={setGuideContent} setGuideTitle={setGuideTitle} />
       </Layout>
     </>
   );

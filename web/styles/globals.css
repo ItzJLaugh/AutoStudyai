@@ -872,6 +872,12 @@ input::placeholder { color: var(--text-muted); }
 .ai-chat-new-btn:hover { transform: scale(1.08); background: var(--accent-glow); }
 .ai-chat-new-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .ai-chat-new-label { font-size: 0.68em; color: var(--text-muted); white-space: nowrap; font-weight: 500; }
+.ai-bubble-name { font-size: 0.68em; color: var(--text-muted); white-space: nowrap; max-width: 60px; overflow: hidden; text-overflow: ellipsis; text-align: center; cursor: default; font-weight: 500; }
+.ai-bubble-name-input { width: 60px; font-size: 0.68em; background: var(--bg-tertiary); border: 1px solid var(--accent); border-radius: 4px; color: var(--text-primary); text-align: center; padding: 2px 4px; outline: none; }
+.ai-chat-win-title { display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+.ai-win-name { font-weight: 600; font-size: 0.85em; cursor: default; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-win-guide-title { font-size: 0.7em; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-win-name-input { font-size: 0.85em; font-weight: 600; background: var(--bg-secondary); border: 1px solid var(--accent); border-radius: 4px; color: var(--text-primary); padding: 1px 6px; outline: none; width: 140px; }
 
 /* Floating draggable chat window */
 .ai-chat-window {
