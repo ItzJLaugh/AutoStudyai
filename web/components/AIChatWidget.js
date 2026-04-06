@@ -171,8 +171,8 @@ function BubbleIcon({ chat, guideTitle, onExpand, onDelete, onRename }) {
       ) : (
         <span
           className="ai-bubble-name"
-          title="Double-click to rename"
-          onDoubleClick={() => { setDraft(chat.name); setEditing(true); }}
+          title="Click to rename"
+          onClick={() => { setDraft(chat.name); setEditing(true); }}
         >
           {displayName}
         </span>
@@ -234,8 +234,8 @@ function ChatWindow({ chat, guideTitle, onMinimize, onDelete, onDragStart, onSen
           ) : (
             <span
               className="ai-win-name"
-              title="Double-click to rename"
-              onDoubleClick={e => { e.stopPropagation(); setNameDraft(chat.name); setEditingName(true); }}
+              title="Click to rename"
+              onClick={e => { e.stopPropagation(); setNameDraft(chat.name); setEditingName(true); }}
             >
               {chat.name}
             </span>
@@ -244,7 +244,6 @@ function ChatWindow({ chat, guideTitle, onMinimize, onDelete, onDragStart, onSen
         </div>
         <div className="ai-chat-win-actions">
           <button onClick={onMinimize} title="Minimise" className="ai-win-btn">&#8211;</button>
-          <button onClick={onDelete} title="Delete chat" className="ai-win-btn ai-win-btn-close">&#x2715;</button>
         </div>
       </div>
 
@@ -294,6 +293,9 @@ function ChatWindow({ chat, guideTitle, onMinimize, onDelete, onDragStart, onSen
             <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>
         </button>
+      </div>
+      <div className="ai-chat-footer">
+        <button onClick={onDelete} className="ai-chat-delete-btn">Delete chat</button>
       </div>
     </div>
   );

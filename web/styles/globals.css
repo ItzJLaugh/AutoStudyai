@@ -878,6 +878,11 @@ input::placeholder { color: var(--text-muted); }
 .ai-win-name { font-weight: 600; font-size: 0.85em; cursor: default; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ai-win-guide-title { font-size: 0.7em; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ai-win-name-input { font-size: 0.85em; font-weight: 600; background: var(--bg-secondary); border: 1px solid var(--accent); border-radius: 4px; color: var(--text-primary); padding: 1px 6px; outline: none; width: 140px; }
+.ai-win-name { cursor: pointer; }
+.ai-win-name:hover { color: var(--accent); }
+.ai-chat-footer { padding: 4px 10px 6px; display: flex; justify-content: flex-end; border-top: 1px solid var(--border-subtle); }
+.ai-chat-delete-btn { background: none; border: none; color: var(--error, #e05); font-size: 0.75em; cursor: pointer; opacity: 0.6; }
+.ai-chat-delete-btn:hover { opacity: 1; text-decoration: underline; }
 
 /* Floating draggable chat window */
 .ai-chat-window {
