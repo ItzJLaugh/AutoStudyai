@@ -13,8 +13,8 @@ export default function Layout({ children, timerState, setTimerState, guideConte
       <aside className="streak-panel">
         <StreakCounter />
         <StudyTimer timerState={timerState} setTimerState={setTimerState} />
-        {guideContent && <AIChatWidget guideContent={guideContent} />}
       </aside>
+      <AIChatWidget guideContent={guideContent} />
     </div>
   );
 }
