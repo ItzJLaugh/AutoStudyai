@@ -22,7 +22,6 @@ export default function CreateGuidePage() {
   const [generateFlashcards, setGenerateFlashcards] = useState(true);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
-  const [autoSaved, setAutoSaved] = useState(false);
   const fileInputRef = useRef(null);
 
   // Prevent two-finger swipe back-navigation while on this page
@@ -51,20 +50,15 @@ export default function CreateGuidePage() {
     } catch {}
   }, []);
 
-  // Autosave manual guide drafts every 3 seconds
+  // Autosave manual guide drafts on every change
   useEffect(() => {
     if (inputMode !== 'manual') return;
-    const timer = setTimeout(() => {
-      const hasContent = title.trim() || manualPairs.some(p => p.term.trim() || p.definition.trim());
-      if (hasContent) {
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
-          title, pairs: manualPairs, inputMode: 'manual'
-        }));
-        setAutoSaved(true);
-        setTimeout(() => setAutoSaved(false), 1500);
-      }
-    }, 3000);
-    return () => clearTimeout(timer);
+    const hasContent = title.trim() || manualPairs.some(p => p.term.trim() || p.definition.trim());
+    if (hasContent) {
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
+        title, pairs: manualPairs, inputMode: 'manual'
+      }));
+    }
   }, [title, manualPairs, inputMode]);
 
   // Apply card count — adjust pairs array to match
@@ -371,9 +365,6 @@ export default function CreateGuidePage() {
                 Terms &amp; Definitions
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {autoSaved && (
-                  <span style={{ fontSize: '0.72em', color: 'var(--accent)', opacity: 0.8 }}>Draft saved</span>
-                )}
                 <input
                   type="number"
                   min="1"

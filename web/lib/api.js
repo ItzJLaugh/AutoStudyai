@@ -27,6 +27,32 @@ export function authHeaders() {
   };
 }
 
+// Proactive token refresh — silently renews the token 2 min before expiry.
+let _proactiveTimer = null;
+
+function getTokenExpiry() {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp ? payload.exp * 1000 : null;
+  } catch { return null; }
+}
+
+export function scheduleProactiveRefresh() {
+  if (typeof window === 'undefined') return;
+  if (_proactiveTimer) clearTimeout(_proactiveTimer);
+  const expiry = getTokenExpiry();
+  if (!expiry) return;
+  const msUntilRefresh = expiry - Date.now() - 2 * 60 * 1000; // 2 min before expiry
+  const delay = Math.max(msUntilRefresh, 10000); // at least 10s from now
+  _proactiveTimer = setTimeout(async () => {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) scheduleProactiveRefresh();
+    // if refresh fails, the next API call will handle it via the 401 path
+  }, delay);
+}
+
 // Singleton: only one refresh request in-flight at a time so parallel
 // API calls on the same page don't each fire their own refresh.
 let _refreshPromise = null;

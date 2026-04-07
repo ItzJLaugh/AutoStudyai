@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
+import { scheduleProactiveRefresh, getToken } from '../lib/api';
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
@@ -12,6 +13,11 @@ export default function App({ Component, pageProps }) {
   useEffect(() => {
     const saved = typeof window !== 'undefined' && localStorage.getItem('theme');
     if (saved) document.documentElement.setAttribute('data-theme', saved);
+  }, []);
+
+  // Start proactive token refresh if already logged in
+  useEffect(() => {
+    if (getToken()) scheduleProactiveRefresh();
   }, []);
   const [timerState, setTimerState] = useState({
     mode: 'focus', minutes: 25, seconds: 0, isRunning: false

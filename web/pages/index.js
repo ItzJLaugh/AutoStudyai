@@ -1,7 +1,7 @@
 import Head from 'next/head';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { getToken, setToken } from '../lib/api';
+import { getToken, setToken, scheduleProactiveRefresh } from '../lib/api';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -123,6 +123,7 @@ export default function LoginPage() {
       const data = await resp.json();
       if (resp.ok && data.access_token) {
         setToken(data.access_token, data.email, data.refresh_token);
+        scheduleProactiveRefresh();
         router.push('/dashboard');
       } else {
         setError(data.detail || 'Authentication failed');
