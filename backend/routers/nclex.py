@@ -43,7 +43,7 @@ def generate_nclex(guide_id: str, authorization: str = Header(default="")):
         supabase = get_supabase()
 
         result = supabase.table("study_guides") \
-            .select("notes, study_guide") \
+            .select("notes, study_guide, nclex_questions") \
             .eq("id", guide_id) \
             .eq("user_id", user_id) \
             .execute()
@@ -61,12 +61,25 @@ def generate_nclex(guide_id: str, authorization: str = Header(default="")):
         # Combine both fields for maximum topic coverage
         combined = "\n\n".join(filter(None, [notes, study_guide]))
 
+        # Return cached questions if already generated
+        cached = row.get("nclex_questions")
+        if cached:
+            return {"questions": cached, "cached": True}
+
         questions = generate_nclex_questions(combined)
 
         if not questions:
             raise HTTPException(status_code=500, detail="Failed to generate NCLEX questions. Please try again.")
 
-        return {"questions": questions}
+        # Save to study guide so it's never regenerated again
+        try:
+            supabase.table("study_guides").update(
+                {"nclex_questions": questions}
+            ).eq("id", guide_id).eq("user_id", user_id).execute()
+        except Exception as save_err:
+            logger.warning(f"Failed to cache NCLEX questions: {save_err}")
+
+        return {"questions": questions, "cached": False}
 
     except HTTPException:
         raise

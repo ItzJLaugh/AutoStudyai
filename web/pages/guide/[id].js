@@ -91,7 +91,7 @@ export default function GuidePage({ setGuideContent, setGuideTitle }) {
     { key: 'guide', label: 'Study Guide' },
     { key: 'notes', label: 'Notes' },
     { key: 'flashcards', label: `Flashcards (${flashcards.length})` },
-    { key: 'quiz', label: 'Quiz' },
+    { key: 'quiz', label: 'Retain' },
   ];
 
   return (
@@ -165,7 +165,7 @@ export default function GuidePage({ setGuideContent, setGuideTitle }) {
           <div className="guide-progress-value" style={{ marginTop: 4 }}>{fcPct}%</div>
         </div>
         <div className="guide-progress-item">
-          <div className="guide-progress-label">Best Quiz Score</div>
+          <div className="guide-progress-label">Best Retain Score</div>
           <div className="guide-progress-value" style={{ fontSize: '1.2em' }}>{bestQuiz !== null ? bestQuiz + '%' : '--'}</div>
         </div>
       </div>
@@ -274,12 +274,12 @@ export default function GuidePage({ setGuideContent, setGuideTitle }) {
           {qaPairs.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state-icon">&#128221;</div>
-              No Q&A pairs to generate a quiz from.
+              No Q&A pairs to generate a Retain session from.
             </div>
           ) : (
             <div>
               <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
-                Quiz generated from {qaPairs.length} questions in your study guide.
+                Retain session generated from {qaPairs.length} questions in your study guide.
               </p>
               <button className="btn" onClick={() => router.push('/quiz/' + id)}>
                 Start Quiz

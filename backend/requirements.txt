@@ -8,3 +8,4 @@ supabase
 slowapi
 bleach
 stripe
+requests

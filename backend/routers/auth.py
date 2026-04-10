@@ -4,8 +4,10 @@ Handles user signup, login, and session management via Supabase Auth.
 """
 
 import re
+import os
 import time
 import logging
+import requests as http_requests
 from collections import defaultdict
 from fastapi import APIRouter, HTTPException, Request, Header
 from typing import Optional
@@ -142,6 +144,26 @@ def signup(request: SignupRequest, req: Request):
         except Exception as profile_err:
             # Don't fail signup if profile insert fails — user is already created
             logger.warning(f"Failed to save user profile: {profile_err}")
+
+        # Notify Make.com webhook with new user data
+        try:
+            make_url = os.getenv("MAKE_WEBHOOK_URL", "")
+            make_api_key = os.getenv("MAKE_API_KEY", "")
+            if make_url:
+                http_requests.post(
+                    make_url,
+                    json={
+                        "name": request.name,
+                        "email": request.email,
+                        "university": request.university,
+                        "major": request.major,
+                    },
+                    headers={"x-make-apikey": make_api_key} if make_api_key else {},
+                    timeout=5,
+                )
+        except Exception as make_err:
+            # Don't fail signup if Make.com call fails
+            logger.warning(f"Failed to notify Make.com: {make_err}")
 
         return AuthResponse(
             user_id=result.user.id,
