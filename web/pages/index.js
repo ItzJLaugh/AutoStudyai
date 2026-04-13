@@ -78,6 +78,7 @@ export default function LoginPage() {
   const [major, setMajor] = useState('');
   const [error, setError] = useState('');
   const [isSignup, setIsSignup] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
 
   // Data for dropdowns
   const [universities, setUniversities] = useState([]);
@@ -125,6 +126,8 @@ export default function LoginPage() {
         setToken(data.access_token, data.email, data.refresh_token);
         scheduleProactiveRefresh();
         router.push('/dashboard');
+      } else if (resp.ok && isSignup && !data.access_token) {
+        setConfirmationSent(true);
       } else {
         setError(data.detail || 'Authentication failed');
       }
@@ -183,6 +186,7 @@ export default function LoginPage() {
             </>
           )}
           {error && <p style={{ color: 'var(--error)', marginBottom: 10, fontSize: '0.9em' }}>{error}</p>}
+          {confirmationSent && <p style={{ color: 'var(--accent)', marginBottom: 10, fontSize: '0.9em' }}>Account created! Check your email to confirm before logging in.</p>}
           <button type="submit" className="btn" style={{ width: '100%', padding: 12 }}>
             {isSignup ? 'Sign Up' : 'Login'}
           </button>
@@ -216,7 +220,7 @@ export default function LoginPage() {
         </div>
         <div className="login-feature-item">
           <strong>The Cost</strong>
-          <p>First off, a one month free trial&hellip; that DOES NOT automatically start the subscription. Nobody wants to do a free trial and forget to cancel it! Don&apos;t worry, I&apos;m a college student too and have too much to think about, also. Not only is there a benefit there, but we beat other platforms by offering every single imaginable feature for $9.99 a month.</p>
+          <p>First off, a one month free trial&hellip; that DOES NOT automatically start the subscription. Nobody wants to do a free trial and forget to cancel it! Don&apos;t worry, I&apos;m a college student too and have too much to think about, also. Not only is there a benefit there, but we beat other platforms by offering every single imaginable feature for $6.99 a month.</p>
         </div>
         <div className="login-feature-item">
           <strong>Users Are &quot;Cofounders&quot;</strong>

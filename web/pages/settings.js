@@ -189,7 +189,7 @@ export default function SettingsPage() {
 
                   <div className={'plan-card plan-card-pro' + (isProOrTrial ? ' plan-card-current' : '')}>
                     <div className="plan-name">Pro</div>
-                    <div className="plan-price">$9.99 <span>/month</span></div>
+                    <div className="plan-price">$6.99 <span>/month</span></div>
                     <ul className="plan-features">
                       <li><strong>Unlimited</strong> guide generations</li>
                       <li>Everything in Free</li>
@@ -207,7 +207,7 @@ export default function SettingsPage() {
                       <div className="plan-actions">
                         <div className="plan-current-label">Free trial active</div>
                         <button className="btn-upgrade" onClick={handleUpgrade} disabled={upgrading}>
-                          {upgrading ? 'Redirecting...' : 'Subscribe — $9.99/mo'}
+                          {upgrading ? 'Redirecting...' : 'Subscribe — $6.99/mo'}
                         </button>
                       </div>
                     ) : status?.trial_used ? (

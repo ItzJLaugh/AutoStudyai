@@ -1,8 +1,8 @@
 """
 Billing router for AutoStudyAI.
 Handles Stripe subscription management and usage tracking.
-Free tier: 10 guide generations per month.
-Pro tier: $9.99/mo, unlimited.
+Free tier: 3 study guide generations
+Pro tier: $6.99/mo, unlimited.
 """
 
 import os
@@ -17,7 +17,7 @@ from auth_utils import get_user_id
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/billing", tags=["billing"])
 
-FREE_TIER_LIMIT = 2  # guides per month
+FREE_TIER_LIMIT = 3  # guides per month
 
 
 def _get_stripe():
