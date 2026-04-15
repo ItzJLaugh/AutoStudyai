@@ -79,6 +79,10 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isSignup, setIsSignup] = useState(false);
   const [confirmationSent, setConfirmationSent] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
 
   // Data for dropdowns
   const [universities, setUniversities] = useState([]);
@@ -104,6 +108,26 @@ export default function LoginPage() {
       }).finally(() => setDataLoading(false));
     }
   }, [isSignup]);
+
+  async function handleForgotSubmit(e) {
+    e.preventDefault();
+    setError('');
+    try {
+      const resp = await fetch(API + '/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail })
+      });
+      if (resp.ok) {
+        setForgotSent(true);
+      } else {
+        const data = await resp.json();
+        setError(data.detail || 'Something went wrong');
+      }
+    } catch {
+      setError('Cannot connect to server');
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -151,6 +175,33 @@ export default function LoginPage() {
     <div className="login-page">
       <h1 className="login-title">AutoStudyAI</h1>
       <div className="login-box">
+        {forgotMode ? (
+          <>
+            <h2>Reset Password</h2>
+            {forgotSent ? (
+              <p style={{ color: 'var(--accent)', fontSize: '0.9em', marginBottom: 16 }}>
+                If an account exists with that email, a reset link has been sent. Check your inbox.
+              </p>
+            ) : (
+              <form onSubmit={handleForgotSubmit}>
+                <input
+                  type="email" placeholder="Your email address" value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)} required
+                />
+                {error && <p style={{ color: 'var(--error)', marginBottom: 10, fontSize: '0.9em' }}>{error}</p>}
+                <button type="submit" className="btn" style={{ width: '100%', padding: 12 }}>
+                  Send Reset Link
+                </button>
+              </form>
+            )}
+            <p style={{ textAlign: 'center', marginTop: 16, fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+              <a href="#" onClick={e => { e.preventDefault(); setForgotMode(false); setForgotSent(false); setError(''); }}>
+                Back to login
+              </a>
+            </p>
+          </>
+        ) : (
+        <>
         <h2>{isSignup ? 'Create Account' : 'Welcome Back'}</h2>
         <form onSubmit={handleSubmit}>
           {isSignup && (
@@ -163,10 +214,33 @@ export default function LoginPage() {
             type="email" placeholder="Email" value={email}
             onChange={e => setEmail(e.target.value)} required
           />
-          <input
-            type="password" placeholder="Password" value={password}
-            onChange={e => setPassword(e.target.value)} required minLength={6}
-          />
+          <div className="password-wrapper">
+            <input
+              type={showPassword ? 'text' : 'password'} placeholder="Password" value={password}
+              onChange={e => setPassword(e.target.value)} required minLength={6}
+              style={{ marginBottom: 0 }}
+            />
+            <button type="button" className="toggle-pw-btn" onClick={() => setShowPassword(p => !p)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+              {showPassword ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              )}
+            </button>
+          </div>
+          {!isSignup && (
+            <p style={{ textAlign: 'right', marginTop: 2, marginBottom: 10, fontSize: '0.85em' }}>
+              <a href="#" onClick={e => { e.preventDefault(); setForgotMode(true); setError(''); setForgotEmail(email); }}>
+                Forgot password?
+              </a>
+            </p>
+          )}
           {isSignup && (
             <>
               <SearchableSelect
@@ -197,6 +271,8 @@ export default function LoginPage() {
             {isSignup ? 'Login' : 'Sign Up'}
           </a>
         </p>
+        </>
+        )}
       </div>
 
       <div className="login-features">
@@ -304,6 +380,26 @@ export default function LoginPage() {
       }
       .select-option.disabled:hover {
         background: none;
+      }
+      .password-wrapper {
+        position: relative;
+        margin-bottom: 10px;
+      }
+      .toggle-pw-btn {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+        display: flex;
+        align-items: center;
+      }
+      .toggle-pw-btn:hover {
+        color: var(--text-primary);
       }
     `}</style>
     </>

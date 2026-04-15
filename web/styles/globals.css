@@ -308,6 +308,7 @@ input::placeholder { color: var(--text-muted); }
   margin-bottom: 8px; overflow: hidden; transition: border-color 0.15s;
 }
 .qa-item:hover { border-color: var(--border-default); }
+
 .qa-question {
   padding: 14px 16px; cursor: pointer; display: flex;
   justify-content: space-between; align-items: center;
