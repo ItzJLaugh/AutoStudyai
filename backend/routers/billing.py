@@ -57,8 +57,9 @@ def get_user_plan(user_id: str) -> dict:
         # Otherwise check if trial is active
         elif trial_ends_at:
             from datetime import timezone
+            from dateutil.parser import parse as parse_dt
             now = datetime.now(timezone.utc)
-            trial_end_dt = datetime.fromisoformat(trial_ends_at.replace("Z", "+00:00"))
+            trial_end_dt = parse_dt(trial_ends_at)
             if now < trial_end_dt:
                 plan = "trial"
                 is_trial = True

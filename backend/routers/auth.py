@@ -12,7 +12,7 @@ from collections import defaultdict
 from fastapi import APIRouter, HTTPException, Request, Header
 from typing import Optional
 from pydantic import BaseModel, EmailStr, field_validator
-from database import get_supabase
+from database import get_supabase, get_auth_supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -122,8 +122,7 @@ def signup(request: SignupRequest, req: Request):
     """Create a new user account. Rate limited."""
     _check_rate_limit(req, _auth_attempts, MAX_AUTH_ATTEMPTS)
     try:
-        supabase = get_supabase()
-        result = supabase.auth.sign_up({
+        result = get_auth_supabase().auth.sign_up({
             "email": request.email,
             "password": request.password
         })
@@ -140,7 +139,7 @@ def signup(request: SignupRequest, req: Request):
                 "university": request.university,
                 "major": request.major,
             }
-            supabase.table("user_profiles").insert(profile_data).execute()
+            get_supabase().table("user_profiles").insert(profile_data).execute()
         except Exception as profile_err:
             # Don't fail signup if profile insert fails — user is already created
             logger.warning(f"Failed to save user profile: {profile_err}")
@@ -184,8 +183,7 @@ def login(request: LoginRequest, req: Request):
     """Login with email and password. Rate limited."""
     _check_rate_limit(req, _auth_attempts, MAX_AUTH_ATTEMPTS)
     try:
-        supabase = get_supabase()
-        result = supabase.auth.sign_in_with_password({
+        result = get_auth_supabase().auth.sign_in_with_password({
             "email": request.email,
             "password": request.password
         })
@@ -207,6 +205,45 @@ def login(request: LoginRequest, req: Request):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_length(cls, v):
+        if len(v) > 254:
+            raise ValueError("Email too long")
+        return v
+
+
+class ResetPasswordRequest(BaseModel):
+    access_token: str
+    new_password: str
+
+    @field_validator("access_token")
+    @classmethod
+    def validate_token(cls, v):
+        v = v.strip()
+        if not v or len(v) > 4096:
+            raise ValueError("Invalid token")
+        return v
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if len(v) > 128:
+            raise ValueError("Password too long")
+        if not re.search(r'[A-Z]', v):
+            raise ValueError("Password must contain an uppercase letter")
+        if not re.search(r'[a-z]', v):
+            raise ValueError("Password must contain a lowercase letter")
+        if not re.search(r'[0-9]', v):
+            raise ValueError("Password must contain a number")
+        return v
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 
@@ -216,8 +253,7 @@ def refresh_token(request: RefreshRequest, req: Request):
     """Refresh an expired access token. Rate limited."""
     _check_rate_limit(req, _refresh_attempts, MAX_REFRESH_ATTEMPTS)
     try:
-        supabase = get_supabase()
-        result = supabase.auth.refresh_session(request.refresh_token)
+        result = get_auth_supabase().auth.refresh_session(request.refresh_token)
 
         if not result.user or not result.session:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
@@ -251,8 +287,7 @@ def get_current_user(authorization: str = Header(default="")):
         if not token or len(token) > 4096:
             raise HTTPException(status_code=401, detail="Invalid token")
 
-        supabase = get_supabase()
-        result = supabase.auth.get_user(token)
+        result = get_auth_supabase().auth.get_user(token)
 
         if not result.user:
             raise HTTPException(status_code=401, detail="Invalid token")
@@ -267,3 +302,38 @@ def get_current_user(authorization: str = Header(default="")):
     except Exception as e:
         logger.error(f"Auth check error: {e}")
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+@router.post("/forgot-password")
+def forgot_password(request: ForgotPasswordRequest, req: Request):
+    """Send a password reset email. Always returns 200 to prevent email enumeration."""
+    _check_rate_limit(req, _auth_attempts, MAX_AUTH_ATTEMPTS)
+    site_url = os.getenv("SITE_URL", "https://autostudyai.online")
+    try:
+        get_auth_supabase().auth.reset_password_for_email(
+            request.email,
+            {"redirect_to": f"{site_url}/reset-password"}
+        )
+    except Exception as e:
+        logger.warning(f"Forgot password error (suppressed): {e}")
+    return {"message": "If an account exists with that email, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+def reset_password(request: ResetPasswordRequest, req: Request):
+    """Reset a user's password using a recovery access token from the email link."""
+    _check_rate_limit(req, _auth_attempts, MAX_AUTH_ATTEMPTS)
+    try:
+        user_result = get_auth_supabase().auth.get_user(request.access_token)
+        if not user_result.user:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
+        get_auth_supabase().auth.admin.update_user_by_id(
+            user_result.user.id,
+            {"password": request.new_password}
+        )
+        return {"message": "Password updated successfully."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Reset password error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link.")

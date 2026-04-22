@@ -1,6 +1,6 @@
 """
 Generalized exam router for AutoStudyAI.
-Generates domain-specific practice exam questions (NAPLEX, Bar, technical, etc.)
+Generates domain-specific practice exam questions (NCLEX, Bar, technical, etc.)
 from study guide content using few-shot examples from domain config files.
 """
 

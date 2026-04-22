@@ -5,7 +5,7 @@ Verifies Supabase JWT by calling supabase.auth.get_user().
 
 import logging
 from fastapi import HTTPException
-from database import get_supabase
+from database import get_auth_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def get_user_id(authorization: str) -> str:
         raise HTTPException(status_code=401, detail="Invalid token")
 
     try:
-        supabase = get_supabase()
+        supabase = get_auth_supabase()
         result = supabase.auth.get_user(token)
         if not result.user:
             raise HTTPException(status_code=401, detail="Invalid token")

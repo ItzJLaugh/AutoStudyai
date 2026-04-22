@@ -13,7 +13,7 @@ class InMemoryStorage:
 
     MAX_ITEMS = 500          # Max stored content items
     MAX_CONTENT_SIZE = 500_000   # 500KB per item
-    TTL_MINUTES = 60         # Auto-expire after 1 hour
+    TTL_MINUTES = 120        # Expire content after 2 hours
 
     def __init__(self):
         self.contents: Dict[str, Dict[str, Any]] = {}

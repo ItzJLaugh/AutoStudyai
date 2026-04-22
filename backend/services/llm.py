@@ -778,13 +778,26 @@ def answer_question(question: str, context: str, mode: str = "short") -> str:
         return "[Error: OpenAI API key not configured]"
 
     if mode == "example":
-        system_prompt = "If example is selectede, YOU MUST provide a concrete, real-world example that better helps the user understand what they mentioned in their prompt to you. Make it relatable and easy to understand."
+        system_prompt = (
+            "You are a study assistant. Your answer MUST be grounded in the exact wording of the provided context — "
+            "do not substitute synonyms, paraphrase, or introduce information not present in the context. "
+            "Quote or closely follow the source text, then provide a concrete, relatable real-world example "
+            "that illustrates the concept as it is described in the context."
+        )
         max_tokens = 300
     elif mode == "detailed":
-        system_prompt = "If detailed is selected, YOU MUST provide a detailed explanation of the concept/question/topic the user inputted in their prompt. Break down the topic to a more complex to ensure thorough understanding. Make it about 3-7 sentences depending on what you think is best"
+        system_prompt = (
+            "You are a study assistant. Begin your answer by reproducing the exact relevant definition or explanation "
+            "from the provided context word for word. Then expand on it in 3-7 sentences using only details, "
+            "relationships, and implications that are explicitly stated in the context. "
+            "Do not paraphrase, substitute synonyms, or add information not present in the context."
+        )
         max_tokens = 700
     else:  # short
-        system_prompt = "You are a helpful tutor. Provide a brief, direct answer using only the information in the context. Keep it concise (1-2 sentences)."
+        system_prompt = (
+            "You are a study assistant. Answer using the exact wording from the provided context. "
+            "Do not paraphrase or substitute synonyms. Keep it to 1-2 sentences drawn directly from the context."
+        )
         max_tokens = 200
 
     prompt = f"""Context:
