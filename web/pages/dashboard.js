@@ -182,7 +182,7 @@ export default function Dashboard() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
         <AILoadingSphere size={100} />
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>Loading your content...</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82em', fontFamily: "'Inter', sans-serif", fontWeight: 500, letterSpacing: '-0.01em' }}>Loading your content...</p>
       </div>
     );
   }
@@ -300,11 +300,13 @@ export default function Dashboard() {
           <h2>Study Guides</h2>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={() => router.push('/create')} style={{ fontSize: '0.8em' }}>+ Create Guide</button>
-            <input
-              type="search" placeholder="Search guides... (Ctrl+K)"
-              onClick={() => setShowSearch(true)} readOnly
-              style={{ cursor: 'pointer', maxWidth: 240, marginBottom: 0 }}
-            />
+            <button className="guides-search-trigger" onClick={() => setShowSearch(true)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+              </svg>
+              Search guides...
+              <kbd>Ctrl+K</kbd>
+            </button>
           </div>
         </div>
 
@@ -457,39 +459,33 @@ export default function Dashboard() {
   // ============== DEFAULT DASHBOARD VIEW ==============
   return (
     <div>
-      {/* Search bar */}
-      <div style={{ marginBottom: 20 }}>
-        <input
-          type="search"
-          placeholder="Search guides... (Ctrl+K)"
-          onClick={() => setShowSearch(true)}
-          readOnly
-          style={{ cursor: 'pointer', maxWidth: 400 }}
-        />
-      </div>
-
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
+
+      {/* Page header */}
+      <div className="dash-header">
+        <div>
+          <h1 className="dash-title">Dashboard</h1>
+          <p className="dash-subtitle">{guides.length} guides &middot; {folders.length} classes</p>
+        </div>
+        <button className="btn" onClick={() => router.push('/create')}>+ New Study Guide</button>
+      </div>
 
       {/* Stats row */}
       {stats && (
         <div className="stats-grid">
           <div className="stat-card" onClick={() => router.push('/dashboard?view=guides')} style={{ cursor: 'pointer' }} title="View all study guides">
-            <div className="stat-icon">&#128218;</div>
             <div className="stat-number">{stats.total_guides}</div>
             <div className="stat-label">Study Guides</div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">&#127183;</div>
             <div className="stat-number">{stats.total_flashcards}</div>
             <div className="stat-label">Flashcards</div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">&#127942;</div>
             <div className="stat-number">{stats.avg_quiz_score}%</div>
             <div className="stat-label">Avg Quiz Score</div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">&#9201;</div>
             <div className="stat-number">{stats.minutes_today}</div>
             <div className="stat-label">Minutes Today</div>
           </div>
@@ -553,23 +549,20 @@ export default function Dashboard() {
               </div>
             </div>
           ) : (
-            <div>
-              <div style={{ fontSize: '2em' }}>+</div>
-              <div>New Class</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '1.8em', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1 }}>+</div>
+              <div style={{ fontWeight: 800, letterSpacing: '-0.03em', marginTop: 6, fontSize: '0.95em' }}>New Class</div>
             </div>
           )}
         </div>
       </div>
 
       {/* Recent guides */}
-      <div className="section-header" id="guides" style={{ marginTop: 28 }}>
-        <h2>Recent Study Guides</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn" onClick={() => router.push('/create')} style={{ fontSize: '0.8em' }}>+ Create Guide</button>
-          <button className="btn-outline" onClick={() => router.push('/dashboard?view=guides')} style={{ fontSize: '0.8em' }}>
-            View All &rarr;
-          </button>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 }}>
+        <span className="section-label" style={{ marginBottom: 0 }}>Recent Study Guides</span>
+        <button className="btn-outline" onClick={() => router.push('/dashboard?view=guides')} style={{ fontSize: '0.78em', padding: '5px 14px' }}>
+          View All &rarr;
+        </button>
       </div>
 
       {guides.length === 0 ? (
@@ -582,46 +575,38 @@ export default function Dashboard() {
           {' '}to capture slides and lecture notes.
         </div>
       ) : (
-        guides.slice(0, 10).map(guide => (
+        guides.slice(0, 8).map(guide => (
           <div
             key={guide.id}
-            className={'card draggable-guide' + (dragGuideId === guide.id ? ' dragging' : '')}
+            className="guide-row"
             draggable
             onDragStart={e => onDragStart(e, guide.id)}
             onDragEnd={onDragEnd}
             onClick={() => router.push('/guide/' + guide.id)}
             onContextMenu={e => onGuideContextMenu(e, guide)}
           >
-            <div className="card-row">
-              <div className="drag-handle" title="Drag to move to a class">&#9776;</div>
-              <div style={{ flex: 1 }}>
-                <h3>{guide.title}</h3>
-                <p>
-                  <span className="guide-folder-tag">
-                    {folders.find(f => f.id === guide.folder_id)?.name || 'No class'}
-                  </span>
-                  {' | '}
-                  <span className="timestamp">{formatDate(guide.created_at)}</span>
-                </p>
+            <div className="guide-row-icon">&#128214;</div>
+            <div className="guide-row-info">
+              <div className="guide-row-title">{guide.title}</div>
+              <div className="guide-row-meta">
+                {folders.find(f => f.id === guide.folder_id)?.name || 'No class'} &middot; {formatDate(guide.created_at)}
               </div>
+            </div>
+            <div className="guide-row-right">
               <button
                 className={'bookmark-btn' + (guide.is_bookmarked ? ' active' : '')}
                 onClick={e => toggleBookmark(guide.id, e)}
               >
                 {guide.is_bookmarked ? '\u2605' : '\u2606'}
               </button>
-              <button
-                className="bookmark-btn"
-                style={{ color: 'var(--error)', opacity: 0.55, fontSize: '0.95em' }}
-                title="Delete guide"
-                onClick={e => { e.stopPropagation(); if (window.confirm('Delete "' + guide.title + '"?')) deleteGuide(guide.id); }}
-              >
-                &#128465;
-              </button>
+              <svg className="guide-row-chevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M5 3l4 4-4 4"/>
+              </svg>
             </div>
           </div>
         ))
       )}
+
 
       {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
       {contextMenu && renderContextMenu()}
