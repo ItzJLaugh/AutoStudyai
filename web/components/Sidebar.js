@@ -13,13 +13,14 @@ export default function Sidebar() {
     setEmail(getUserEmail() || '');
   }, []);
 
-  const tabs = [
+  const mainTabs = [
     { label: 'Dashboard', href: '/dashboard', icon: dashboardIcon, match: '/dashboard' },
     { label: 'Create Guide', href: '/create', icon: createIcon, match: '/create' },
-    { label: 'Classes', href: '/dashboard?view=classes', icon: classesIcon, match: 'view=classes' },
     { label: 'Study Guides', href: '/dashboard?view=guides', icon: guidesIcon, match: 'view=guides' },
     { label: 'Flashcards', href: '/flashcards', icon: flashcardsIcon, match: '/flashcards' },
-    { label: 'Settings', href: '/settings', icon: settingsIcon, match: '/settings' },
+  ];
+  const classesTabs = [
+    { label: 'Classes', href: '/dashboard?view=classes', icon: classesIcon, match: 'view=classes' },
   ];
 
   function isActive(tab) {
@@ -27,6 +28,20 @@ export default function Sidebar() {
     if (tab.match === '/flashcards') return path.startsWith('/flashcards');
     if (tab.match.startsWith('view=')) return router.query.view === tab.match.split('=')[1];
     return path.startsWith(tab.match);
+  }
+
+  function NavTab({ tab }) {
+    return (
+      <div
+        className={'sidebar-tab' + (isActive(tab) ? ' sidebar-tab-active' : '')}
+        onClick={() => router.push(tab.href)}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {tab.icon}
+        </svg>
+        {tab.label}
+      </div>
+    );
   }
 
   function logout() {
@@ -37,43 +52,40 @@ export default function Sidebar() {
   return (
     <nav className="sidebar">
       <div className="sidebar-logo">
-        <h1><span>Auto</span>StudyAI</h1>
+        <img src="/icon128.png" alt="AutoStudyAI" className="sidebar-logo-img" />
+        <span className="sidebar-logo-text"><span className="logo-blue">Auto</span><span className="logo-dark">Study</span><span className="logo-blue">AI</span></span>
       </div>
 
       <div className="sidebar-nav">
-        {tabs.map(tab => (
-          <div
-            key={tab.label}
-            className={'sidebar-tab' + (isActive(tab) ? ' sidebar-tab-active' : '')}
-            onClick={() => router.push(tab.href)}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {tab.icon}
-            </svg>
-            {tab.label}
-          </div>
-        ))}
+        {mainTabs.map(tab => <NavTab key={tab.label} tab={tab} />)}
+
+        <div className="sidebar-section-divider" />
+        <div className="sidebar-section-label">Your Classes</div>
+        {classesTabs.map(tab => <NavTab key={tab.label} tab={tab} />)}
       </div>
 
       <div className="sidebar-footer">
         <div
-          className={'sidebar-tab' + (path === '/mission' ? ' sidebar-tab-active' : '')}
-          onClick={() => router.push('/mission')}
-          style={{ marginBottom: 8 }}
+          className={'sidebar-tab' + (path === '/settings' ? ' sidebar-tab-active' : '')}
+          onClick={() => router.push('/settings')}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            {missionIcon}
+            {settingsIcon}
           </svg>
-          AutoStudyAI Features
+          Settings
         </div>
-        <button className="sidebar-feedback" onClick={() => setShowFeedback(true)}>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-          </svg>
-          Send Feedback
-        </button>
-        <div className="sidebar-email">{email}</div>
-        <button className="sidebar-logout" onClick={logout}>Log Out</button>
+        <div className="sidebar-user-row">
+          <div className="sidebar-user-avatar">{email ? email[0].toUpperCase() : 'U'}</div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-email">{email}</div>
+            <button className="sidebar-logout" onClick={logout}>Log Out</button>
+          </div>
+          <button className="sidebar-feedback-icon" onClick={() => setShowFeedback(true)} title="Send Feedback">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+            </svg>
+          </button>
+        </div>
       </div>
       {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
     </nav>

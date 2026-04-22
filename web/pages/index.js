@@ -1,6 +1,7 @@
 import Head from 'next/head';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
+import LoginBackground from '../components/LoginBackground';
 import { getToken, setToken, scheduleProactiveRefresh } from '../lib/api';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -172,139 +173,113 @@ export default function LoginPage() {
       <meta property="og:type" content="website" />
       <link rel="canonical" href="https://autostudyai.online" />
     </Head>
+    <LoginBackground />
     <div className="login-page">
-      <h1 className="login-title">AutoStudyAI</h1>
-      <div className="login-box">
-        {forgotMode ? (
-          <>
-            <h2>Reset Password</h2>
-            {forgotSent ? (
-              <p style={{ color: 'var(--accent)', fontSize: '0.9em', marginBottom: 16 }}>
-                If an account exists with that email, a reset link has been sent. Check your inbox.
+      <div className="login-split">
+
+        {/* Left brand panel */}
+        <div className="login-panel-left">
+          <div className="login-brand-mark">
+            <img src="/icon128.png" alt="AutoStudyAI" className="login-brand-img" />
+            <div className="login-brand-name">
+              <span className="login-brand-blue">Auto</span><span className="login-brand-dark">Study</span><span className="login-brand-blue">AI</span>
+            </div>
+            <p className="login-brand-tagline">Study guides in a single click ~<br />AI Chat bot integration ~<br />Eliminating the extensive study guide creation process</p>
+          </div>
+        </div>
+
+        {/* Right form panel */}
+        <div className="login-panel-right">
+          {forgotMode ? (
+            <div className="login-form-wrap">
+              <h2 className="login-form-title">Reset Password</h2>
+              {forgotSent ? (
+                <p style={{ color: 'var(--accent)', fontSize: '0.88em', textAlign: 'center', lineHeight: 1.5 }}>
+                  If an account exists with that email, a reset link has been sent. Check your inbox.
+                </p>
+              ) : (
+                <form onSubmit={handleForgotSubmit}>
+                  <div className="login-input-row">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    <input type="email" className="login-underline-input" placeholder="Your email address" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} required />
+                  </div>
+                  {error && <p style={{ color: 'var(--error)', marginBottom: 12, fontSize: '0.85em' }}>{error}</p>}
+                  <button type="submit" className="btn login-cta-btn">Send Reset Link</button>
+                </form>
+              )}
+              <p className="login-switch-text">
+                <a href="#" onClick={e => { e.preventDefault(); setForgotMode(false); setForgotSent(false); setError(''); }}>
+                  &#8592; Back to login
+                </a>
               </p>
-            ) : (
-              <form onSubmit={handleForgotSubmit}>
-                <input
-                  type="email" placeholder="Your email address" value={forgotEmail}
-                  onChange={e => setForgotEmail(e.target.value)} required
-                />
-                {error && <p style={{ color: 'var(--error)', marginBottom: 10, fontSize: '0.9em' }}>{error}</p>}
-                <button type="submit" className="btn" style={{ width: '100%', padding: 12 }}>
-                  Send Reset Link
+            </div>
+          ) : (
+            <div className="login-form-wrap">
+              <h2 className="login-form-title">{isSignup ? 'Create Account' : 'Login Your Account'}</h2>
+              <form onSubmit={handleSubmit}>
+                {isSignup && (
+                  <div className="login-input-row">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    <input type="text" className="login-underline-input" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} required />
+                  </div>
+                )}
+                <div className="login-input-row">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  <input type="email" className="login-underline-input" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
+                </div>
+                <div className="login-input-row">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                  </svg>
+                  <input type={showPassword ? 'text' : 'password'} className="login-underline-input" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
+                  <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', flexShrink: 0 }} onClick={() => setShowPassword(p => !p)}>
+                    {showPassword ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                {!isSignup && (
+                  <div className="login-forgot">
+                    <a href="#" onClick={e => { e.preventDefault(); setForgotMode(true); setError(''); setForgotEmail(email); }}>
+                      Forgot password?
+                    </a>
+                  </div>
+                )}
+                {isSignup && (
+                  <>
+                    <SearchableSelect options={universities} value={university} onChange={setUniversity} placeholder="University (optional)" loading={dataLoading} />
+                    <SearchableSelect options={majors} value={major} onChange={setMajor} placeholder="Major (optional)" loading={dataLoading} />
+                  </>
+                )}
+                {error && <p style={{ color: 'var(--error)', marginBottom: 10, fontSize: '0.85em' }}>{error}</p>}
+                {confirmationSent && <p style={{ color: 'var(--accent)', marginBottom: 10, fontSize: '0.85em' }}>Account created! Check your email to confirm before logging in.</p>}
+                <button type="submit" className="btn login-cta-btn">
+                  {isSignup ? 'Sign Up' : 'Login'}
                 </button>
               </form>
-            )}
-            <p style={{ textAlign: 'center', marginTop: 16, fontSize: '0.9em', color: 'var(--text-secondary)' }}>
-              <a href="#" onClick={e => { e.preventDefault(); setForgotMode(false); setForgotSent(false); setError(''); }}>
-                Back to login
-              </a>
-            </p>
-          </>
-        ) : (
-        <>
-        <h2>{isSignup ? 'Create Account' : 'Welcome Back'}</h2>
-        <form onSubmit={handleSubmit}>
-          {isSignup && (
-            <input
-              type="text" placeholder="Full Name" value={name}
-              onChange={e => setName(e.target.value)} required
-            />
+              <p className="login-switch-text">
+                {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
+                <a href="#" onClick={e => { e.preventDefault(); setIsSignup(!isSignup); setError(''); }}>
+                  {isSignup ? 'Login' : 'Sign Up'}
+                </a>
+              </p>
+            </div>
           )}
-          <input
-            type="email" placeholder="Email" value={email}
-            onChange={e => setEmail(e.target.value)} required
-          />
-          <div className="password-wrapper">
-            <input
-              type={showPassword ? 'text' : 'password'} placeholder="Password" value={password}
-              onChange={e => setPassword(e.target.value)} required minLength={6}
-              style={{ marginBottom: 0 }}
-            />
-            <button type="button" className="toggle-pw-btn" onClick={() => setShowPassword(p => !p)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
-              {showPassword ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              )}
-            </button>
-          </div>
-          {!isSignup && (
-            <p style={{ textAlign: 'right', marginTop: 2, marginBottom: 10, fontSize: '0.85em' }}>
-              <a href="#" onClick={e => { e.preventDefault(); setForgotMode(true); setError(''); setForgotEmail(email); }}>
-                Forgot password?
-              </a>
-            </p>
-          )}
-          {isSignup && (
-            <>
-              <SearchableSelect
-                options={universities}
-                value={university}
-                onChange={setUniversity}
-                placeholder="University (optional)"
-                loading={dataLoading}
-              />
-              <SearchableSelect
-                options={majors}
-                value={major}
-                onChange={setMajor}
-                placeholder="Major (optional)"
-                loading={dataLoading}
-              />
-            </>
-          )}
-          {error && <p style={{ color: 'var(--error)', marginBottom: 10, fontSize: '0.9em' }}>{error}</p>}
-          {confirmationSent && <p style={{ color: 'var(--accent)', marginBottom: 10, fontSize: '0.9em' }}>Account created! Check your email to confirm before logging in.</p>}
-          <button type="submit" className="btn" style={{ width: '100%', padding: 12 }}>
-            {isSignup ? 'Sign Up' : 'Login'}
-          </button>
-        </form>
-        <p style={{ textAlign: 'center', marginTop: 16, fontSize: '0.9em', color: 'var(--text-secondary)' }}>
-          {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
-          <a href="#" onClick={e => { e.preventDefault(); setIsSignup(!isSignup); setError(''); }}>
-            {isSignup ? 'Login' : 'Sign Up'}
-          </a>
-        </p>
-        </>
-        )}
-      </div>
+        </div>
 
-      <div className="login-features">
-        <h3>Why use AutoStudyAI?</h3>
-        <div className="login-feature-item">
-          <strong>Instant Extraction</strong>
-          <p>Unlike any other study platform, AutoStudyAI allows you to skip the copy and paste/upload process. Simply navigate to the material you want to extract and click the &quot;Capture Content&quot; button within the extension. That&apos;s it!</p>
-        </div>
-        <div className="login-feature-item">
-          <strong>NCLEX Question Generation</strong>
-          <span className="login-feature-tag">Nursing User Group</span>
-          <p>There is no other platform that offers NCLEX question generation. AutoStudyAI is the one platform to achieve this task to assist Nursing students in making study guides exactly like their exams with two button clicks.</p>
-        </div>
-        <div className="login-feature-item">
-          <strong>AutoStudyAI Never Allows the AI to Search for Answers on the Web!</strong>
-          <p>The main issue with simply asking an LLM to create a study guide is that the answers and questions are DIRECTLY from your class material. AutoStudyAI makes this super simple and easy. It only uses the context that was captured as its knowledge!</p>
-        </div>
-        <div className="login-feature-item">
-          <strong>AI Chat</strong>
-          <p>Allows the user to get a regular response about the study guide; a detailed (longer) response; or an example response, which takes the users keyword in their AI chat prompt and provides an example that will help you better understand!</p>
-        </div>
-        <div className="login-feature-item">
-          <strong>The Cost</strong>
-          <p>First off, a one month free trial&hellip; that DOES NOT automatically start the subscription. Nobody wants to do a free trial and forget to cancel it! Don&apos;t worry, I&apos;m a college student too and have too much to think about, also. Not only is there a benefit there, but we beat other platforms by offering every single imaginable feature for $6.99 a month.</p>
-        </div>
-        <div className="login-feature-item">
-          <strong>Users Are &quot;Cofounders&quot;</strong>
-          <p>Got a new recommendation or said something along the lines of &quot;I wish it would do this?&quot; Send feedback! Our goal is to get your recommendation ASAP! This is a college study platform made for the people.</p>
-        </div>
-        <div className="login-feature-founder">
-          Founder: Jackson Laughlin
-        </div>
       </div>
     </div>
 
@@ -350,13 +325,13 @@ export default function LoginPage() {
         top: 100%;
         left: 0;
         right: 0;
-        max-height: 200px;
+        max-height: 168px;
         overflow-y: auto;
         background: var(--bg-secondary);
         border: 1px solid var(--border-default);
         border-radius: 8px;
         margin-top: 4px;
-        z-index: 100;
+        z-index: 200;
         box-shadow: var(--shadow-md);
       }
       .select-option {
@@ -364,6 +339,7 @@ export default function LoginPage() {
         font-size: 0.9em;
         color: var(--text-secondary);
         cursor: pointer;
+        user-select: none;
       }
       .select-option:hover {
         background: var(--bg-hover);
