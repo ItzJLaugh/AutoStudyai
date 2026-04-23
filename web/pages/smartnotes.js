@@ -22,17 +22,30 @@ function applyWordRules(word) {
   return word;
 }
 
-function applyLineRules(line) {
-  // Bullet: starts with - or *
-  if (/^[-*]\s+/.test(line)) {
-    return '<li>' + line.replace(/^[-*]\s+/, '') + '</li>';
+function escHtml(t) {
+  return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function getBlock(node, root) {
+  while (node && node !== root) {
+    if (['P', 'H3', 'H2', 'LI', 'DIV'].includes(node.nodeName)) return node;
+    node = node.parentNode;
   }
-  // Header: short line (≤5 words), not ending in punctuation
-  const words = line.trim().split(/\s+/);
-  if (words.length <= 5 && words.length >= 1 && !/[.,:;?!]$/.test(line.trim())) {
-    return '<h3>' + line + '</h3>';
+  return null;
+}
+
+function placeCursorAt(el, offset) {
+  const sel = window.getSelection();
+  const range = document.createRange();
+  const tn = el.firstChild;
+  if (tn && tn.nodeType === Node.TEXT_NODE) {
+    range.setStart(tn, Math.min(offset, tn.length));
+  } else {
+    range.setStart(el, 0);
   }
-  return '<p>' + line + '</p>';
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 // ─── Mermaid renderer (lazy-loaded) ─────────────────────────────────────────
@@ -224,12 +237,12 @@ export default function SmartNotes() {
     scheduleDiagram(text);
   }
 
-  // Apply formatting on Space (spell/acronym) and Enter (line-level rules)
   function onPaperKeyDown(e) {
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount) return;
+    const root = paperRef.current;
 
-    // ── Space: spell correction + acronym uppercase on the last word ──
+    // ── Space: spell correction + acronym uppercase ──
     if (e.key === ' ') {
       const range = sel.getRangeAt(0);
       const node = range.startContainer;
@@ -241,70 +254,113 @@ export default function SmartNotes() {
       const corrected = applyWordRules(word);
       if (corrected === word) return;
       e.preventDefault();
-      const wordStart = range.startOffset - word.length;
       const corrRange = document.createRange();
-      corrRange.setStart(node, wordStart);
+      corrRange.setStart(node, range.startOffset - word.length);
       corrRange.setEnd(node, range.startOffset);
       corrRange.deleteContents();
-      const textNode = document.createTextNode(corrected + ' ');
-      corrRange.insertNode(textNode);
-      const newRange = document.createRange();
-      newRange.setStartAfter(textNode);
-      newRange.collapse(true);
+      const tn = document.createTextNode(corrected + ' ');
+      corrRange.insertNode(tn);
+      const nr = document.createRange();
+      nr.setStartAfter(tn);
+      nr.collapse(true);
       sel.removeAllRanges();
-      sel.addRange(newRange);
+      sel.addRange(nr);
       return;
     }
 
-    // ── Enter: format the line just completed ──
-    if (e.key === 'Enter') {
-      const range = sel.getRangeAt(0);
-      // Walk up to find the current block element inside the paper
-      let block = range.startContainer;
-      while (block && block !== paperRef.current) {
-        if (['P', 'H3', 'LI', 'DIV'].includes(block.nodeName)) break;
-        block = block.parentNode;
+    // ── Backspace: exit list/numbered prefix if line is just the auto-prefix ──
+    if (e.key === 'Backspace') {
+      const block = getBlock(sel.getRangeAt(0).startContainer, root);
+      if (!block) return;
+      const raw = (block.innerText || block.textContent || '').replace(/\u200B/g, '');
+      if (/^[-*•]\s?$/.test(raw) || /^\d+[.)]\s?$/.test(raw)) {
+        e.preventDefault();
+        const newP = document.createElement('p');
+        newP.innerHTML = '<br>';
+        block.parentNode.replaceChild(newP, block);
+        const nr = document.createRange();
+        nr.setStart(newP, 0);
+        nr.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(nr);
       }
-      if (!block || block === paperRef.current) return;
+      return;
+    }
 
-      const lineText = (block.innerText || block.textContent || '').trim();
+    // ── Enter: format current line + continue list patterns ──
+    if (e.key === 'Enter') {
+      const block = getBlock(sel.getRangeAt(0).startContainer, root);
+      if (!block) return;
+      const lineText = (block.innerText || block.textContent || '').replace(/\u200B/g, '').trim();
       if (!lineText) return;
 
-      let newEl = null;
-
-      // Bullet: line starts with - or *
-      if (/^[-*]\s+/.test(lineText)) {
-        newEl = document.createElement('li');
-        newEl.textContent = lineText.replace(/^[-*]\s+/, '');
-      }
-      // Bold label: "Word:" or "Word Word:" pattern at start of line
-      else if (/^[A-Za-z][A-Za-z\s]{0,30}:/.test(lineText)) {
-        const colonIdx = lineText.indexOf(':');
-        const label = lineText.slice(0, colonIdx);
-        const rest = lineText.slice(colonIdx + 1);
-        newEl = document.createElement('p');
-        newEl.innerHTML = '<strong>' + label + ':</strong>' + (rest || '');
-      }
-      // Header: ≤4 words, no trailing punctuation
-      else if (lineText.split(/\s+/).length <= 4 && !/[.,:;?!]$/.test(lineText)) {
-        newEl = document.createElement('h3');
-        newEl.textContent = lineText;
+      // 1. Bullet continuation (- or * or •)
+      const bulletMatch = lineText.match(/^([-*•])\s+(.+)$/);
+      if (bulletMatch) {
+        e.preventDefault();
+        // Style current line as a bullet paragraph
+        block.innerHTML = '• ' + escHtml(bulletMatch[2]);
+        // New line starts with same bullet prefix
+        const newLine = document.createElement('p');
+        newLine.textContent = '- ';
+        block.parentNode.insertBefore(newLine, block.nextSibling);
+        placeCursorAt(newLine, 2);
+        return;
       }
 
-      if (!newEl) return; // no rule matched — let browser handle Enter normally
+      // 2. Numbered list continuation (1. or 1) patterns)
+      const numMatch = lineText.match(/^(\d+)[.)]\s+\S/);
+      if (numMatch) {
+        e.preventDefault();
+        const nextNum = parseInt(numMatch[1]) + 1;
+        const sep = lineText[numMatch[1].length]; // '.' or ')'
+        const newLine = document.createElement('p');
+        newLine.textContent = nextNum + sep + ' ';
+        block.parentNode.insertBefore(newLine, block.nextSibling);
+        placeCursorAt(newLine, newLine.textContent.length);
+        return;
+      }
 
-      e.preventDefault();
-      block.parentNode.replaceChild(newEl, block);
+      // 3. Bold term: word(s) followed by : ; or —
+      //    e.g. "Mitochondria:" or "Cell membrane —" or "ATP;"
+      const termMatch = lineText.match(/^([A-Za-z][A-Za-z\s\-]{0,40}?)(\s*[:;—–-]\s*)(.*)$/);
+      if (termMatch && termMatch[1].trim().split(/\s+/).length <= 5) {
+        e.preventDefault();
+        const term = termMatch[1].trim();
+        const sep  = termMatch[2];
+        const rest = termMatch[3];
+        block.innerHTML = '<strong>' + escHtml(term) + sep + '</strong>' + escHtml(rest);
+        // Let a normal new paragraph follow
+        const newP = document.createElement('p');
+        newP.innerHTML = '<br>';
+        block.parentNode.insertBefore(newP, block.nextSibling);
+        const nr = document.createRange();
+        nr.setStart(newP, 0);
+        nr.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(nr);
+        return;
+      }
 
-      // Insert a new empty paragraph and place cursor there
-      const nextP = document.createElement('p');
-      nextP.appendChild(document.createTextNode('\u200B')); // zero-width space keeps it focusable
-      newEl.parentNode.insertBefore(nextP, newEl.nextSibling);
-      const newRange = document.createRange();
-      newRange.setStart(nextP.firstChild, 0);
-      newRange.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(newRange);
+      // 4. Bold header: 1–6 words, no sentence-ending punctuation
+      const words = lineText.split(/\s+/).filter(Boolean);
+      if (words.length >= 1 && words.length <= 6 && !/[.!?]$/.test(lineText)) {
+        e.preventDefault();
+        const h3 = document.createElement('h3');
+        h3.textContent = lineText;
+        block.parentNode.replaceChild(h3, block);
+        const newP = document.createElement('p');
+        newP.innerHTML = '<br>';
+        h3.parentNode.insertBefore(newP, h3.nextSibling);
+        const nr = document.createRange();
+        nr.setStart(newP, 0);
+        nr.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(nr);
+        return;
+      }
+
+      // No rule matched — browser handles Enter normally
     }
   }
 
