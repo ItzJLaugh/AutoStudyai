@@ -35,7 +35,7 @@ from services.llm import (
     generate_flashcards, answer_question,
     analyze_images_for_slides
 )
-from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback
+from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes
 from auth_utils import get_user_id
 from routers.billing import check_and_increment_usage
 
@@ -80,7 +80,7 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_origin_regex=r"chrome-extension://.*|https://.*\.vercel\.app",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
     max_age=600,
 )
@@ -113,6 +113,7 @@ app.include_router(nclex.router)
 app.include_router(exam.router)
 app.include_router(billing.router)
 app.include_router(feedback.router)
+app.include_router(smart_notes.router)
 
 # Initialize storage with limits
 storage = InMemoryStorage()
