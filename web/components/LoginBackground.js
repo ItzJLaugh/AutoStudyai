@@ -164,7 +164,7 @@ export default function LoginBackground() {
         position: 'fixed', inset: 0,
         width: '100vw', height: '100vh',
         zIndex: 0, pointerEvents: 'none',
-        background: 'linear-gradient(135deg, #f8faff 0%, #edf0ff 45%, #f3eeff 100%)',
+        background: 'linear-gradient(135deg, #0d0b1a 0%, #13102a 45%, #1a1035 100%)',
       }}
     />
   );
