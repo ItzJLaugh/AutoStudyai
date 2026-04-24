@@ -843,13 +843,29 @@ input::placeholder { color: var(--text-muted); }
   color: var(--text-muted); pointer-events: none;
   font-style: italic;
 }
+.sn-paper h2 {
+  font-size: 1.12em; font-weight: 800; letter-spacing: 0.03em;
+  text-transform: uppercase; margin: 20px 0 6px; color: var(--accent);
+}
 .sn-paper h3 {
   font-size: 1em; font-weight: 700; letter-spacing: -0.01em;
   margin: 14px 0 4px; color: var(--text-primary);
 }
 .sn-paper strong { color: var(--accent); font-weight: 600; }
+.sn-paper em { color: var(--text-secondary); font-style: italic; }
 .sn-paper li { margin-left: 18px; margin-bottom: 2px; }
 .sn-paper p { margin: 0 0 6px; }
+.sn-paper hr {
+  border: none; border-top: 1px solid rgba(255,255,255,0.12);
+  margin: 18px 0;
+}
+[data-theme="light"] .sn-paper hr { border-top: 1px solid rgba(0,0,0,0.1); }
+.sn-paper blockquote {
+  border-left: 3px solid var(--accent); margin: 8px 0 8px 8px;
+  padding: 4px 12px; opacity: 0.8; font-style: italic;
+  background: rgba(255,255,255,0.03); border-radius: 0 6px 6px 0;
+}
+[data-theme="light"] .sn-paper blockquote { background: rgba(79,142,247,0.06); }
 
 /* Viewer panel */
 .sn-viewer-wrap {

@@ -6,14 +6,44 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // ─── Rule-based formatter ────────────────────────────────────────────────────
 const SPELL_MAP = {
+  // Common typos
   teh: 'the', hte: 'the', adn: 'and', nad: 'and', hwich: 'which',
   recieve: 'receive', definately: 'definitely', occured: 'occurred',
   seperate: 'separate', untill: 'until', occurance: 'occurrence',
   existance: 'existence', neccessary: 'necessary', accomodate: 'accommodate',
   comittee: 'committee', concious: 'conscious', liason: 'liaison',
+  alot: 'a lot', becuase: 'because', wierd: 'weird', freind: 'friend',
+  thier: 'their', beleive: 'believe', enviroment: 'environment',
+  goverment: 'government', reccomend: 'recommend', grammer: 'grammar',
+  // Contractions (no apostrophe → with apostrophe)
+  dont: "don't", cant: "can't", wont: "won't", isnt: "isn't", arent: "aren't",
+  wasnt: "wasn't", werent: "weren't", hasnt: "hasn't", havent: "haven't",
+  doesnt: "doesn't", didnt: "didn't", wouldnt: "wouldn't",
+  shouldnt: "shouldn't", couldnt: "couldn't",
+  im: "I'm", ive: "I've", youre: "you're", theyre: "they're",
+  // Abbreviations
+  eg: 'e.g.', ie: 'i.e.',
 };
-// Biology/science acronyms to preserve uppercase
-const FORCE_UPPER = new Set(['atp', 'dna', 'rna', 'atp', 'adp', 'nadh', 'fadh2', 'ph', 'dna', 'rna', 'mrna', 'trna', 'rrna', 'pcr', 'ecg', 'ekg', 'cpr', 'iv', 'bp', 'hr', 'gi', 'cns', 'pns', 'icu', 'er']);
+
+const FORCE_UPPER = new Set([
+  // Biology / chemistry
+  'atp', 'adp', 'nadh', 'fadh2', 'dna', 'rna', 'mrna', 'trna', 'rrna', 'pcr', 'ph',
+  // Medical / clinical
+  'ecg', 'ekg', 'cpr', 'iv', 'bp', 'hr', 'gi', 'cns', 'pns', 'icu', 'er',
+  'abg', 'cbc', 'wbc', 'rbc', 'bmp', 'cmp', 'inr', 'ptt', 'bun', 'gfr',
+  'ldl', 'hdl', 'bmi', 'bpm', 'hiv', 'aids', 'adhd', 'ocd', 'ptsd', 'cvd',
+  // Imaging / physics
+  'mri', 'ct', 'pet', 'uv', 'ir', 'nmr',
+  // Computer science
+  'cpu', 'gpu', 'ram', 'rom', 'sql', 'api', 'url', 'html', 'css',
+  'os', 'ip', 'tcp', 'udp', 'http', 'https',
+  // Academic / standardised tests
+  'gpa', 'sat', 'act', 'iq', 'gre', 'lsat', 'mcat',
+  // Business
+  'ceo', 'cfo', 'cto', 'coo', 'roi', 'gdp', 'gnp',
+  // Geopolitical
+  'usa', 'uk', 'eu', 'un',
+]);
 
 function applyWordRules(word) {
   const lower = word.toLowerCase();
@@ -28,7 +58,7 @@ function escHtml(t) {
 
 function getBlock(node, root) {
   while (node && node !== root) {
-    if (['P', 'H3', 'H2', 'LI', 'DIV'].includes(node.nodeName)) return node;
+    if (['P', 'H2', 'H3', 'H4', 'LI', 'BLOCKQUOTE', 'DIV'].includes(node.nodeName)) return node;
     node = node.parentNode;
   }
   return null;
@@ -242,7 +272,35 @@ export default function SmartNotes() {
     if (!sel || !sel.rangeCount) return;
     const root = paperRef.current;
 
-    // ── Space: spell correction + acronym uppercase ──
+    function insertAfter(newEl, ref) { ref.parentNode.insertBefore(newEl, ref.nextSibling); }
+    function newParaAfter(ref) {
+      const p = document.createElement('p'); p.innerHTML = '<br>';
+      insertAfter(p, ref);
+      const nr = document.createRange(); nr.setStart(p, 0); nr.collapse(true);
+      sel.removeAllRanges(); sel.addRange(nr);
+    }
+
+    // ── Auto-capitalize: first letter typed into an empty block ──────────────
+    if (/^[a-z]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const range0 = sel.getRangeAt(0);
+      const block0 = getBlock(range0.startContainer, root);
+      const checkNode = block0 || (range0.startContainer !== root ? null : root);
+      if (checkNode) {
+        const raw = (checkNode.innerText || checkNode.textContent || '')
+          .replace(/[\u200B\n\r]/g, '').trim();
+        if (raw === '') {
+          e.preventDefault();
+          const tn = document.createTextNode(e.key.toUpperCase());
+          range0.deleteContents();
+          range0.insertNode(tn);
+          const nr = document.createRange(); nr.setStartAfter(tn); nr.collapse(true);
+          sel.removeAllRanges(); sel.addRange(nr);
+          return;
+        }
+      }
+    }
+
+    // ── Space: inline markdown + spell/acronym correction ────────────────────
     if (e.key === ' ') {
       const range = sel.getRangeAt(0);
       const node = range.startContainer;
@@ -251,112 +309,187 @@ export default function SmartNotes() {
       const wordMatch = before.match(/(\S+)$/);
       if (!wordMatch) return;
       const word = wordMatch[1];
+
+      // **bold**, *bold*, _italic_ inline markdown
+      const dblBold  = word.match(/^\*\*([^*]+)\*\*$/);
+      const snglBold = !dblBold && word.match(/^\*([^*]+)\*$/);
+      const italic   = word.match(/^_([^_]+)_$/);
+      if (dblBold || snglBold || italic) {
+        e.preventDefault();
+        const inner = (dblBold || snglBold || italic)[1];
+        const el = document.createElement(italic ? 'em' : 'strong');
+        el.textContent = inner;
+        const cr = document.createRange();
+        cr.setStart(node, range.startOffset - word.length);
+        cr.setEnd(node, range.startOffset);
+        cr.deleteContents(); cr.insertNode(el);
+        const sp = document.createTextNode(' '); el.after(sp);
+        const nr = document.createRange(); nr.setStartAfter(sp); nr.collapse(true);
+        sel.removeAllRanges(); sel.addRange(nr);
+        return;
+      }
+
+      // Spell / acronym correction
       const corrected = applyWordRules(word);
-      if (corrected === word) return;
-      e.preventDefault();
-      const corrRange = document.createRange();
-      corrRange.setStart(node, range.startOffset - word.length);
-      corrRange.setEnd(node, range.startOffset);
-      corrRange.deleteContents();
-      const tn = document.createTextNode(corrected + ' ');
-      corrRange.insertNode(tn);
-      const nr = document.createRange();
-      nr.setStartAfter(tn);
-      nr.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(nr);
+      if (corrected !== word) {
+        e.preventDefault();
+        const cr = document.createRange();
+        cr.setStart(node, range.startOffset - word.length);
+        cr.setEnd(node, range.startOffset);
+        cr.deleteContents();
+        const tn = document.createTextNode(corrected + ' ');
+        cr.insertNode(tn);
+        const nr = document.createRange(); nr.setStartAfter(tn); nr.collapse(true);
+        sel.removeAllRanges(); sel.addRange(nr);
+        return;
+      }
       return;
     }
 
-    // ── Backspace: exit list/numbered prefix if line is just the auto-prefix ──
+    // ── Backspace: escape auto-inserted list prefix when line is only prefix ──
     if (e.key === 'Backspace') {
       const block = getBlock(sel.getRangeAt(0).startContainer, root);
       if (!block) return;
       const raw = (block.innerText || block.textContent || '').replace(/\u200B/g, '');
-      if (/^[-*•]\s?$/.test(raw) || /^\d+[.)]\s?$/.test(raw)) {
+      if (
+        /^[-*•]\s?$/.test(raw) ||
+        /^\d+[.)]\s?$/.test(raw) ||
+        /^>>\s?$/.test(raw) ||
+        /^[A-Z][.)]\s?$/.test(raw)
+      ) {
         e.preventDefault();
-        const newP = document.createElement('p');
-        newP.innerHTML = '<br>';
+        const newP = document.createElement('p'); newP.innerHTML = '<br>';
         block.parentNode.replaceChild(newP, block);
-        const nr = document.createRange();
-        nr.setStart(newP, 0);
-        nr.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(nr);
+        const nr = document.createRange(); nr.setStart(newP, 0); nr.collapse(true);
+        sel.removeAllRanges(); sel.addRange(nr);
       }
       return;
     }
 
-    // ── Enter: format current line + continue list patterns ──
+    // ── Enter: format current line + continue list patterns ──────────────────
     if (e.key === 'Enter') {
       const block = getBlock(sel.getRangeAt(0).startContainer, root);
       if (!block) return;
+
+      // 0. Heading cascade — Enter inside existing heading always makes plain <p>
+      if (['H2', 'H3', 'H4'].includes(block.nodeName)) {
+        e.preventDefault(); newParaAfter(block); return;
+      }
+
       const lineText = (block.innerText || block.textContent || '').replace(/\u200B/g, '').trim();
       if (!lineText) return;
 
-      // 1. Bullet continuation (- or * or •)
-      const bulletMatch = lineText.match(/^([-*•])\s+(.+)$/);
+      // 1. Horizontal rule — line of ---, ***, ===, ___
+      if (/^[-*=_]{3,}$/.test(lineText)) {
+        e.preventDefault();
+        const hr = document.createElement('hr');
+        block.parentNode.replaceChild(hr, block);
+        const newP = document.createElement('p'); newP.innerHTML = '<br>';
+        hr.after(newP);
+        const nr = document.createRange(); nr.setStart(newP, 0); nr.collapse(true);
+        sel.removeAllRanges(); sel.addRange(nr);
+        return;
+      }
+
+      // 2. Markdown headings — #, ##, ### prefix
+      const mdH = lineText.match(/^(#{1,3})\s+(.+)$/);
+      if (mdH) {
+        e.preventDefault();
+        const tag = mdH[1].length === 1 ? 'h2' : 'h3';
+        const heading = document.createElement(tag);
+        heading.textContent = mdH[2];
+        block.parentNode.replaceChild(heading, block);
+        newParaAfter(heading);
+        return;
+      }
+
+      // 3. ALL CAPS line (≥4 chars, all uppercase letters/numbers/spaces) → <h2>
+      if (/^[A-Z][A-Z0-9\s\-:&/]+$/.test(lineText) && lineText.length >= 4) {
+        e.preventDefault();
+        const h2 = document.createElement('h2'); h2.textContent = lineText;
+        block.parentNode.replaceChild(h2, block);
+        newParaAfter(h2);
+        return;
+      }
+
+      // 4. Blockquote — "> text"
+      const quoteMatch = lineText.match(/^>\s+(.+)$/);
+      if (quoteMatch) {
+        e.preventDefault();
+        const bq = document.createElement('blockquote'); bq.textContent = quoteMatch[1];
+        block.parentNode.replaceChild(bq, block);
+        newParaAfter(bq);
+        return;
+      }
+
+      // 5. Sub-bullet — ">> text"
+      const subMatch = lineText.match(/^>>\s*(.*)/);
+      if (subMatch) {
+        e.preventDefault();
+        block.innerHTML = '\u00a0\u00a0\u00a0\u00a0\u25e6 ' + escHtml(subMatch[1]);
+        const newLine = document.createElement('p'); newLine.textContent = '>> ';
+        insertAfter(newLine, block); placeCursorAt(newLine, 3);
+        return;
+      }
+
+      // 6. Lettered list — "A. text" or "A) text" (uppercase only)
+      const letteredMatch = lineText.match(/^([A-Z])([.)]\s*)(.*)/);
+      if (letteredMatch) {
+        e.preventDefault();
+        const letter = letteredMatch[1];
+        const sep = letteredMatch[2].trimEnd();
+        const content = letteredMatch[3].trim();
+        block.innerHTML = '<strong>' + letter + sep + '</strong>' + (content ? ' ' + escHtml(content) : '');
+        const nextLetter = String.fromCharCode(letter.charCodeAt(0) + 1);
+        const newLine = document.createElement('p');
+        newLine.textContent = nextLetter + sep + ' ';
+        insertAfter(newLine, block); placeCursorAt(newLine, newLine.textContent.length);
+        return;
+      }
+
+      // 7. Bullet continuation — "- text", "* text", "• text"
+      const bulletMatch = lineText.match(/^([-*•])\s+(.*)/);
       if (bulletMatch) {
         e.preventDefault();
-        // Style current line as a bullet paragraph
         block.innerHTML = '• ' + escHtml(bulletMatch[2]);
-        // New line starts with same bullet prefix
-        const newLine = document.createElement('p');
-        newLine.textContent = '- ';
-        block.parentNode.insertBefore(newLine, block.nextSibling);
-        placeCursorAt(newLine, 2);
+        const newLine = document.createElement('p'); newLine.textContent = '- ';
+        insertAfter(newLine, block); placeCursorAt(newLine, 2);
         return;
       }
 
-      // 2. Numbered list continuation (1. or 1) patterns)
-      const numMatch = lineText.match(/^(\d+)[.)]\s+\S/);
+      // 8. Numbered list — "1. text" or "1) text"
+      const numMatch = lineText.match(/^(\d+)([.)]\s*)(.*)/);
       if (numMatch) {
         e.preventDefault();
-        const nextNum = parseInt(numMatch[1]) + 1;
-        const sep = lineText[numMatch[1].length]; // '.' or ')'
+        const num = parseInt(numMatch[1]);
+        const sep = numMatch[2].trimEnd();
+        const content = numMatch[3].trim();
+        block.innerHTML = '<strong>' + escHtml(num + sep) + '</strong>' + (content ? ' ' + escHtml(content) : '');
         const newLine = document.createElement('p');
-        newLine.textContent = nextNum + sep + ' ';
-        block.parentNode.insertBefore(newLine, block.nextSibling);
-        placeCursorAt(newLine, newLine.textContent.length);
+        newLine.textContent = (num + 1) + sep + ' ';
+        insertAfter(newLine, block); placeCursorAt(newLine, newLine.textContent.length);
         return;
       }
 
-      // 3. Bold term: word(s) followed by : ; or —
-      //    e.g. "Mitochondria:" or "Cell membrane —" or "ATP;"
-      const termMatch = lineText.match(/^([A-Za-z][A-Za-z\s\-]{0,40}?)(\s*[:;—–-]\s*)(.*)$/);
-      if (termMatch && termMatch[1].trim().split(/\s+/).length <= 5) {
+      // 9. Bold term — "word(s): rest" (≤6 words before separator)
+      const termMatch = lineText.match(/^([A-Za-z][A-Za-z\s\-]{0,50}?)(\s*[:;—–]\s*)(.*)$/);
+      if (termMatch && termMatch[1].trim().split(/\s+/).length <= 6) {
         e.preventDefault();
         const term = termMatch[1].trim();
         const sep  = termMatch[2];
         const rest = termMatch[3];
-        block.innerHTML = '<strong>' + escHtml(term) + sep + '</strong>' + escHtml(rest);
-        // Let a normal new paragraph follow
-        const newP = document.createElement('p');
-        newP.innerHTML = '<br>';
-        block.parentNode.insertBefore(newP, block.nextSibling);
-        const nr = document.createRange();
-        nr.setStart(newP, 0);
-        nr.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(nr);
+        block.innerHTML = '<strong>' + escHtml(term + sep) + '</strong>' + escHtml(rest);
+        newParaAfter(block);
         return;
       }
 
-      // 4. Bold header: 1–6 words, no sentence-ending punctuation
+      // 10. Short line → <h3> header (1–6 words, no sentence-ending punctuation)
       const words = lineText.split(/\s+/).filter(Boolean);
       if (words.length >= 1 && words.length <= 6 && !/[.!?]$/.test(lineText)) {
         e.preventDefault();
-        const h3 = document.createElement('h3');
-        h3.textContent = lineText;
+        const h3 = document.createElement('h3'); h3.textContent = lineText;
         block.parentNode.replaceChild(h3, block);
-        const newP = document.createElement('p');
-        newP.innerHTML = '<br>';
-        h3.parentNode.insertBefore(newP, h3.nextSibling);
-        const nr = document.createRange();
-        nr.setStart(newP, 0);
-        nr.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(nr);
+        newParaAfter(h3);
         return;
       }
 
