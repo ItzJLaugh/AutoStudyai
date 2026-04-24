@@ -9,8 +9,8 @@ const SPELL_MAP = {
   // Common typos
   teh: 'the', hte: 'the', adn: 'and', nad: 'and', hwich: 'which',
   recieve: 'receive', definately: 'definitely', occured: 'occurred',
-  seperate: 'separate', untill: 'until', occurance: 'occurrence',
-  existance: 'existence', neccessary: 'necessary', accomodate: 'accommodate',
+  seperate: 'separate', untill: 'until', occurance: 'occurrence', waht: 'what',
+  biuld: 'build', existance: 'existence', neccessary: 'necessary', accomodate: 'accommodate',
   comittee: 'committee', concious: 'conscious', liason: 'liaison',
   alot: 'a lot', becuase: 'because', wierd: 'weird', freind: 'friend',
   thier: 'their', beleive: 'believe', enviroment: 'environment',
@@ -99,41 +99,60 @@ function MermaidDiagram({ code }) {
   return <div ref={ref} className="sn-diagram-render" />;
 }
 
+const EXTRACT_EXTS = new Set(['docx', 'pptx', 'txt', 'md', 'doc']);
+
 // ─── File viewer ─────────────────────────────────────────────────────────────
 function FileViewer({ file, guideContent }) {
   const [objectUrl, setObjectUrl] = useState(null);
+  const [extractedText, setExtractedText] = useState(null);
+  const [extracting, setExtracting] = useState(false);
 
   useEffect(() => {
-    if (!file) { setObjectUrl(null); return; }
-    const url = URL.createObjectURL(file);
-    setObjectUrl(url);
-    return () => URL.revokeObjectURL(url);
+    setObjectUrl(null);
+    setExtractedText(null);
+    setExtracting(false);
+    if (!file) return;
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (EXTRACT_EXTS.has(ext)) {
+      setExtracting(true);
+      const fd = new FormData();
+      fd.append('file', file);
+      let cancelled = false;
+      fetch(API + '/extract-file-text', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: fd,
+      })
+        .then(r => r.json())
+        .then(data => { if (!cancelled) { setExtractedText(data.text ?? '(No text found)'); setExtracting(false); } })
+        .catch(() => { if (!cancelled) { setExtractedText('Could not read this file.'); setExtracting(false); } });
+      return () => { cancelled = true; };
+    } else {
+      const url = URL.createObjectURL(file);
+      setObjectUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
   }, [file]);
 
-  if (guideContent) {
-    return (
-      <div className="sn-guide-viewer">
-        <div dangerouslySetInnerHTML={{ __html: guideContent }} />
-      </div>
-    );
-  }
-  if (!file || !objectUrl) return null;
-
-  const ext = file.name.split('.').pop().toLowerCase();
-  if (ext === 'pdf') {
-    return <iframe src={objectUrl} className="sn-iframe" title="Class material" />;
-  }
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) {
-    return <img src={objectUrl} className="sn-viewer-img" alt="Class material" />;
-  }
-  // PPTX or unknown: show download link
-  return (
-    <div className="sn-diagram-placeholder">
-      <a href={objectUrl} download={file.name} className="btn sn-open-btn">
-        Download {file.name}
-      </a>
+  if (guideContent) return (
+    <div className="sn-guide-viewer">
+      <div dangerouslySetInnerHTML={{ __html: guideContent }} />
     </div>
   );
+  if (!file) return null;
+  if (extracting) return <div className="sn-viewer-empty"><p>Reading file…</p></div>;
+  if (extractedText !== null) return (
+    <div className="sn-extracted-viewer">
+      <div className="sn-extracted-filename">{file.name}</div>
+      <pre className="sn-extracted-content">{extractedText}</pre>
+    </div>
+  );
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'pdf') return <iframe src={objectUrl} className="sn-iframe" title="Class material" />;
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return <img src={objectUrl} className="sn-viewer-img" alt="Class material" />;
+  return null;
 }
 
 // ─── Main page ───────────────────────────────────────────────────────────────
@@ -165,6 +184,9 @@ export default function SmartNotes() {
   // Paper (contenteditable)
   const paperRef = useRef(null);
   const saveTimer = useRef(null);
+  // Refs mirror state so timeout callbacks always read the latest values
+  const noteIdRef = useRef(null);
+  const titleRef  = useRef('Untitled Notes');
 
   // ── Init: create or load note ────────────────────────────────────────────
   useEffect(() => {
@@ -201,6 +223,7 @@ export default function SmartNotes() {
       });
       const data = await resp.json();
       if (data.note) {
+        noteIdRef.current = data.note.id;
         setNoteId(data.note.id);
         router.replace('/smartnotes?id=' + data.note.id, undefined, { shallow: true });
       }
@@ -212,6 +235,8 @@ export default function SmartNotes() {
       const resp = await fetch(API + '/smart_notes/' + id, { headers: authHeaders() });
       if (!resp.ok) { createNote(); return; }
       const data = await resp.json();
+      noteIdRef.current = data.note.id;
+      titleRef.current  = data.note.title || 'Untitled Notes';
       setNoteId(data.note.id);
       setTitle(data.note.title || 'Untitled Notes');
       if (paperRef.current && data.note.content) {
@@ -220,18 +245,19 @@ export default function SmartNotes() {
     } catch {}
   }
 
-  // ── Autosave (debounced 1s) ──────────────────────────────────────────────
-  const scheduleSave = useCallback((currentNoteId, currentTitle) => {
+  // ── Autosave (debounced 1s) — reads refs so callbacks never see stale values
+  const scheduleSave = useCallback(() => {
     clearTimeout(saveTimer.current);
+    if (!noteIdRef.current) return; // note not created yet — stay silent
     setSaveStatus('saving');
     saveTimer.current = setTimeout(async () => {
-      if (!paperRef.current || !currentNoteId) return;
+      if (!paperRef.current || !noteIdRef.current) return;
       try {
-        await fetch(API + '/smart_notes/' + currentNoteId, {
+        await fetch(API + '/smart_notes/' + noteIdRef.current, {
           method: 'PUT',
           headers: { ...authHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: currentTitle,
+            title: titleRef.current,
             content: paperRef.current.innerHTML,
           }),
         });
@@ -303,7 +329,7 @@ export default function SmartNotes() {
   // ── Paper keyboard handler ───────────────────────────────────────────────
   function onPaperKeyUp(e) {
     if (!paperRef.current) return;
-    scheduleSave(noteId, title);
+    scheduleSave();
   }
 
   function onPaperKeyDown(e) {
@@ -349,15 +375,9 @@ export default function SmartNotes() {
       if (!wordMatch) return;
       const word = wordMatch[1];
 
-      // **bold**, *bold*, _italic_ inline markdown
-      const dblBold  = word.match(/^\*\*([^*]+)\*\*$/);
-      const snglBold = !dblBold && word.match(/^\*([^*]+)\*$/);
-      const italic   = word.match(/^_([^_]+)_$/);
-      if (dblBold || snglBold || italic) {
+      function replaceWord(tag, inner) {
         e.preventDefault();
-        const inner = (dblBold || snglBold || italic)[1];
-        const el = document.createElement(italic ? 'em' : 'strong');
-        el.textContent = inner;
+        const el = document.createElement(tag); el.textContent = inner;
         const cr = document.createRange();
         cr.setStart(node, range.startOffset - word.length);
         cr.setEnd(node, range.startOffset);
@@ -365,8 +385,22 @@ export default function SmartNotes() {
         const sp = document.createTextNode(' '); el.after(sp);
         const nr = document.createRange(); nr.setStartAfter(sp); nr.collapse(true);
         sel.removeAllRanges(); sel.addRange(nr);
-        return;
       }
+
+      // Inline markdown — check most specific patterns first
+      const tripleBold = word.match(/^\*{3}([^*]+)\*{3}$/);
+      if (tripleBold) { replaceWord('strong', tripleBold[1]); return; } // ***bold***
+
+      const dblBold   = word.match(/^\*\*([^*]+)\*\*$/);
+      const snglBold  = !dblBold && word.match(/^\*([^*]+)\*$/);
+      const italic    = word.match(/^_([^_]+)_$/);
+      const code      = word.match(/^`([^`]+)`$/);
+      const strike    = word.match(/^~~([^~]+)~~$/);
+
+      if (dblBold || snglBold) { replaceWord('strong', (dblBold || snglBold)[1]); return; }
+      if (italic)  { replaceWord('em',     italic[1]);  return; }
+      if (code)    { replaceWord('code',   code[1]);    return; }
+      if (strike)  { replaceWord('del',    strike[1]);  return; }
 
       // Spell / acronym correction
       const corrected = applyWordRules(word);
@@ -410,13 +444,14 @@ export default function SmartNotes() {
       const block = getBlock(sel.getRangeAt(0).startContainer, root);
       if (!block) return;
 
-      // 0. Heading cascade — Enter inside existing heading always makes plain <p>
-      if (['H2', 'H3', 'H4'].includes(block.nodeName)) {
+      // 0. Heading cascade — Enter inside any heading always makes plain <p>
+      if (['H1', 'H2', 'H3', 'H4'].includes(block.nodeName)) {
         e.preventDefault(); newParaAfter(block); return;
       }
 
       const lineText = (block.innerText || block.textContent || '').replace(/\u200B/g, '').trim();
       if (!lineText) return;
+      const words = lineText.split(/\s+/).filter(Boolean);
 
       // 1. Horizontal rule — line of ---, ***, ===, ___
       if (/^[-*=_]{3,}$/.test(lineText)) {
@@ -430,20 +465,20 @@ export default function SmartNotes() {
         return;
       }
 
-      // 2. Markdown headings — #, ##, ### prefix
-      const mdH = lineText.match(/^(#{1,3})\s+(.+)$/);
+      // 2. Markdown headings — #→h1, ##→h2, ###→h3
+      const mdH = lineText.match(/^(#{1,4})\s+(.+)$/);
       if (mdH) {
         e.preventDefault();
-        const tag = mdH[1].length === 1 ? 'h2' : 'h3';
-        const heading = document.createElement(tag);
+        const tagMap = { 1: 'h1', 2: 'h2', 3: 'h3', 4: 'h3' };
+        const heading = document.createElement(tagMap[mdH[1].length]);
         heading.textContent = mdH[2];
         block.parentNode.replaceChild(heading, block);
         newParaAfter(heading);
         return;
       }
 
-      // 3. ALL CAPS line (≥4 chars, all uppercase letters/numbers/spaces) → <h2>
-      if (/^[A-Z][A-Z0-9\s\-:&/]+$/.test(lineText) && lineText.length >= 4) {
+      // 3. ALL CAPS line (≥4 chars) → <h2> section header
+      if (/^[A-Z][A-Z0-9\s\-:&/()]+$/.test(lineText) && lineText.length >= 4) {
         e.preventDefault();
         const h2 = document.createElement('h2'); h2.textContent = lineText;
         block.parentNode.replaceChild(h2, block);
@@ -451,7 +486,31 @@ export default function SmartNotes() {
         return;
       }
 
-      // 4. Blockquote — "> text"
+      // 4. Date line — "April 24", "Mon, April 24 2026", "4/24/26", "2026-04-24"
+      const MONTH = 'January|February|March|April|May|June|July|August|September|October|November|December';
+      const WDAY  = 'Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday';
+      const isDate = new RegExp(
+        `^(?:(?:${WDAY}),?\\s+)?(?:${MONTH})\\s+\\d{1,2}(?:,?\\s*\\d{4})?$`, 'i'
+      ).test(lineText)
+        || /^\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?$/.test(lineText)
+        || /^\d{4}-\d{2}-\d{2}$/.test(lineText);
+      if (isDate) {
+        e.preventDefault();
+        block.classList.add('sn-date-line');
+        newParaAfter(block);
+        return;
+      }
+
+      // 5. Callout — "!! text" or "!!! text"
+      const calloutMatch = lineText.match(/^!{2,3}\s+(.+)$/);
+      if (calloutMatch) {
+        e.preventDefault();
+        block.innerHTML = '<mark class="sn-callout">⚠ ' + escHtml(calloutMatch[1]) + '</mark>';
+        newParaAfter(block);
+        return;
+      }
+
+      // 6. Blockquote — "> text"
       const quoteMatch = lineText.match(/^>\s+(.+)$/);
       if (quoteMatch) {
         e.preventDefault();
@@ -461,7 +520,7 @@ export default function SmartNotes() {
         return;
       }
 
-      // 5. Sub-bullet — ">> text"
+      // 7. Sub-bullet — ">> text"
       const subMatch = lineText.match(/^>>\s*(.*)/);
       if (subMatch) {
         e.preventDefault();
@@ -471,7 +530,7 @@ export default function SmartNotes() {
         return;
       }
 
-      // 6. Lettered list — "A. text" or "A) text" (uppercase only)
+      // 8. Lettered list — "A. text" or "A) text" (uppercase only)
       const letteredMatch = lineText.match(/^([A-Z])([.)]\s*)(.*)/);
       if (letteredMatch) {
         e.preventDefault();
@@ -486,7 +545,7 @@ export default function SmartNotes() {
         return;
       }
 
-      // 7. Bullet continuation — "- text", "* text", "• text"
+      // 9. Bullet continuation — "- text", "* text", "• text"
       const bulletMatch = lineText.match(/^([-*•])\s+(.*)/);
       if (bulletMatch) {
         e.preventDefault();
@@ -496,7 +555,7 @@ export default function SmartNotes() {
         return;
       }
 
-      // 8. Numbered list — "1. text" or "1) text"
+      // 10. Numbered list — "1. text" or "1) text"
       const numMatch = lineText.match(/^(\d+)([.)]\s*)(.*)/);
       if (numMatch) {
         e.preventDefault();
@@ -510,8 +569,18 @@ export default function SmartNotes() {
         return;
       }
 
-      // 9. Bold term — "word(s): rest" (≤6 words before separator)
-      const termMatch = lineText.match(/^([A-Za-z][A-Za-z\s\-]{0,50}?)(\s*[:;—–]\s*)(.*)$/);
+      // 11. Definition — "term = value" or "term ≡ value" (≤5 words before =)
+      const defMatch = lineText.match(/^([A-Za-z][A-Za-z\s\-']{0,40})\s*([=≡≈])\s*(.+)$/);
+      if (defMatch && defMatch[1].trim().split(/\s+/).length <= 5) {
+        e.preventDefault();
+        block.innerHTML = '<strong>' + escHtml(defMatch[1].trim()) + '</strong> '
+          + defMatch[2] + ' ' + escHtml(defMatch[3]);
+        newParaAfter(block);
+        return;
+      }
+
+      // 12. Bold term — "word(s): rest" or "word(s); rest" (≤6 words before separator)
+      const termMatch = lineText.match(/^([A-Za-z][A-Za-z\s\-']{0,50}?)(\s*[:;—–]\s*)(.*)$/);
       if (termMatch && termMatch[1].trim().split(/\s+/).length <= 6) {
         e.preventDefault();
         const term = termMatch[1].trim();
@@ -522,9 +591,18 @@ export default function SmartNotes() {
         return;
       }
 
-      // 10. Short line → <h3> header (1–6 words, no sentence-ending punctuation)
-      const words = lineText.split(/\s+/).filter(Boolean);
-      if (words.length >= 1 && words.length <= 6 && !/[.!?]$/.test(lineText)) {
+      // 13. Document title — very first block, ≤10 words, no trailing punctuation → <h1>
+      const isFirstBlock = block.parentNode === root && !block.previousElementSibling;
+      if (isFirstBlock && words.length >= 1 && words.length <= 10 && !/[.!?,;:]$/.test(lineText)) {
+        e.preventDefault();
+        const h1 = document.createElement('h1'); h1.textContent = lineText;
+        block.parentNode.replaceChild(h1, block);
+        newParaAfter(h1);
+        return;
+      }
+
+      // 14. Short line → <h3> sub-heading (2–6 words, no trailing punctuation)
+      if (words.length >= 2 && words.length <= 6 && !/[.!?,;:]$/.test(lineText)) {
         e.preventDefault();
         const h3 = document.createElement('h3'); h3.textContent = lineText;
         block.parentNode.replaceChild(h3, block);
@@ -574,11 +652,13 @@ export default function SmartNotes() {
   // ── New session ──────────────────────────────────────────────────────────
   async function handleNewNote() {
     if (paperRef.current) paperRef.current.innerHTML = '';
+    noteIdRef.current = null;
+    titleRef.current  = 'Untitled Notes';
+    setNoteId(null);
     setTitle('Untitled Notes');
     setMermaidCode(null);
     setViewerFile(null);
     setGuideContent(null);
-    setNoteId(null);
     await createNote();
   }
 
@@ -595,7 +675,7 @@ export default function SmartNotes() {
           <input
             className="sn-title-input"
             value={title}
-            onChange={e => { setTitle(e.target.value); scheduleSave(noteId, e.target.value); }}
+            onChange={e => { titleRef.current = e.target.value; setTitle(e.target.value); scheduleSave(); }}
             placeholder="Note title..."
             spellCheck={false}
           />
