@@ -944,6 +944,15 @@ input::placeholder { color: var(--text-muted); }
 }
 .sn-viewer-controls { display: flex; align-items: center; gap: 6px; }
 .sn-viewer-body { flex: 1; overflow: hidden; position: relative; min-height: 0; }
+.sn-viewer-drag { box-shadow: 0 0 0 2px var(--accent) !important; }
+.sn-viewer-drop-overlay {
+  position: absolute; inset: 0; z-index: 10;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; background: rgba(124,58,237,0.13);
+  color: var(--accent); pointer-events: none;
+  font-size: 0.9em; font-weight: 600;
+}
+.sn-viewer-drop-overlay p { margin: 0; }
 .sn-viewer-empty {
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 10px; height: 100%; padding: 20px;
