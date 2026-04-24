@@ -10,3 +10,7 @@ bleach
 stripe
 requests
 python-dateutil
+python-multipart
+pypdf
+python-docx
+python-pptx

@@ -10,7 +10,7 @@ import traceback
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request, Header
+from fastapi import FastAPI, HTTPException, Request, Header, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -139,6 +139,81 @@ def _validate_url(url: str) -> str:
     if not re.match(r'^https?://', url):
         raise HTTPException(status_code=400, detail="Invalid URL")
     return url
+
+
+@app.post("/extract-file-text")
+@limiter.limit("20/minute")
+async def extract_file_text(request: Request, file: UploadFile = None, authorization: str = Header(default="")):
+    """Extract plain text from uploaded PDF, DOCX, PPTX, or TXT file."""
+    import io
+    try:
+        get_user_id(authorization)
+        if file is None:
+            raise HTTPException(status_code=400, detail="No file uploaded")
+
+        filename = (file.filename or "").lower()
+        content_bytes = await file.read()
+
+        if len(content_bytes) > 20 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File too large (max 20MB)")
+
+        text = ""
+
+        if filename.endswith(".pdf"):
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(io.BytesIO(content_bytes))
+                parts = []
+                for page in reader.pages:
+                    extracted = page.extract_text()
+                    if extracted:
+                        parts.append(extracted)
+                text = "\n\n".join(parts)
+            except HTTPException:
+                raise
+            except Exception:
+                raise HTTPException(status_code=422, detail="Could not extract text from PDF. Use a text-based PDF.")
+
+        elif filename.endswith(".docx"):
+            try:
+                from docx import Document
+                doc = Document(io.BytesIO(content_bytes))
+                text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            except Exception:
+                raise HTTPException(status_code=422, detail="Could not read DOCX file.")
+
+        elif filename.endswith(".pptx"):
+            try:
+                from pptx import Presentation
+                prs = Presentation(io.BytesIO(content_bytes))
+                parts = []
+                for slide in prs.slides:
+                    for shape in slide.shapes:
+                        if hasattr(shape, "text") and shape.text.strip():
+                            parts.append(shape.text.strip())
+                text = "\n\n".join(parts)
+            except Exception:
+                raise HTTPException(status_code=422, detail="Could not read PPTX file.")
+
+        elif filename.endswith((".txt", ".md", ".csv")):
+            try:
+                text = content_bytes.decode("utf-8", errors="ignore")
+            except Exception:
+                raise HTTPException(status_code=422, detail="Could not read text file.")
+
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file type. Use PDF, DOCX, PPTX, or TXT.")
+
+        if not text or len(text.strip()) < 10:
+            raise HTTPException(status_code=422, detail="No readable text found in this file.")
+
+        return {"text": text[:500_000]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in /extract-file-text: {e}")
+        raise HTTPException(status_code=500, detail="Failed to extract file text")
 
 
 @app.get("/")
