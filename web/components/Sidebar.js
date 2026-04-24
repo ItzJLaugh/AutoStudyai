@@ -34,7 +34,7 @@ export default function Sidebar() {
   function NavTab({ tab }) {
     return (
       <div
-        className={'sidebar-tab' + (isActive(tab) ? ' sidebar-tab-active' : '')}
+        className={'sidebar-tab' + (isActive(tab) ? ' sidebar-tab-active' : '') + (tab.match === '/smartnotes' ? ' sidebar-tab-smartnotes' : '')}
         onClick={() => router.push(tab.href)}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
