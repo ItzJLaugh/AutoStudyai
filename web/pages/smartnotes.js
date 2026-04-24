@@ -145,10 +145,15 @@ export default function SmartNotes() {
   const [notes, setNotes] = useState([]); // session list
   const [showNotesList, setShowNotesList] = useState(false);
 
-  // Diagram
+  // Diagram / visualize
   const [mermaidCode, setMermaidCode] = useState(null);
   const [diagramLoading, setDiagramLoading] = useState(false);
-  const diagramTimer = useRef(null);
+  const [visualizeMode, setVisualizeMode] = useState(false);
+
+  // Resize state
+  const [colWidth, setColWidth] = useState(320);
+  const [topPx, setTopPx] = useState(null); // null = CSS default 1fr
+  const layoutRef = useRef(null);
 
   // File viewer
   const [viewerFile, setViewerFile] = useState(null);
@@ -159,7 +164,6 @@ export default function SmartNotes() {
   // Paper (contenteditable)
   const paperRef = useRef(null);
   const saveTimer = useRef(null);
-  const plainTextRef = useRef(''); // latest plain text for diagram
 
   // ── Init: create or load note ────────────────────────────────────────────
   useEffect(() => {
@@ -211,7 +215,6 @@ export default function SmartNotes() {
       setTitle(data.note.title || 'Untitled Notes');
       if (paperRef.current && data.note.content) {
         paperRef.current.innerHTML = data.note.content;
-        plainTextRef.current = paperRef.current.innerText || '';
       }
     } catch {}
   }
@@ -239,32 +242,67 @@ export default function SmartNotes() {
     }, 1000);
   }, []);
 
-  // ── Diagram (debounced 4s) ───────────────────────────────────────────────
-  function scheduleDiagram(text) {
-    clearTimeout(diagramTimer.current);
-    if (!text || text.trim().length < 40) return;
-    diagramTimer.current = setTimeout(async () => {
-      setDiagramLoading(true);
-      try {
-        const resp = await fetch(API + '/smart_notes/diagram', {
-          method: 'POST',
-          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: text }),
-        });
-        const data = await resp.json();
-        setMermaidCode(data.mermaid || null);
-      } catch {}
-      setDiagramLoading(false);
-    }, 4000);
+  // ── Visualize: send highlighted text to diagram API ─────────────────────
+  function handleVisualize() {
+    setVisualizeMode(v => !v);
+  }
+
+  async function handleCheckmark() {
+    const selectedText = window.getSelection()?.toString()?.trim();
+    if (!selectedText || selectedText.length < 5) return;
+    setVisualizeMode(false);
+    setDiagramLoading(true);
+    try {
+      const resp = await fetch(API + '/smart_notes/diagram', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: selectedText }),
+      });
+      const data = await resp.json();
+      setMermaidCode(data.mermaid || null);
+    } catch {}
+    setDiagramLoading(false);
+  }
+
+  // ── Resize handlers ──────────────────────────────────────────────────────
+  function onVDragStart(e) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = colWidth;
+    const onMove = (me) => {
+      if (!layoutRef.current) return;
+      const dx = startX - me.clientX;
+      const maxW = layoutRef.current.offsetWidth - 340;
+      setColWidth(Math.max(200, Math.min(startWidth + dx, maxW)));
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function onHDragStart(e) {
+    e.preventDefault();
+    const onMove = (me) => {
+      if (!layoutRef.current) return;
+      const rect = layoutRef.current.getBoundingClientRect();
+      const newTop = Math.max(100, Math.min(me.clientY - rect.top, rect.height - 8 - 100));
+      setTopPx(newTop);
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   }
 
   // ── Paper keyboard handler ───────────────────────────────────────────────
   function onPaperKeyUp(e) {
     if (!paperRef.current) return;
-    const text = paperRef.current.innerText || '';
-    plainTextRef.current = text;
     scheduleSave(noteId, title);
-    scheduleDiagram(text);
   }
 
   function onPaperKeyDown(e) {
@@ -572,15 +610,32 @@ export default function SmartNotes() {
         </div>
       </div>
 
-      {/* 3-panel grid */}
-      <div className="sn-layout">
-
-        {/* Left: paper */}
+      {/* 3-panel resizable grid */}
+      <div
+        className="sn-layout"
+        ref={layoutRef}
+        style={{
+          gridTemplateColumns: `1fr 8px ${colWidth}px`,
+          gridTemplateRows: topPx !== null ? `${topPx}px 8px 1fr` : '1fr 8px 1fr',
+        }}
+      >
+        {/* Left: notes paper — spans all 3 rows */}
         <div className="sn-paper-wrap">
-          <div className="sn-panel-label">Notes</div>
+          <div className="sn-paper-label-row">
+            <span className="sn-panel-label">Notes</span>
+            {visualizeMode && (
+              <button
+                className="sn-visualize-confirm"
+                onClick={handleCheckmark}
+                title="Generate diagram from highlighted text"
+              >
+                ✓
+              </button>
+            )}
+          </div>
           <div
             ref={paperRef}
-            className="sn-paper"
+            className={`sn-paper${visualizeMode ? ' sn-paper--visualize' : ''}`}
             contentEditable
             suppressContentEditableWarning
             onKeyDown={onPaperKeyDown}
@@ -589,6 +644,9 @@ export default function SmartNotes() {
             spellCheck={false}
           />
         </div>
+
+        {/* Vertical drag divider */}
+        <div className="sn-v-divider" onMouseDown={onVDragStart} />
 
         {/* Top-right: class material viewer */}
         <div className="sn-viewer-wrap">
@@ -628,9 +686,20 @@ export default function SmartNotes() {
           </div>
         </div>
 
+        {/* Horizontal drag divider */}
+        <div className="sn-h-divider" onMouseDown={onHDragStart} />
+
         {/* Bottom-right: diagram */}
         <div className="sn-diagram-wrap">
-          <span className="sn-panel-label">Visual Diagram</span>
+          <div className="sn-diagram-toolbar">
+            <span className="sn-panel-label">Visual Diagram</span>
+            <button
+              className={`btn sn-open-btn sn-visualize-btn${visualizeMode ? ' active' : ''}`}
+              onClick={handleVisualize}
+            >
+              {visualizeMode ? 'Cancel' : 'Visualize'}
+            </button>
+          </div>
           <div className="sn-diagram-body">
             {diagramLoading && (
               <div className="sn-diagram-placeholder">Generating diagram…</div>
@@ -640,10 +709,7 @@ export default function SmartNotes() {
             )}
             {!diagramLoading && !mermaidCode && (
               <div className="sn-diagram-placeholder">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.35">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <p>A diagram will appear here when your notes describe a process, cycle, or relationship</p>
+                <p>Click "Visualize", highlight text in your notes, then click ✓</p>
               </div>
             )}
           </div>
