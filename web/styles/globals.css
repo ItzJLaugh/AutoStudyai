@@ -984,6 +984,21 @@ input::placeholder { color: var(--text-muted); }
 .sn-iframe { width: 100%; height: 100%; border: none; display: block; }
 .sn-viewer-img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .sn-guide-viewer { padding: 16px; overflow-y: auto; height: 100%; font-size: 0.88em; line-height: 1.6; color: var(--text-secondary); }
+.sn-guide-qa-viewer { padding: 14px 16px; overflow-y: auto; height: 100%; }
+.sn-qa-pair {
+  margin-bottom: 18px; padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sn-qa-pair:last-child { border-bottom: none; margin-bottom: 0; }
+.sn-qa-q {
+  margin: 0 0 6px; font-size: 0.87em; line-height: 1.5;
+  color: var(--text-primary);
+}
+.sn-qa-q strong { font-weight: 700; }
+.sn-qa-a {
+  margin: 0; font-size: 0.87em; line-height: 1.6;
+  color: var(--text-secondary);
+}
 .sn-extracted-viewer { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .sn-extracted-filename {
   font-size: 0.75em; font-weight: 600; color: var(--text-muted);

@@ -58,7 +58,7 @@ function escHtml(t) {
 
 function getBlock(node, root) {
   while (node && node !== root) {
-    if (['P', 'H2', 'H3', 'H4', 'LI', 'BLOCKQUOTE', 'DIV'].includes(node.nodeName)) return node;
+    if (['P', 'H1', 'H2', 'H3', 'H4', 'LI', 'BLOCKQUOTE', 'DIV'].includes(node.nodeName)) return node;
     node = node.parentNode;
   }
   return null;
@@ -76,6 +76,27 @@ function placeCursorAt(el, offset) {
   range.collapse(true);
   sel.removeAllRanges();
   sel.addRange(range);
+}
+
+function toTitleCase(text) {
+  return text.split(/\s+/).map(word => {
+    if (!word) return word;
+    if (/^[A-Z]{2,}(\d*)$/.test(word)) return word; // keep ALL-CAPS acronyms (ITE, UDP, 484)
+    if (/^\d+$/.test(word)) return word; // keep bare numbers
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join(' ');
+}
+
+// Count consecutive empty blocks immediately above a given block
+function countEmptyBefore(block) {
+  let count = 0;
+  let prev = block.previousElementSibling;
+  while (prev) {
+    const t = (prev.innerText || prev.textContent || '').replace(/[\u200B\n\r]/g, '').trim();
+    if (t === '') { count++; prev = prev.previousElementSibling; }
+    else break;
+  }
+  return count;
 }
 
 // ─── Mermaid renderer (lazy-loaded) ─────────────────────────────────────────
@@ -100,6 +121,44 @@ function MermaidDiagram({ code }) {
 }
 
 const EXTRACT_EXTS = new Set(['docx', 'pptx', 'txt', 'md', 'doc']);
+
+// ─── Study guide Q&A parser ──────────────────────────────────────────────────
+function parseGuideQA(html) {
+  // Strip HTML tags, decode entities
+  const text = html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const pairs = [];
+  // Match Q\d+[:.] ... A\d+[:.] ... with the same number
+  const re = /Q(\d+)\s*[:.]\s*([\s\S]*?)A\1\s*[:.]\s*([\s\S]*?)(?=Q\d+\s*[:.]\s*|$)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const q = m[2].trim();
+    const a = m[3].trim();
+    if (q || a) pairs.push({ num: m[1], question: q, answer: a });
+  }
+  return pairs;
+}
+
+function GuideViewer({ html }) {
+  const pairs = parseGuideQA(html);
+  if (pairs.length === 0) {
+    return <div className="sn-guide-viewer" dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  return (
+    <div className="sn-guide-qa-viewer">
+      {pairs.map((pair) => (
+        <div key={pair.num} className="sn-qa-pair">
+          <p className="sn-qa-q"><strong>Q{pair.num}. {pair.question}</strong></p>
+          <p className="sn-qa-a">{pair.answer}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ─── File viewer ─────────────────────────────────────────────────────────────
 function FileViewer({ file, guideContent }) {
@@ -135,11 +194,7 @@ function FileViewer({ file, guideContent }) {
     }
   }, [file]);
 
-  if (guideContent) return (
-    <div className="sn-guide-viewer">
-      <div dangerouslySetInnerHTML={{ __html: guideContent }} />
-    </div>
-  );
+  if (guideContent) return <GuideViewer html={guideContent} />;
   if (!file) return null;
   if (extracting) return <div className="sn-viewer-empty"><p>Reading file…</p></div>;
   if (extractedText !== null) return (
@@ -267,6 +322,28 @@ export default function SmartNotes() {
         setSaveStatus('');
       }
     }, 1000);
+  }, []);
+
+  // ── Flush save on unmount (SPA navigation) and beforeunload (tab close) ──
+  useEffect(() => {
+    function flushSave() {
+      clearTimeout(saveTimer.current);
+      if (!noteIdRef.current || !paperRef.current) return;
+      fetch(API + '/smart_notes/' + noteIdRef.current, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: titleRef.current,
+          content: paperRef.current.innerHTML,
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    }
+    window.addEventListener('beforeunload', flushSave);
+    return () => {
+      window.removeEventListener('beforeunload', flushSave);
+      flushSave();
+    };
   }, []);
 
   // ── Visualize: send highlighted text to diagram API ─────────────────────
@@ -441,7 +518,15 @@ export default function SmartNotes() {
 
     // ── Enter: format current line + continue list patterns ──────────────────
     if (e.key === 'Enter') {
-      const block = getBlock(sel.getRangeAt(0).startContainer, root);
+      const range = sel.getRangeAt(0);
+      let block = getBlock(range.startContainer, root);
+      // Chrome may put first-line text directly in root without a block wrapper
+      if (!block && range.startContainer.nodeType === Node.TEXT_NODE && range.startContainer.parentNode === root) {
+        const p = document.createElement('p');
+        range.startContainer.parentNode.replaceChild(p, range.startContainer);
+        p.appendChild(range.startContainer);
+        block = p;
+      }
       if (!block) return;
 
       // 0. Heading cascade — Enter inside any heading always makes plain <p>
@@ -452,6 +537,7 @@ export default function SmartNotes() {
       const lineText = (block.innerText || block.textContent || '').replace(/\u200B/g, '').trim();
       if (!lineText) return;
       const words = lineText.split(/\s+/).filter(Boolean);
+
 
       // 1. Horizontal rule — line of ---, ***, ===, ___
       if (/^[-*=_]{3,}$/.test(lineText)) {
@@ -591,23 +677,35 @@ export default function SmartNotes() {
         return;
       }
 
-      // 13. Document title — very first block, ≤10 words, no trailing punctuation → <h1>
-      const isFirstBlock = block.parentNode === root && !block.previousElementSibling;
-      if (isFirstBlock && words.length >= 1 && words.length <= 10 && !/[.!?,;:]$/.test(lineText)) {
-        e.preventDefault();
-        const h1 = document.createElement('h1'); h1.textContent = lineText;
-        block.parentNode.replaceChild(h1, block);
-        newParaAfter(h1);
-        return;
-      }
+      // 13–14. Context-based headings — blank lines above determine level
+      //   Very first block OR 2+ blank lines above → Title <h1>
+      //   1 blank line above → Section <h2>
+      //   No blank lines, short line (2–6 words) → Sub-heading <h3>
+      if (words.length >= 1 && words.length <= 10 && !/[.!?,;:]$/.test(lineText)) {
+        const emptyAbove = countEmptyBefore(block);
+        const isFirst = block.parentNode === root && !block.previousElementSibling;
 
-      // 14. Short line → <h3> sub-heading (2–6 words, no trailing punctuation)
-      if (words.length >= 2 && words.length <= 6 && !/[.!?,;:]$/.test(lineText)) {
-        e.preventDefault();
-        const h3 = document.createElement('h3'); h3.textContent = lineText;
-        block.parentNode.replaceChild(h3, block);
-        newParaAfter(h3);
-        return;
+        if (isFirst || emptyAbove >= 2) {
+          e.preventDefault();
+          const h1 = document.createElement('h1'); h1.textContent = toTitleCase(lineText);
+          block.parentNode.replaceChild(h1, block);
+          newParaAfter(h1);
+          return;
+        }
+        if (emptyAbove === 1) {
+          e.preventDefault();
+          const h2 = document.createElement('h2'); h2.textContent = lineText;
+          block.parentNode.replaceChild(h2, block);
+          newParaAfter(h2);
+          return;
+        }
+        if (words.length >= 2 && words.length <= 6) {
+          e.preventDefault();
+          const h3 = document.createElement('h3'); h3.textContent = lineText;
+          block.parentNode.replaceChild(h3, block);
+          newParaAfter(h3);
+          return;
+        }
       }
 
       // No rule matched — browser handles Enter normally
@@ -764,7 +862,7 @@ export default function SmartNotes() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.pptx,image/*"
+                accept="*/*"
                 onChange={handleFileSelect}
                 style={{ display: 'none' }}
               />
