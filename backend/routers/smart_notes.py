@@ -176,15 +176,19 @@ def generate_diagram(request: DiagramRequest, authorization: str = Header(defaul
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            max_tokens=600,
+            max_tokens=800,
             messages=[{
                 "role": "system",
                 "content": (
                     "You generate Mermaid.js diagrams for student notes. "
-                    "If the notes describe a process, cycle, hierarchy, relationship, or sequence that would genuinely benefit from a visual diagram, "
-                    "output ONLY valid Mermaid.js syntax (starting with 'graph', 'flowchart', 'sequenceDiagram', or 'mindmap'). "
-                    "Keep diagrams concise — max 12 nodes. "
-                    "If the content is plain facts, definitions, or too short to diagram meaningfully, output exactly: NO_DIAGRAM"
+                    "The user has manually selected this text specifically because they want a visual. "
+                    "Always try to create the most useful diagram possible — use sequenceDiagram for "
+                    "communication/protocol flows, flowchart for processes, graph for relationships, "
+                    "mindmap for hierarchies, or classDiagram for structures. "
+                    "Output ONLY raw valid Mermaid.js syntax — no markdown fences, no explanation. "
+                    "Keep diagrams concise (max 14 nodes). "
+                    "Only output the exact text NO_DIAGRAM if the input is completely undiagrammable "
+                    "(e.g. a single random word or pure numbers with no context)."
                 )
             }, {
                 "role": "user",
@@ -193,7 +197,10 @@ def generate_diagram(request: DiagramRequest, authorization: str = Header(defaul
         )
 
         text = response.choices[0].message.content.strip()
-        if text == "NO_DIAGRAM" or not text:
+        # Strip markdown fences if the model wrapped output anyway
+        text = re.sub(r'^```(?:mermaid)?\s*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s*```$', '', text).strip()
+        if not text or 'NO_DIAGRAM' in text:
             return {"mermaid": None}
         return {"mermaid": text}
 
