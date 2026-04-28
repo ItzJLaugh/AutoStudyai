@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [folders, setFolders] = useState([]);
   const [guides, setGuides] = useState([]);
+  const [smartNotes, setSmartNotes] = useState([]);
   const [stats, setStats] = useState(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -53,15 +54,27 @@ export default function Dashboard() {
 
   async function loadData() {
     setLoading(true);
-    const [foldersData, guidesData, statsData] = await Promise.all([
+    const [foldersData, guidesData, statsData, notesData] = await Promise.all([
       apiFetch('/folders'),
       apiFetch('/guides'),
-      apiFetch('/stats/overview')
+      apiFetch('/stats/overview'),
+      apiFetch('/smart_notes'),
     ]);
     setFolders(foldersData?.folders || []);
     setGuides(guidesData?.guides || []);
     setStats(statsData);
+    setSmartNotes(notesData?.notes || []);
     setLoading(false);
+  }
+
+  async function deleteSmartNote(id, e) {
+    e?.stopPropagation();
+    if (!window.confirm('Delete this note?')) return;
+    const ok = await apiFetch('/smart_notes/' + id, { method: 'DELETE' });
+    if (ok) {
+      setSmartNotes(prev => prev.filter(n => n.id !== id));
+      showToast('Note deleted');
+    }
   }
 
   async function createFolder() {
@@ -287,6 +300,57 @@ export default function Dashboard() {
 
         {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
         {contextMenu && renderContextMenu()}
+      </div>
+    );
+  }
+
+  // ============== NOTES VIEW ==============
+  if (view === 'notes') {
+    return (
+      <div className="fade-in">
+        <div className="section-header">
+          <h2>Notes</h2>
+          <button className="btn" onClick={() => router.push('/smartnotes')} style={{ fontSize: '0.8em' }}>
+            + New Note
+          </button>
+        </div>
+
+        {smartNotes.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">&#128221;</div>
+            No saved notes yet. Open SmartNotes to start writing — every keystroke autosaves here.
+          </div>
+        ) : (
+          smartNotes.map(note => (
+            <div
+              key={note.id}
+              className="card"
+              onClick={() => router.push('/smartnotes?id=' + note.id)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="card-row">
+                <div style={{ flex: 1 }}>
+                  <h3>{note.title || 'Untitled Notes'}</h3>
+                  <p>
+                    <span className="timestamp">
+                      Updated {formatDate(note.updated_at || note.created_at)}
+                    </span>
+                  </p>
+                </div>
+                <button
+                  className="bookmark-btn"
+                  style={{ color: 'var(--error)', opacity: 0.55, fontSize: '0.95em' }}
+                  title="Delete note"
+                  onClick={e => deleteSmartNote(note.id, e)}
+                >
+                  &#128465;
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+
+        {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
       </div>
     );
   }

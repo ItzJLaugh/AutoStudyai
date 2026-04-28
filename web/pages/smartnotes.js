@@ -120,7 +120,20 @@ function MermaidDiagram({ code }) {
   return <div ref={ref} className="sn-diagram-render" />;
 }
 
-const EXTRACT_EXTS = new Set(['docx', 'pptx', 'txt', 'md', 'doc']);
+// Office docs that need backend extraction (browser cannot render natively)
+const EXTRACT_EXTS = new Set(['docx', 'pptx', 'doc', 'odt', 'ods', 'odp']);
+// Plain-text formats readable client-side via FileReader
+const TEXT_EXTS = new Set([
+  'txt', 'md', 'markdown', 'csv', 'tsv', 'log',
+  'json', 'xml', 'yaml', 'yml', 'toml', 'ini',
+  'html', 'htm', 'css', 'scss', 'less',
+  'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs',
+  'py', 'rb', 'go', 'rs', 'java', 'c', 'h', 'cpp', 'hpp', 'cs',
+  'php', 'swift', 'kt', 'sql', 'sh', 'bash', 'zsh', 'ps1',
+]);
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico']);
+const VIDEO_EXTS = new Set(['mp4', 'webm', 'ogv', 'mov']);
+const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'm4a', 'flac']);
 
 // ─── Study guide Q&A parser ──────────────────────────────────────────────────
 function parseGuideQA(html) {
@@ -165,49 +178,114 @@ function FileViewer({ file, guideContent }) {
   const [objectUrl, setObjectUrl] = useState(null);
   const [extractedText, setExtractedText] = useState(null);
   const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState(null);
 
   useEffect(() => {
     setObjectUrl(null);
     setExtractedText(null);
     setExtracting(false);
+    setExtractError(null);
     if (!file) return;
 
     const ext = file.name.split('.').pop().toLowerCase();
+    let cancelled = false;
+
     if (EXTRACT_EXTS.has(ext)) {
+      // Also generate an object URL so the user can download if extraction fails
+      const url = URL.createObjectURL(file);
+      setObjectUrl(url);
       setExtracting(true);
       const fd = new FormData();
       fd.append('file', file);
-      let cancelled = false;
-      fetch(API + '/extract-file-text', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: fd,
-      })
-        .then(r => r.json())
-        .then(data => { if (!cancelled) { setExtractedText(data.text ?? '(No text found)'); setExtracting(false); } })
-        .catch(() => { if (!cancelled) { setExtractedText('Could not read this file.'); setExtracting(false); } });
-      return () => { cancelled = true; };
-    } else {
-      const url = URL.createObjectURL(file);
-      setObjectUrl(url);
-      return () => URL.revokeObjectURL(url);
+      fetch(API + '/extract-file-text', { method: 'POST', headers: authHeaders(), body: fd })
+        .then(async r => {
+          const data = await r.json().catch(() => ({}));
+          if (cancelled) return;
+          if (!r.ok) {
+            setExtractError(data.detail || 'Could not extract text from this file.');
+          } else {
+            setExtractedText(data.text || '');
+          }
+          setExtracting(false);
+        })
+        .catch(() => {
+          if (!cancelled) { setExtractError('Could not reach the server.'); setExtracting(false); }
+        });
+      return () => { cancelled = true; URL.revokeObjectURL(url); };
     }
+
+    if (TEXT_EXTS.has(ext)) {
+      const reader = new FileReader();
+      reader.onload = () => { if (!cancelled) setExtractedText(reader.result || ''); };
+      reader.onerror = () => { if (!cancelled) setExtractError('Could not read this file.'); };
+      reader.readAsText(file);
+      return () => { cancelled = true; };
+    }
+
+    // Everything else — generate object URL for native browser rendering
+    const url = URL.createObjectURL(file);
+    setObjectUrl(url);
+    return () => { cancelled = true; URL.revokeObjectURL(url); };
   }, [file]);
 
   if (guideContent) return <GuideViewer html={guideContent} />;
   if (!file) return null;
-  if (extracting) return <div className="sn-viewer-empty"><p>Reading file…</p></div>;
-  if (extractedText !== null) return (
+
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (extracting) return <div className="sn-viewer-empty"><p>Reading {file.name}…</p></div>;
+
+  if (extractedText !== null) {
+    return (
+      <div className="sn-extracted-viewer">
+        <div className="sn-extracted-filename">{file.name}</div>
+        {extractedText.trim() === ''
+          ? <p className="sn-extracted-empty">(This file contains no readable text.)</p>
+          : <pre className="sn-extracted-content">{extractedText}</pre>}
+      </div>
+    );
+  }
+
+  if (extractError) {
+    return (
+      <div className="sn-extracted-viewer">
+        <div className="sn-extracted-filename">{file.name}</div>
+        <p className="sn-extracted-empty">{extractError}</p>
+        {objectUrl && (
+          <a className="btn sn-open-btn" href={objectUrl} download={file.name} style={{ marginTop: 12, display: 'inline-block' }}>
+            Download
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  if (!objectUrl) return null;
+
+  if (ext === 'pdf') return <iframe src={objectUrl} className="sn-iframe" title={file.name} />;
+  if (IMAGE_EXTS.has(ext)) return <img src={objectUrl} className="sn-viewer-img" alt={file.name} />;
+  if (VIDEO_EXTS.has(ext)) return <video src={objectUrl} controls className="sn-viewer-video" />;
+  if (AUDIO_EXTS.has(ext)) return (
     <div className="sn-extracted-viewer">
       <div className="sn-extracted-filename">{file.name}</div>
-      <pre className="sn-extracted-content">{extractedText}</pre>
+      <audio src={objectUrl} controls style={{ width: '100%', marginTop: 12 }} />
     </div>
   );
 
-  const ext = file.name.split('.').pop().toLowerCase();
-  if (ext === 'pdf') return <iframe src={objectUrl} className="sn-iframe" title="Class material" />;
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return <img src={objectUrl} className="sn-viewer-img" alt="Class material" />;
-  return null;
+  // Final fallback — try to render in iframe (works for some types: HTML pages, SVG, etc)
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <iframe src={objectUrl} className="sn-iframe" title={file.name} />
+      <a
+        className="btn sn-open-btn"
+        href={objectUrl}
+        download={file.name}
+        style={{ position: 'absolute', top: 8, right: 8, fontSize: '0.75em', padding: '6px 12px' }}
+      >
+        Download
+      </a>
+    </div>
+  );
 }
 
 // ─── Main page ───────────────────────────────────────────────────────────────
@@ -239,9 +317,11 @@ export default function SmartNotes() {
   // Paper (contenteditable)
   const paperRef = useRef(null);
   const saveTimer = useRef(null);
+  const pollTimer = useRef(null);
   // Refs mirror state so timeout callbacks always read the latest values
   const noteIdRef = useRef(null);
   const titleRef  = useRef('Untitled Notes');
+  const lastSavedRef = useRef(''); // last saved content snapshot
 
   // ── Init: create or load note ────────────────────────────────────────────
   useEffect(() => {
@@ -280,6 +360,11 @@ export default function SmartNotes() {
       if (data.note) {
         noteIdRef.current = data.note.id;
         setNoteId(data.note.id);
+        // Ensure the paper has a starting <p> block so first-line typing has a wrapper
+        if (paperRef.current && !paperRef.current.innerHTML.trim()) {
+          paperRef.current.innerHTML = '<p><br></p>';
+        }
+        lastSavedRef.current = paperRef.current?.innerHTML || '';
         router.replace('/smartnotes?id=' + data.note.id, undefined, { shallow: true });
       }
     } catch {}
@@ -294,50 +379,64 @@ export default function SmartNotes() {
       titleRef.current  = data.note.title || 'Untitled Notes';
       setNoteId(data.note.id);
       setTitle(data.note.title || 'Untitled Notes');
-      if (paperRef.current && data.note.content) {
-        paperRef.current.innerHTML = data.note.content;
+      if (paperRef.current) {
+        paperRef.current.innerHTML = data.note.content && data.note.content.trim()
+          ? data.note.content
+          : '<p><br></p>';
+        lastSavedRef.current = paperRef.current.innerHTML;
       }
     } catch {}
   }
 
-  // ── Autosave (debounced 1s) — reads refs so callbacks never see stale values
+  // ── Save helper — sends content to backend, updates lastSavedRef ────────
+  const doSave = useCallback(async (opts = {}) => {
+    if (!paperRef.current || !noteIdRef.current) return;
+    const content = paperRef.current.innerHTML;
+    if (content === lastSavedRef.current && !opts.force) return; // nothing changed
+    setSaveStatus('saving');
+    try {
+      const init = {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: titleRef.current, content }),
+      };
+      if (opts.keepalive) init.keepalive = true;
+      await fetch(API + '/smart_notes/' + noteIdRef.current, init);
+      lastSavedRef.current = content;
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(s => s === 'saved' ? '' : s), 1500);
+    } catch {
+      setSaveStatus('');
+    }
+  }, []);
+
+  // ── Autosave (debounced 1s after a keypress) ────────────────────────────
   const scheduleSave = useCallback(() => {
     clearTimeout(saveTimer.current);
-    if (!noteIdRef.current) return; // note not created yet — stay silent
-    setSaveStatus('saving');
-    saveTimer.current = setTimeout(async () => {
-      if (!paperRef.current || !noteIdRef.current) return;
-      try {
-        await fetch(API + '/smart_notes/' + noteIdRef.current, {
-          method: 'PUT',
-          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: titleRef.current,
-            content: paperRef.current.innerHTML,
-          }),
-        });
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus(''), 2000);
-      } catch {
-        setSaveStatus('');
-      }
-    }, 1000);
-  }, []);
+    if (!noteIdRef.current) return;
+    saveTimer.current = setTimeout(() => doSave(), 1000);
+  }, [doSave]);
+
+  // ── Live polling: every 3s, save if content changed (catches mouse-only edits)
+  useEffect(() => {
+    pollTimer.current = setInterval(() => { doSave(); }, 3000);
+    return () => clearInterval(pollTimer.current);
+  }, [doSave]);
 
   // ── Flush save on unmount (SPA navigation) and beforeunload (tab close) ──
   useEffect(() => {
     function flushSave() {
       clearTimeout(saveTimer.current);
       if (!noteIdRef.current || !paperRef.current) return;
+      const content = paperRef.current.innerHTML;
+      if (content === lastSavedRef.current) return;
       fetch(API + '/smart_notes/' + noteIdRef.current, {
         method: 'PUT',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: titleRef.current,
-          content: paperRef.current.innerHTML,
-        }),
+        body: JSON.stringify({ title: titleRef.current, content }),
         keepalive: true,
       }).catch(() => {});
+      lastSavedRef.current = content;
     }
     window.addEventListener('beforeunload', flushSave);
     return () => {
@@ -439,7 +538,49 @@ export default function SmartNotes() {
           sel.removeAllRanges(); sel.addRange(nr);
           return;
         }
+        // After sentence-ending punctuation \u2014 capitalize start of new sentence
+        if (range0.startContainer.nodeType === Node.TEXT_NODE) {
+          const beforeText = range0.startContainer.textContent.slice(0, range0.startOffset);
+          if (/[.!?]\s+$/.test(beforeText)) {
+            e.preventDefault();
+            const tn = document.createTextNode(e.key.toUpperCase());
+            range0.insertNode(tn);
+            const nr = document.createRange(); nr.setStartAfter(tn); nr.collapse(true);
+            sel.removeAllRanges(); sel.addRange(nr);
+            return;
+          }
+        }
       }
+    }
+
+    // \u2500\u2500 Tab: indent / outdent list items \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const block = getBlock(sel.getRangeAt(0).startContainer, root);
+      if (!block) return;
+      const indentStep = '\u00A0\u00A0\u00A0\u00A0';
+      if (e.shiftKey) {
+        if (block.firstChild && block.firstChild.nodeType === Node.TEXT_NODE) {
+          const t = block.firstChild.textContent;
+          if (t.startsWith(indentStep)) {
+            block.firstChild.textContent = t.slice(indentStep.length);
+          }
+        }
+      } else {
+        const raw = (block.innerText || block.textContent || '');
+        const bulletMatch = raw.match(/^([-*\u2022])\s+(.*)/);
+        if (bulletMatch) {
+          block.innerHTML = indentStep + '\u25E6 ' + escHtml(bulletMatch[2]);
+        } else if (block.firstChild && block.firstChild.nodeType === Node.TEXT_NODE) {
+          block.firstChild.textContent = indentStep + block.firstChild.textContent;
+        } else {
+          block.insertBefore(document.createTextNode(indentStep), block.firstChild);
+        }
+        const nr = document.createRange();
+        nr.selectNodeContents(block); nr.collapse(false);
+        sel.removeAllRanges(); sel.addRange(nr);
+      }
+      return;
     }
 
     // ── Space: inline markdown + spell/acronym correction ────────────────────
@@ -749,15 +890,31 @@ export default function SmartNotes() {
 
   // ── New session ──────────────────────────────────────────────────────────
   async function handleNewNote() {
-    if (paperRef.current) paperRef.current.innerHTML = '';
+    if (paperRef.current) paperRef.current.innerHTML = '<p><br></p>';
     noteIdRef.current = null;
     titleRef.current  = 'Untitled Notes';
+    lastSavedRef.current = '<p><br></p>';
     setNoteId(null);
     setTitle('Untitled Notes');
     setMermaidCode(null);
     setViewerFile(null);
     setGuideContent(null);
     await createNote();
+  }
+
+  async function handleDeleteNote(id, e) {
+    e?.stopPropagation();
+    if (!window.confirm('Delete this note? This cannot be undone.')) return;
+    try {
+      await fetch(API + '/smart_notes/' + id, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      setNotes(prev => prev.filter(n => n.id !== id));
+      if (id === noteIdRef.current) {
+        await handleNewNote();
+      }
+    } catch {}
   }
 
   async function handleSwitchNote(id) {
