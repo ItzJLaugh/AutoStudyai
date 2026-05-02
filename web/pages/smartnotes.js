@@ -327,7 +327,9 @@ export default function SmartNotes() {
   useEffect(() => {
     const { id } = router.query;
     if (id) {
-      loadNote(id);
+      if (String(id) !== String(noteIdRef.current)) {
+        loadNote(id);
+      }
     } else if (router.isReady) {
       createNote();
     }
