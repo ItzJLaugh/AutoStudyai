@@ -359,7 +359,7 @@ export default function SmartNotes() {
           paperRef.current.innerHTML = '<p><br></p>';
         }
         lastSavedRef.current = paperRef.current?.innerHTML || '';
-        router.replace('/smartnotes?id=' + data.note.id, undefined, { shallow: true });
+        window.history.replaceState({}, '', '/smartnotes?id=' + data.note.id);
       }
     } catch {}
   }
