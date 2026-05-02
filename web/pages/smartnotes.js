@@ -173,16 +173,50 @@ function GuideViewer({ html }) {
   );
 }
 
+// ─── Slide card viewer (PPTX) ────────────────────────────────────────────────
+function SlideCardViewer({ slides, filename, objectUrl }) {
+  const hasAnyText = slides.some(s => s.texts.length > 0);
+  return (
+    <div className="sn-extracted-viewer">
+      <div className="sn-extracted-filename">
+        {filename}
+        {objectUrl && (
+          <a className="sn-slide-download" href={objectUrl} download={filename}>↓ Download</a>
+        )}
+      </div>
+      {!hasAnyText ? (
+        <p className="sn-extracted-empty">
+          This presentation appears to be image-based — no slide text was found. Download to view it.
+        </p>
+      ) : (
+        <div className="sn-slide-list">
+          {slides.map(slide => (
+            <div key={slide.number} className={`sn-slide-card${slide.texts.length === 0 ? ' sn-slide-card--empty' : ''}`}>
+              <div className="sn-slide-num">Slide {slide.number}</div>
+              {slide.texts.length === 0
+                ? <p className="sn-slide-no-text">(image only)</p>
+                : slide.texts.map((t, i) => <p key={i} className="sn-slide-text">{t}</p>)
+              }
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── File viewer ─────────────────────────────────────────────────────────────
 function FileViewer({ file, guideContent }) {
   const [objectUrl, setObjectUrl] = useState(null);
   const [extractedText, setExtractedText] = useState(null);
+  const [slidesData, setSlidesData] = useState(null); // PPTX slide structure
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState(null);
 
   useEffect(() => {
     setObjectUrl(null);
     setExtractedText(null);
+    setSlidesData(null);
     setExtracting(false);
     setExtractError(null);
     if (!file) return;
@@ -205,6 +239,7 @@ function FileViewer({ file, guideContent }) {
             setExtractError(data.detail || 'Could not extract text from this file.');
           } else {
             setExtractedText(data.text || '');
+            if (data.slides) setSlidesData(data.slides);
           }
           setExtracting(false);
         })
@@ -234,6 +269,11 @@ function FileViewer({ file, guideContent }) {
   const ext = file.name.split('.').pop().toLowerCase();
 
   if (extracting) return <div className="sn-viewer-empty"><p>Reading {file.name}…</p></div>;
+
+  // PPTX: show slide cards (even if all slides are image-only)
+  if (slidesData !== null) {
+    return <SlideCardViewer slides={slidesData} filename={file.name} objectUrl={objectUrl} />;
+  }
 
   if (extractedText !== null) {
     return (
@@ -327,7 +367,11 @@ export default function SmartNotes() {
   useEffect(() => {
     const { id } = router.query;
     if (id) {
-      loadNote(id);
+      // Skip if createNote already set up this note — prevents loadNote from
+      // overwriting user-typed content when router.replace triggers a re-run.
+      if (String(id) !== String(noteIdRef.current)) {
+        loadNote(id);
+      }
     } else if (router.isReady) {
       createNote();
     }
