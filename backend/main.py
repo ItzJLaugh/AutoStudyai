@@ -186,12 +186,20 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
             try:
                 from pptx import Presentation
                 prs = Presentation(io.BytesIO(content_bytes))
-                parts = []
-                for slide in prs.slides:
+                slides_out = []
+                all_parts = []
+                for slide_num, slide in enumerate(prs.slides, 1):
+                    shape_texts = []
                     for shape in slide.shapes:
                         if hasattr(shape, "text") and shape.text.strip():
-                            parts.append(shape.text.strip())
-                text = "\n\n".join(parts)
+                            shape_texts.append(shape.text.strip())
+                    slides_out.append({"number": slide_num, "texts": shape_texts})
+                    if shape_texts:
+                        all_parts.append("\n".join(shape_texts))
+                pptx_text = "\n\n".join(all_parts)
+                return {"text": pptx_text[:500_000], "slides": slides_out}
+            except HTTPException:
+                raise
             except Exception:
                 raise HTTPException(status_code=422, detail="Could not read PPTX file.")
 
