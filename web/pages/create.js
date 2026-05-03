@@ -125,6 +125,8 @@ export default function CreateGuidePage() {
     if (!file) return;
     setUploadFile(file);
     setUploadFileName(file.name);
+    // Set inputMode to 'pdf' for any supported file type to trigger extraction flow
+    setInputMode('pdf');
     if (!title) setTitle(file.name.replace(/\.[^.]+$/, ''));
   }
 
