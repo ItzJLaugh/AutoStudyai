@@ -161,7 +161,17 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
 
         if filename.endswith(".pdf"):
             try:
-                from pypdf import PdfReader
+                import importlib
+                PdfReader = None
+                try:
+                    PyPDF2 = importlib.import_module("PyPDF2")
+                    PdfReader = PyPDF2.PdfReader
+                except ImportError:
+                    try:
+                        pypdf = importlib.import_module("pypdf")
+                        PdfReader = pypdf.PdfReader
+                    except ImportError:
+                        raise HTTPException(status_code=500, detail="Neither PyPDF2 nor pypdf is installed.")
                 reader = PdfReader(io.BytesIO(content_bytes))
                 parts = []
                 for page in reader.pages:
@@ -175,16 +185,27 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
                 raise HTTPException(status_code=422, detail="Could not extract text from PDF. Use a text-based PDF.")
 
         elif filename.endswith(".docx"):
-            try:
-                from docx import Document
-                doc = Document(io.BytesIO(content_bytes))
-                text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-            except Exception:
-                raise HTTPException(status_code=422, detail="Could not read DOCX file.")
+                    try:
+                        try:
+                            import docx  # type: ignore
+                        except ImportError:
+                            raise HTTPException(status_code=500, detail="python-docx is not installed.")
+                        Document = docx.Document
+                        doc = Document(io.BytesIO(content_bytes))
+                        text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+                    except HTTPException:
+                        raise
+                    except Exception:
+                        raise HTTPException(status_code=422, detail="Could not read DOCX file.")
 
         elif filename.endswith(".pptx"):
             try:
-                from pptx import Presentation
+                try:
+                    import importlib
+                    pptx_mod = importlib.import_module("pptx")
+                    Presentation = pptx_mod.Presentation
+                except ImportError:
+                    raise HTTPException(status_code=500, detail="python-pptx is not installed.")
                 prs = Presentation(io.BytesIO(content_bytes))
                 slides_out = []
                 all_parts = []
