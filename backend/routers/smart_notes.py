@@ -199,19 +199,19 @@ def generate_diagram(request: DiagramRequest, authorization: str = Header(defaul
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            max_tokens=800,
+            max_tokens=2000,
             messages=[{
                 "role": "system",
                 "content": (
                     "You generate Mermaid.js diagrams for student notes. "
-                    "The user has manually selected this text specifically because they want a visual. "
-                    "Always try to create the most useful diagram possible — use sequenceDiagram for "
+                    "The user has manually selected this text specifically because they want a visual that will help them understand the content. "
+                    " BEFORE creating the diagram, understand the topic/field of study and determine if there is a specific type of diagram that would best represent the information or specific way it should be represented. (e.g., a list of ip packet headers should not be a flow chart diagram, but in the form of a packet with the corrent length based off the bits. if a user lists a process, it shouldn't be labeled as a table or graph, but as a flow chart with labeled conditions). "
+                    "Always try to create the most useful diagram possible — If you cannot seem to determine the field of study and an already used/represnted visual example (in the industry already) then use sequenceDiagram for "
                     "communication/protocol flows, flowchart for processes, graph for relationships, "
                     "mindmap for hierarchies, or classDiagram for structures. "
                     "Output ONLY raw valid Mermaid.js syntax — no markdown fences, no explanation. "
                     "Keep diagrams concise (max 14 nodes). "
-                    "Only output the exact text NO_DIAGRAM if the input is completely undiagrammable "
-                    "(e.g. a single random word or pure numbers with no context)."
+                    "If you cannot figure out how to visualize something and think it cannot be visualized, then simply create a classification diagram or think of a way to just help put in a visual the way somebody would remember it in their head." 
                 )
             }, {
                 "role": "user",
