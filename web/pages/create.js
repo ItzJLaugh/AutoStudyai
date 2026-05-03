@@ -191,6 +191,10 @@ export default function CreateGuidePage() {
       setStatus('extracting');
       const formData = new FormData();
       formData.append('file', uploadFile);
+      // Debug: print FormData contents to verify file is present
+      for (let [key, value] of formData.entries()) {
+        console.log('FormData:', key, value);
+      }
       try {
         const resp = await fetch(API + '/extract-file-text', {
           method: 'POST',
