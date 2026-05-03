@@ -31,6 +31,7 @@ class CreateNoteRequest(BaseModel):
 class UpdateNoteRequest(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
+    folder_id: Optional[str] = None  # set to empty string to clear
 
     model_config = {"str_max_length": 500_000}
 
@@ -39,6 +40,15 @@ class UpdateNoteRequest(BaseModel):
     def validate_title(cls, v):
         if v is not None:
             return v.strip()[:200]
+        return v
+
+    @field_validator("folder_id")
+    @classmethod
+    def validate_folder_id(cls, v):
+        if v in (None, ""):
+            return v
+        if not _UUID_RE.match(v):
+            raise ValueError("Invalid folder ID")
         return v
 
 
@@ -59,7 +69,7 @@ def list_notes(authorization: str = Header(default="")):
         user_id = get_user_id(authorization)
         supabase = get_supabase()
         result = supabase.table("smart_notes") \
-            .select("id, title, updated_at, created_at") \
+            .select("id, title, updated_at, created_at, folder_id, content") \
             .eq("user_id", user_id) \
             .order("updated_at", desc=True) \
             .execute()
@@ -124,6 +134,19 @@ def update_note(note_id: str, request: UpdateNoteRequest, authorization: str = H
             updates["title"] = request.title or "Untitled Notes"
         if request.content is not None:
             updates["content"] = request.content
+        if request.folder_id is not None:
+            # Empty string clears the folder_id; otherwise verify the folder is the user's
+            if request.folder_id == "":
+                updates["folder_id"] = None
+            else:
+                folder = supabase.table("folders") \
+                    .select("id") \
+                    .eq("id", request.folder_id) \
+                    .eq("user_id", user_id) \
+                    .execute()
+                if not folder.data:
+                    raise HTTPException(status_code=404, detail="Folder not found")
+                updates["folder_id"] = request.folder_id
         if not updates:
             return {"updated": False}
 
