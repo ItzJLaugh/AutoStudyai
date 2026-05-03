@@ -27,7 +27,7 @@ const SPELL_MAP = {
 
 const FORCE_UPPER = new Set([
   // Biology / chemistry
-  'atp', 'adp', 'nadh', 'fadh2', 'dna', 'rna', 'mrna', 'trna', 'rrna', 'pcr', 'ph',
+  'atp', 'adp', 'nadh', 'fadh2', 'dna', 'rna', 'mrna', 'trna', 'rrna', 'pcr', 'ph', 'ite', 'cs', 'mgt',
   // Medical / clinical
   'ecg', 'ekg', 'cpr', 'iv', 'bp', 'hr', 'gi', 'cns', 'pns', 'icu', 'er',
   'abg', 'cbc', 'wbc', 'rbc', 'bmp', 'cmp', 'inr', 'ptt', 'bun', 'gfr',
@@ -288,8 +288,118 @@ function FileViewer({ file, guideContent }) {
   );
 }
 
-// ─── Main page ───────────────────────────────────────────────────────────────
-export default function SmartNotes() {
+// ─── Notes Index — grid of saved notes with stacked-paper preview ────────────
+function NotesIndex({ router }) {
+  const [notes, setNotes] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(API + '/smart_notes', { headers: authHeaders() }).then(r => r.json()).catch(() => ({ notes: [] })),
+      fetch(API + '/folders', { headers: authHeaders() }).then(r => r.json()).catch(() => ({ folders: [] })),
+    ]).then(([notesData, foldersData]) => {
+      setNotes(notesData.notes || []);
+      setFolders(foldersData.folders || []);
+      setLoading(false);
+    });
+  }, []);
+
+  const folderById = Object.fromEntries(folders.map(f => [f.id, f]));
+
+  async function handleNew() {
+    try {
+      const resp = await fetch(API + '/smart_notes', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Untitled Notes' }),
+      });
+      const data = await resp.json();
+      if (data.note) router.push('/smartnotes?id=' + data.note.id);
+    } catch {}
+  }
+
+  function previewText(html) {
+    if (!html) return '';
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return (div.innerText || '').trim().slice(0, 200);
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const now = new Date();
+    const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return diffDays + ' days ago';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+  }
+
+  return (
+    <div className="sn-index">
+      <div className="sn-index-header">
+        <div>
+          <h1 className="sn-index-title">Notes</h1>
+          <p className="sn-index-subtitle">Your SmartNotes sessions — pick up where you left off, or start fresh.</p>
+        </div>
+        <button className="btn sn-save-btn" onClick={handleNew}>+ New Note</button>
+      </div>
+
+      {loading && <div className="sn-index-empty">Loading…</div>}
+
+      {!loading && notes.length === 0 && (
+        <div className="sn-index-empty">
+          <p>No notes yet. Click <strong>+ New Note</strong> to start writing.</p>
+        </div>
+      )}
+
+      {!loading && notes.length > 0 && (
+        <div className="sn-grid">
+          {notes.map(n => {
+            const folder = n.folder_id ? folderById[n.folder_id] : null;
+            return (
+              <div
+                key={n.id}
+                className="sn-card"
+                onClick={() => router.push('/smartnotes?id=' + n.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === 'Enter') router.push('/smartnotes?id=' + n.id); }}
+              >
+                <div className="sn-card-stack">
+                  <div className="sn-card-paper sn-card-paper-3" />
+                  <div className="sn-card-paper sn-card-paper-2" />
+                  <div className="sn-card-paper sn-card-paper-1">
+                    <div className="sn-card-preview">{previewText(n.content) || 'Empty note'}</div>
+                  </div>
+                </div>
+                <div className="sn-card-meta">
+                  <div className="sn-card-title">{n.title || 'Untitled Notes'}</div>
+                  <div className="sn-card-sub">
+                    <span className="sn-card-date">{fmtDate(n.updated_at || n.created_at)}</span>
+                    {folder && <span className="sn-card-class">{folder.name}</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Page entry — routes between index and editor based on ?id ───────────────
+export default function SmartNotesPage() {
+  const router = useRouter();
+  if (router.isReady && !router.query.id) return <NotesIndex router={router} />;
+  return <SmartNotesEditor />;
+}
+
+// ─── Editor (single note) ────────────────────────────────────────────────────
+function SmartNotesEditor() {
   const router = useRouter();
   const [noteId, setNoteId] = useState(null);
   const [title, setTitle] = useState('Untitled Notes');
@@ -314,6 +424,11 @@ export default function SmartNotes() {
   const [viewerDragOver, setViewerDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Class/folder assignment
+  const [folders, setFolders] = useState([]);
+  const [folderId, setFolderId] = useState('');
+  const folderIdRef = useRef('');
+
   // Paper (contenteditable)
   const paperRef = useRef(null);
   const saveTimer = useRef(null);
@@ -321,16 +436,16 @@ export default function SmartNotes() {
   // Refs mirror state so timeout callbacks always read the latest values
   const noteIdRef = useRef(null);
   const titleRef  = useRef('Untitled Notes');
-  const lastSavedRef = useRef(''); // last saved content snapshot
+  const lastSavedRef = useRef('');       // last saved content snapshot
+  const lastSavedTitleRef = useRef('Untitled Notes'); // last saved title snapshot
 
-  // ── Init: create or load note ────────────────────────────────────────────
+  // Multi-page illusion: how many "filled pages" are behind the front paper (0–2)
+  const [pageCount, setPageCount] = useState(0);
+
+  // ── Init: load existing note (parent only renders editor when ?id is present)
   useEffect(() => {
     const { id } = router.query;
-    if (id) {
-      loadNote(id);
-    } else if (router.isReady) {
-      createNote();
-    }
+    if (id) loadNote(id);
   }, [router.isReady, router.query.id]);
 
   // Load existing guides for picker
@@ -341,13 +456,23 @@ export default function SmartNotes() {
       .catch(() => {});
   }, []);
 
-  // Load notes list
+  // Load classes/folders for assignment
   useEffect(() => {
+    fetch(API + '/folders', { headers: authHeaders() })
+      .then(r => r.json())
+      .then(data => setFolders(data.folders || []))
+      .catch(() => {});
+  }, []);
+
+  // Load notes list (also callable after save to refresh titles)
+  const fetchNotes = useCallback(() => {
     fetch(API + '/smart_notes', { headers: authHeaders() })
       .then(r => r.json())
       .then(data => setNotes(data.notes || []))
       .catch(() => {});
-  }, [noteId]);
+  }, []);
+
+  useEffect(() => { fetchNotes(); }, [noteId, fetchNotes]);
 
   async function createNote() {
     try {
@@ -365,6 +490,7 @@ export default function SmartNotes() {
           paperRef.current.innerHTML = '<p><br></p>';
         }
         lastSavedRef.current = paperRef.current?.innerHTML || '';
+        lastSavedTitleRef.current = 'Untitled Notes';
         router.replace('/smartnotes?id=' + data.note.id, undefined, { shallow: true });
       }
     } catch {}
@@ -377,13 +503,16 @@ export default function SmartNotes() {
       const data = await resp.json();
       noteIdRef.current = data.note.id;
       titleRef.current  = data.note.title || 'Untitled Notes';
+      folderIdRef.current = data.note.folder_id || '';
       setNoteId(data.note.id);
       setTitle(data.note.title || 'Untitled Notes');
+      setFolderId(data.note.folder_id || '');
       if (paperRef.current) {
         paperRef.current.innerHTML = data.note.content && data.note.content.trim()
           ? data.note.content
           : '<p><br></p>';
         lastSavedRef.current = paperRef.current.innerHTML;
+        lastSavedTitleRef.current = data.note.title || 'Untitled Notes';
       }
     } catch {}
   }
@@ -392,7 +521,7 @@ export default function SmartNotes() {
   const doSave = useCallback(async (opts = {}) => {
     if (!paperRef.current || !noteIdRef.current) return;
     const content = paperRef.current.innerHTML;
-    if (content === lastSavedRef.current && !opts.force) return; // nothing changed
+    if (content === lastSavedRef.current && titleRef.current === lastSavedTitleRef.current && !opts.force) return;
     setSaveStatus('saving');
     try {
       const init = {
@@ -403,12 +532,15 @@ export default function SmartNotes() {
       if (opts.keepalive) init.keepalive = true;
       await fetch(API + '/smart_notes/' + noteIdRef.current, init);
       lastSavedRef.current = content;
+      lastSavedTitleRef.current = titleRef.current;
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus(s => s === 'saved' ? '' : s), 1500);
+      fetchNotes(); // refresh sidebar list so title changes appear immediately
     } catch {
-      setSaveStatus('');
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus(''), 2000);
     }
-  }, []);
+  }, [fetchNotes]);
 
   // ── Autosave (debounced 1s after a keypress) ────────────────────────────
   const scheduleSave = useCallback(() => {
@@ -423,27 +555,65 @@ export default function SmartNotes() {
     return () => clearInterval(pollTimer.current);
   }, [doSave]);
 
+  // ── Multi-page illusion — track scrollHeight, add ghost pages as content grows
+  useEffect(() => {
+    const paper = paperRef.current;
+    if (!paper) return;
+    function update() {
+      const visible = paper.clientHeight || 1;
+      // Each "filled page" = one extra visible-height of content beyond the first
+      const filled = Math.max(0, Math.floor((paper.scrollHeight - 16) / visible) - 1);
+      setPageCount(Math.min(filled, 2)); // cap at 2 ghost pages
+    }
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(paper);
+    const mo = new MutationObserver(update);
+    mo.observe(paper, { childList: true, subtree: true, characterData: true });
+    return () => { ro.disconnect(); mo.disconnect(); };
+  }, []);
+
   // ── Flush save on unmount (SPA navigation) and beforeunload (tab close) ──
   useEffect(() => {
     function flushSave() {
       clearTimeout(saveTimer.current);
       if (!noteIdRef.current || !paperRef.current) return;
       const content = paperRef.current.innerHTML;
-      if (content === lastSavedRef.current) return;
+      const title = titleRef.current;
+      const contentChanged = content !== lastSavedRef.current;
+      const titleChanged = title !== lastSavedTitleRef.current;
+      if (!contentChanged && !titleChanged) return;
       fetch(API + '/smart_notes/' + noteIdRef.current, {
         method: 'PUT',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: titleRef.current, content }),
+        body: JSON.stringify({ title, content }),
         keepalive: true,
       }).catch(() => {});
       lastSavedRef.current = content;
+      lastSavedTitleRef.current = title;
     }
     window.addEventListener('beforeunload', flushSave);
     return () => {
       window.removeEventListener('beforeunload', flushSave);
-      flushSave();
+      flushSave(); // fires on SPA navigation (component unmount)
     };
   }, []);
+
+  // ── Class/folder assignment — save immediately on change ────────────────
+  async function handleFolderChange(e) {
+    const newId = e.target.value;
+    folderIdRef.current = newId;
+    setFolderId(newId);
+    if (!noteIdRef.current) return;
+    try {
+      await fetch(API + '/smart_notes/' + noteIdRef.current, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder_id: newId || '' }),
+      });
+      fetchNotes();
+    } catch {}
+  }
 
   // ── Visualize: send highlighted text to diagram API ─────────────────────
   function handleVisualize() {
@@ -888,18 +1058,18 @@ export default function SmartNotes() {
     setGuideContent(guide.study_guide || guide.notes || '<p>No content available.</p>');
   }
 
-  // ── New session ──────────────────────────────────────────────────────────
+  // ── New session — flush current, then create+navigate to fresh note ──────
   async function handleNewNote() {
-    if (paperRef.current) paperRef.current.innerHTML = '<p><br></p>';
-    noteIdRef.current = null;
-    titleRef.current  = 'Untitled Notes';
-    lastSavedRef.current = '<p><br></p>';
-    setNoteId(null);
-    setTitle('Untitled Notes');
-    setMermaidCode(null);
-    setViewerFile(null);
-    setGuideContent(null);
-    await createNote();
+    await doSave();
+    try {
+      const resp = await fetch(API + '/smart_notes', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Untitled Notes' }),
+      });
+      const data = await resp.json();
+      if (data.note) router.push('/smartnotes?id=' + data.note.id);
+    } catch {}
   }
 
   async function handleDeleteNote(id, e) {
@@ -919,6 +1089,7 @@ export default function SmartNotes() {
 
   async function handleSwitchNote(id) {
     setShowNotesList(false);
+    await doSave(); // persist current note before switching
     router.push('/smartnotes?id=' + id);
   }
 
@@ -939,6 +1110,28 @@ export default function SmartNotes() {
           </span>
         </div>
         <div className="sn-header-right">
+          <select
+            className="sn-class-select"
+            value={folderId}
+            onChange={handleFolderChange}
+            title="Assign to class"
+          >
+            <option value="">No class</option>
+            {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+          <button
+            className="btn sn-back-btn"
+            onClick={async () => { await doSave(); router.push('/smartnotes'); }}
+            title="Back to notes index"
+          >
+            ← Notes
+          </button>
+          <button
+            className={`btn sn-save-btn${saveStatus === 'saving' ? ' saving' : saveStatus === 'saved' ? ' saved' : saveStatus === 'error' ? ' error' : ''}`}
+            onClick={() => doSave({ force: true })}
+          >
+            {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Error' : 'Save'}
+          </button>
           <div className="sn-notes-picker">
             <button className="btn sn-open-btn" onClick={() => setShowNotesList(v => !v)}>
               My Notes
@@ -988,6 +1181,10 @@ export default function SmartNotes() {
               </button>
             )}
           </div>
+          <div className={`sn-paper-stage sn-paper-stage--p${pageCount}`}>
+            {/* Ghost pages behind — appear as content fills */}
+            <div className="sn-ghost-page sn-ghost-page-3" aria-hidden="true" />
+            <div className="sn-ghost-page sn-ghost-page-2" aria-hidden="true" />
           <div
             ref={paperRef}
             className={`sn-paper${visualizeMode ? ' sn-paper--visualize' : ''}`}
@@ -998,6 +1195,7 @@ export default function SmartNotes() {
             data-placeholder="Start typing your notes here…"
             spellCheck={false}
           />
+          </div>
         </div>
 
         {/* Vertical drag divider */}
