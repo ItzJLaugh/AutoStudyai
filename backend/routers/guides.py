@@ -127,7 +127,36 @@ def save_guide(request: SaveGuideRequest, authorization: str = Header(default=""
         logger.error(f"Error saving guide: {e}")
         raise HTTPException(status_code=500, detail="Failed to save guide")
 
+@router.patch("/{guide_id}")
+def update_guide(guide_id: str, request: SaveGuideRequest, authorization: str = Header(default="")):
+    """Update an existing study guide's content (notes, title, flashcards, etc.)."""
+    try:
+        _validate_uuid(guide_id, "guide ID")
+        user_id = get_user_id(authorization)
+        supabase = get_supabase()
 
+        # 1. Prepare only the fields that were provided in the request
+        # This converts the Pydantic model to a dict, excluding unset values
+        update_data = request.model_dump(exclude_unset=True)
+
+        # 2. Perform the update in Supabase
+        result = supabase.table("study_guides") \
+            .update(update_data) \
+            .eq("id", guide_id) \
+            .eq("user_id", user_id) \
+            .execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Guide not found or no changes made")
+
+        return {"guide": result.data[0]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating guide: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update guide")
+    
 @router.get("/{guide_id}")
 def get_guide(guide_id: str, authorization: str = Header(default="")):
     """Get a single study guide."""
