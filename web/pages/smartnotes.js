@@ -173,16 +173,35 @@ function GuideViewer({ html }) {
   );
 }
 
+// ─── Slide card viewer (PPTX) ────────────────────────────────────────────────
+function SlideCardViewer({ slides }) {
+  return (
+    <div className="sn-slide-list">
+      {slides.map(slide => (
+        <div key={slide.number} className="sn-slide-card">
+          <div className="sn-slide-num">Slide {slide.number}</div>
+          {slide.texts.length === 0
+            ? <p className="sn-slide-no-text">(image only)</p>
+            : slide.texts.map((t, i) => <p key={i} className="sn-slide-text">{t}</p>)
+          }
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── File viewer ─────────────────────────────────────────────────────────────
 function FileViewer({ file, guideContent }) {
   const [objectUrl, setObjectUrl] = useState(null);
   const [extractedText, setExtractedText] = useState(null);
+  const [slidesData, setSlidesData] = useState(null);
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState(null);
 
   useEffect(() => {
     setObjectUrl(null);
     setExtractedText(null);
+    setSlidesData(null);
     setExtracting(false);
     setExtractError(null);
     if (!file) return;
@@ -191,7 +210,6 @@ function FileViewer({ file, guideContent }) {
     let cancelled = false;
 
     if (EXTRACT_EXTS.has(ext)) {
-      // Also generate an object URL so the user can download if extraction fails
       const url = URL.createObjectURL(file);
       setObjectUrl(url);
       setExtracting(true);
@@ -205,6 +223,7 @@ function FileViewer({ file, guideContent }) {
             setExtractError(data.detail || 'Could not extract text from this file.');
           } else {
             setExtractedText(data.text || '');
+            if (data.slides) setSlidesData(data.slides);
           }
           setExtracting(false);
         })
@@ -222,7 +241,6 @@ function FileViewer({ file, guideContent }) {
       return () => { cancelled = true; };
     }
 
-    // Everything else — generate object URL for native browser rendering
     const url = URL.createObjectURL(file);
     setObjectUrl(url);
     return () => { cancelled = true; URL.revokeObjectURL(url); };
@@ -235,29 +253,21 @@ function FileViewer({ file, guideContent }) {
 
   if (extracting) return <div className="sn-viewer-empty"><p>Reading {file.name}…</p></div>;
 
+  if (slidesData !== null) return <SlideCardViewer slides={slidesData} />;
+
   if (extractedText !== null) {
     return (
       <div className="sn-extracted-viewer">
         <div className="sn-extracted-filename">{file.name}</div>
         {extractedText.trim() === ''
-          ? <p className="sn-extracted-empty">(This file contains no readable text.)</p>
+          ? <p className="sn-extracted-empty">(No readable text found.)</p>
           : <pre className="sn-extracted-content">{extractedText}</pre>}
       </div>
     );
   }
 
   if (extractError) {
-    return (
-      <div className="sn-extracted-viewer">
-        <div className="sn-extracted-filename">{file.name}</div>
-        <p className="sn-extracted-empty">{extractError}</p>
-        {objectUrl && (
-          <a className="btn sn-open-btn" href={objectUrl} download={file.name} style={{ marginTop: 12, display: 'inline-block' }}>
-            Download
-          </a>
-        )}
-      </div>
-    );
+    return <div className="sn-viewer-empty"><p>{extractError}</p></div>;
   }
 
   if (!objectUrl) return null;
@@ -265,27 +275,9 @@ function FileViewer({ file, guideContent }) {
   if (ext === 'pdf') return <iframe src={objectUrl} className="sn-iframe" title={file.name} />;
   if (IMAGE_EXTS.has(ext)) return <img src={objectUrl} className="sn-viewer-img" alt={file.name} />;
   if (VIDEO_EXTS.has(ext)) return <video src={objectUrl} controls className="sn-viewer-video" />;
-  if (AUDIO_EXTS.has(ext)) return (
-    <div className="sn-extracted-viewer">
-      <div className="sn-extracted-filename">{file.name}</div>
-      <audio src={objectUrl} controls style={{ width: '100%', marginTop: 12 }} />
-    </div>
-  );
+  if (AUDIO_EXTS.has(ext)) return <audio src={objectUrl} controls style={{ width: '100%', padding: 16 }} />;
 
-  // Final fallback — try to render in iframe (works for some types: HTML pages, SVG, etc)
-  return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <iframe src={objectUrl} className="sn-iframe" title={file.name} />
-      <a
-        className="btn sn-open-btn"
-        href={objectUrl}
-        download={file.name}
-        style={{ position: 'absolute', top: 8, right: 8, fontSize: '0.75em', padding: '6px 12px' }}
-      >
-        Download
-      </a>
-    </div>
-  );
+  return <iframe src={objectUrl} className="sn-iframe" title={file.name} />;
 }
 
 // ─── Notes Index — grid of saved notes with stacked-paper preview ────────────
@@ -445,7 +437,9 @@ function SmartNotesEditor() {
   // ── Init: load existing note (parent only renders editor when ?id is present)
   useEffect(() => {
     const { id } = router.query;
-    if (id) loadNote(id);
+    if (id && String(id) !== String(noteIdRef.current)) {
+      loadNote(id);
+    }
   }, [router.isReady, router.query.id]);
 
   // Load existing guides for picker
@@ -491,7 +485,7 @@ function SmartNotesEditor() {
         }
         lastSavedRef.current = paperRef.current?.innerHTML || '';
         lastSavedTitleRef.current = 'Untitled Notes';
-        router.replace('/smartnotes?id=' + data.note.id, undefined, { shallow: true });
+        window.history.replaceState({}, '', '/smartnotes?id=' + data.note.id);
       }
     } catch {}
   }
