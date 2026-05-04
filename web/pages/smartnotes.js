@@ -156,6 +156,53 @@ function parseGuideQA(html) {
   return pairs;
 }
 
+// ─── Study guide preview modal (shared by editor + index) ────────────────────
+function StudyGuidePreviewModal({ preview, title, setTitle, error, saving, onClose, onApprove, onEdit }) {
+  if (!preview) return null;
+  const hasPairs = preview.pairs && preview.pairs.length > 0;
+  return (
+    <div className="sn-modal-overlay" onClick={onClose}>
+      <div className="sn-modal" onClick={e => e.stopPropagation()}>
+        <div className="sn-modal-header">
+          <input
+            className="sn-modal-title-input"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="Study guide title"
+            disabled={saving}
+          />
+        </div>
+        <div className="sn-modal-body">
+          {error && <div className="sn-modal-error">{error}</div>}
+          {hasPairs ? (
+            <div className="sn-modal-pairs">
+              {preview.pairs.map((p, i) => (
+                <div key={i} className="sn-modal-pair">
+                  <div className="sn-modal-q"><strong>Q{i + 1}.</strong> {p.question}</div>
+                  <div className="sn-modal-a">{p.answer}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            !error && <div className="sn-modal-empty">No questions generated.</div>
+          )}
+        </div>
+        <div className="sn-modal-footer">
+          <button className="btn sn-modal-cancel" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn sn-modal-edit" onClick={onEdit} disabled={saving || !hasPairs}>Edit</button>
+          <button
+            className="btn sn-modal-approve"
+            onClick={onApprove}
+            disabled={saving || !hasPairs || !title.trim()}
+          >
+            {saving ? 'Saving…' : 'Approve'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GuideViewer({ html }) {
   const pairs = parseGuideQA(html);
   if (pairs.length === 0) {
@@ -286,6 +333,15 @@ function NotesIndex({ router }) {
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Select-mode for "Turn into Study Guide" → click a note to convert
+  const [selectMode, setSelectMode] = useState(false);
+  const [convertingNoteId, setConvertingNoteId] = useState(null);
+  const [guidePreview, setGuidePreview] = useState(null);
+  const [previewTitle, setPreviewTitle] = useState('');
+  const [previewError, setPreviewError] = useState('');
+  const [savingGuide, setSavingGuide] = useState(false);
+  const [selectedFolderId, setSelectedFolderId] = useState(null);
+
   useEffect(() => {
     Promise.all([
       fetch(API + '/smart_notes', { headers: authHeaders() }).then(r => r.json()).catch(() => ({ notes: [] })),
@@ -311,6 +367,80 @@ function NotesIndex({ router }) {
     } catch {}
   }
 
+  async function handleSelectNoteForGuide(note) {
+    if (convertingNoteId) return; // ignore extra clicks while one is processing
+    setConvertingNoteId(note.id);
+    setPreviewError('');
+    setSelectedFolderId(note.folder_id || null);
+    try {
+      const resp = await fetch(API + '/smart_notes/' + note.id + '/study_guide', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setGuidePreview({ title: '', study_guide: '', pairs: [] });
+        setPreviewError(data?.detail || 'Failed to generate study guide');
+        setPreviewTitle('');
+      } else {
+        setGuidePreview(data);
+        setPreviewTitle(data.title || 'Untitled — Study Guide');
+      }
+    } catch {
+      setGuidePreview({ title: '', study_guide: '', pairs: [] });
+      setPreviewError('Network error — please try again');
+    } finally {
+      setConvertingNoteId(null);
+      setSelectMode(false);
+    }
+  }
+
+  function handleClosePreview() {
+    setGuidePreview(null);
+    setPreviewTitle('');
+    setPreviewError('');
+  }
+
+  async function handleApprovePreview() {
+    if (!guidePreview || !guidePreview.study_guide) return;
+    setSavingGuide(true);
+    try {
+      const resp = await fetch(API + '/guides', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: (previewTitle || 'Untitled — Study Guide').trim(),
+          study_guide: guidePreview.study_guide,
+          folder_id: selectedFolderId || null,
+        }),
+      });
+      const data = await resp.json();
+      if (resp.ok && data.guide?.id) {
+        router.push('/guide/' + data.guide.id);
+      } else {
+        setPreviewError(data?.detail || 'Failed to save study guide');
+      }
+    } catch {
+      setPreviewError('Network error while saving');
+    } finally {
+      setSavingGuide(false);
+    }
+  }
+
+  function handleEditPreview() {
+    if (!guidePreview) return;
+    const pairs = guidePreview.pairs.map(p => ({ term: p.question, definition: p.answer }));
+    try {
+      localStorage.setItem('autostudy_manual_draft', JSON.stringify({
+        title: (previewTitle || 'Untitled — Study Guide').trim(),
+        pairs,
+        inputMode: 'manual',
+      }));
+    } catch {}
+    handleClosePreview();
+    router.push('/create');
+  }
+
   function previewText(html) {
     if (!html) return '';
     const div = document.createElement('div');
@@ -334,9 +464,31 @@ function NotesIndex({ router }) {
       <div className="sn-index-header">
         <div>
           <h1 className="sn-index-title">Notes</h1>
-          <p className="sn-index-subtitle">Your SmartNotes sessions — pick up where you left off, or start fresh.</p>
+          <p className="sn-index-subtitle">
+            {selectMode
+              ? 'Click the note you want to turn into a study guide.'
+              : 'Your SmartNotes sessions — pick up where you left off, or start fresh.'}
+          </p>
         </div>
-        <button className="btn sn-save-btn" onClick={handleNew}>+ New Note</button>
+        <div className="sn-index-actions">
+          {selectMode ? (
+            <button className="btn sn-cancel-select-btn" onClick={() => setSelectMode(false)} disabled={!!convertingNoteId}>
+              Cancel
+            </button>
+          ) : (
+            <>
+              <button
+                className="btn sn-convert-header-btn"
+                onClick={() => setSelectMode(true)}
+                disabled={notes.length === 0}
+                title="Turn one of your notes into a study guide"
+              >
+                Turn into Study Guide
+              </button>
+              <button className="btn sn-save-btn" onClick={handleNew}>+ New Note</button>
+            </>
+          )}
+        </div>
       </div>
 
       {loading && <div className="sn-index-empty">Loading…</div>}
@@ -348,17 +500,26 @@ function NotesIndex({ router }) {
       )}
 
       {!loading && notes.length > 0 && (
-        <div className="sn-grid">
+        <div className={'sn-grid' + (selectMode ? ' sn-grid--select' : '')}>
           {notes.map(n => {
             const folder = n.folder_id ? folderById[n.folder_id] : null;
+            const isConverting = convertingNoteId === n.id;
+            const cardClasses = [
+              'sn-card',
+              selectMode ? 'sn-card--selectable' : '',
+              isConverting ? 'sn-card--converting' : '',
+            ].filter(Boolean).join(' ');
+            const onCardClick = selectMode
+              ? () => handleSelectNoteForGuide(n)
+              : () => router.push('/smartnotes?id=' + n.id);
             return (
               <div
                 key={n.id}
-                className="sn-card"
-                onClick={() => router.push('/smartnotes?id=' + n.id)}
+                className={cardClasses}
+                onClick={onCardClick}
                 role="button"
                 tabIndex={0}
-                onKeyDown={e => { if (e.key === 'Enter') router.push('/smartnotes?id=' + n.id); }}
+                onKeyDown={e => { if (e.key === 'Enter') onCardClick(); }}
               >
                 <div className="sn-card-stack">
                   <div className="sn-card-paper sn-card-paper-3" />
@@ -374,11 +535,23 @@ function NotesIndex({ router }) {
                     {folder && <span className="sn-card-class">{folder.name}</span>}
                   </div>
                 </div>
+                {isConverting && <div className="sn-card-converting-overlay">Generating…</div>}
               </div>
             );
           })}
         </div>
       )}
+
+      <StudyGuidePreviewModal
+        preview={guidePreview}
+        title={previewTitle}
+        setTitle={setPreviewTitle}
+        error={previewError}
+        saving={savingGuide}
+        onClose={handleClosePreview}
+        onApprove={handleApprovePreview}
+        onEdit={handleEditPreview}
+      />
     </div>
   );
 }
@@ -1194,11 +1367,12 @@ function SmartNotesEditor() {
             {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
           <button
-            className="btn sn-back-btn"
-            onClick={async () => { await doSave(); router.push('/smartnotes'); }}
-            title="Back to notes index"
+            className="btn sn-convert-header-btn"
+            onClick={handleConvertToGuide}
+            disabled={convertingGuide}
+            title="Turn this note into a study guide"
           >
-            ← Notes
+            {convertingGuide ? 'Generating…' : 'Turn into Study Guide'}
           </button>
           <button
             className={`btn sn-save-btn${saveStatus === 'saving' ? ' saving' : saveStatus === 'saved' ? ' saved' : saveStatus === 'error' ? ' error' : ''}`}
@@ -1207,8 +1381,14 @@ function SmartNotesEditor() {
             {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Error' : 'Save'}
           </button>
           <div className="sn-notes-picker">
-            <button className="btn sn-open-btn" onClick={() => setShowNotesList(v => !v)}>
-              My Notes
+            <button
+              className={`btn sn-open-btn sn-notes-dropdown-trigger${showNotesList ? ' open' : ''}`}
+              onClick={() => setShowNotesList(v => !v)}
+            >
+              <span>My Notes</span>
+              <svg className="sn-chevron" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </button>
             {showNotesList && (
               <div className="sn-notes-dropdown">
@@ -1216,13 +1396,12 @@ function SmartNotesEditor() {
                   <span className="sn-panel-label">Sessions</span>
                   <button className="sn-new-btn" onClick={handleNewNote}>+ New</button>
                 </div>
-                <button
-                  className="sn-convert-btn"
-                  onClick={handleConvertToGuide}
-                  disabled={convertingGuide}
+                <div
+                  className={'sn-notes-item sn-notes-item--back'}
+                  onClick={async () => { setShowNotesList(false); await doSave(); router.push('/smartnotes'); }}
                 >
-                  {convertingGuide ? 'Generating…' : 'Turn into Study Guide'}
-                </button>
+                  ← All notes
+                </div>
                 {notes.map(n => (
                   <div
                     key={n.id}
@@ -1364,59 +1543,16 @@ function SmartNotesEditor() {
 
       </div>
 
-      {guidePreview && (
-        <div className="sn-modal-overlay" onClick={handleClosePreview}>
-          <div className="sn-modal" onClick={e => e.stopPropagation()}>
-            <div className="sn-modal-header">
-              <input
-                className="sn-modal-title-input"
-                value={previewTitle}
-                onChange={e => setPreviewTitle(e.target.value)}
-                placeholder="Study guide title"
-                disabled={savingGuide}
-              />
-            </div>
-            <div className="sn-modal-body">
-              {previewError && <div className="sn-modal-error">{previewError}</div>}
-              {guidePreview.pairs && guidePreview.pairs.length > 0 ? (
-                <div className="sn-modal-pairs">
-                  {guidePreview.pairs.map((p, i) => (
-                    <div key={i} className="sn-modal-pair">
-                      <div className="sn-modal-q"><strong>Q{i + 1}.</strong> {p.question}</div>
-                      <div className="sn-modal-a">{p.answer}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                !previewError && <div className="sn-modal-empty">No questions generated.</div>
-              )}
-            </div>
-            <div className="sn-modal-footer">
-              <button
-                className="btn sn-modal-cancel"
-                onClick={handleClosePreview}
-                disabled={savingGuide}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn sn-modal-edit"
-                onClick={handleEditPreview}
-                disabled={savingGuide || !guidePreview.pairs?.length}
-              >
-                Edit
-              </button>
-              <button
-                className="btn sn-modal-approve"
-                onClick={handleApprovePreview}
-                disabled={savingGuide || !guidePreview.pairs?.length || !previewTitle.trim()}
-              >
-                {savingGuide ? 'Saving…' : 'Approve'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <StudyGuidePreviewModal
+        preview={guidePreview}
+        title={previewTitle}
+        setTitle={setPreviewTitle}
+        error={previewError}
+        saving={savingGuide}
+        onClose={handleClosePreview}
+        onApprove={handleApprovePreview}
+        onEdit={handleEditPreview}
+      />
     </div>
   );
 }
