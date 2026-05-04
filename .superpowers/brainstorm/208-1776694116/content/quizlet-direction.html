@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #090716;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px 60px;
+  color: #f0ecf9;
+}
+h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; text-align: center; margin-bottom: 6px; }
+.sub { font-size: 12.5px; color: #4a3f6b; text-align: center; margin-bottom: 32px; font-weight: 400; }
+
+/* SHELL */
+.shell {
+  width: 940px;
+  max-width: 100%;
+  height: 580px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+}
+.chrome {
+  height: 36px;
+  background: #0c0a1c;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.dot { width: 11px; height: 11px; border-radius: 50%; }
+.r{background:#ff5f57} .y{background:#febc2e} .g{background:#28c840}
+.chrome-url {
+  font-size: 11px; color: rgba(255,255,255,0.18);
+  margin-left: 10px; font-weight: 400; letter-spacing: 0.01em;
+}
+
+.body { display: flex; flex: 1; overflow: hidden; }
+
+/* SIDEBAR */
+.sidebar {
+  width: 210px;
+  flex-shrink: 0;
+  background: #0c0a1c;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.logo-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 20px 20px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.logo-icon {
+  width: 28px; height: 28px;
+  background: #a78bfa;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; color: #0c0a1c;
+  flex-shrink: 0;
+}
+.logo-name { font-size: 13.5px; font-weight: 700; color: #f0ecf9; letter-spacing: -0.02em; }
+
+.nav-section { padding: 14px 0 6px; }
+.nav-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.2);
+  padding: 0 20px 6px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 20px;
+  font-size: 13px; font-weight: 500;
+  color: rgba(255,255,255,0.38);
+  cursor: pointer;
+  position: relative;
+  letter-spacing: -0.01em;
+  transition: color 0.15s;
+}
+.nav-item + .nav-item { margin-top: 1px; }
+.nav-item.active { color: #f0ecf9; font-weight: 600; }
+.nav-item.active::before {
+  content:''; position:absolute;
+  left:0; top:8px; bottom:8px;
+  width:3px;
+  background: #a78bfa;
+  border-radius:0 3px 3px 0;
+}
+.ni { width:15px; height:15px; flex-shrink:0; opacity:.35; }
+.nav-item.active .ni { opacity: 1; }
+.new-badge {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
+  background: #a78bfa; color: #0c0a1c;
+  padding: 2px 6px; border-radius: 20px; text-transform: uppercase;
+}
+
+.sidebar-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 6px 0; }
+
+.sidebar-bottom {
+  margin-top: auto;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding: 12px 0;
+}
+.user-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 20px;
+  cursor: pointer;
+}
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(167,139,250,0.2);
+  border: 1px solid rgba(167,139,250,0.3);
+  font-size: 12px; font-weight: 700; color: #a78bfa;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.user-name { font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.6); letter-spacing: -0.01em; }
+.user-email { font-size: 10px; color: rgba(255,255,255,0.25); margin-top: 1px; }
+
+/* MAIN */
+.main {
+  flex: 1;
+  background: #100e21;
+  overflow-y: auto;
+  padding: 28px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* PAGE HEADER */
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; }
+.page-title { font-size: 22px; font-weight: 800; letter-spacing: -0.04em; color: #f0ecf9; }
+.page-sub { font-size: 12px; color: rgba(255,255,255,0.25); margin-top: 3px; font-weight: 400; }
+.btn-primary {
+  display: flex; align-items: center; gap: 6px;
+  background: #a78bfa;
+  color: #0c0a1c;
+  font-size: 13px; font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 100px;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  box-shadow: 0 2px 12px rgba(167,139,250,0.35);
+}
+
+/* STATS */
+.stats { display: flex; gap: 12px; }
+.stat {
+  flex: 1;
+  background: #171430;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.stat-num { font-size: 28px; font-weight: 800; letter-spacing: -0.05em; color: #f0ecf9; line-height: 1; }
+.stat-label { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.3); margin-top: 5px; letter-spacing: 0.01em; }
+
+/* SECTION */
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.3); }
+.section-action { font-size: 12px; font-weight: 500; color: #a78bfa; cursor: pointer; letter-spacing: -0.01em; }
+
+/* FEATURE CARD */
+.feature-card {
+  background: #171430;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  padding: 20px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.feature-text {}
+.feature-eyebrow { font-size: 11px; font-weight: 600; color: #a78bfa; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 6px; }
+.feature-title { font-size: 16px; font-weight: 700; color: #f0ecf9; letter-spacing: -0.02em; margin-bottom: 5px; }
+.feature-desc { font-size: 12px; color: rgba(255,255,255,0.35); line-height: 1.5; margin-bottom: 16px; }
+.btn-outline {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1.5px solid rgba(167,139,250,0.4);
+  color: #a78bfa;
+  font-size: 12.5px; font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 100px;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+}
+.feature-visual {
+  width: 110px; height: 80px; border-radius: 10px;
+  background: rgba(167,139,250,0.08);
+  border: 1px solid rgba(167,139,250,0.12);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+}
+
+/* GUIDE LIST */
+.guide-list { display: flex; flex-direction: column; gap: 8px; }
+.guide-row {
+  background: #171430;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 11px;
+  padding: 13px 16px;
+  display: flex; align-items: center; gap: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.guide-row:hover { border-color: rgba(167,139,250,0.2); }
+.guide-ico {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: rgba(167,139,250,0.1);
+  border: 1px solid rgba(167,139,250,0.12);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.guide-info { flex: 1; min-width: 0; }
+.guide-name { font-size: 13px; font-weight: 600; color: #e8e4f5; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.guide-meta { font-size: 11px; color: rgba(255,255,255,0.25); margin-top: 2px; font-weight: 400; }
+.guide-right { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.guide-count { font-size: 11.5px; font-weight: 500; color: rgba(255,255,255,0.25); }
+.chevron { width: 14px; height: 14px; opacity: .18; }
+</style>
+</head>
+<body>
+
+<h2>Professional Direction — Quizlet-level polish</h2>
+<p class="sub">Flat dark bg · consistent card style · pill CTA · section labels · Inter · no decorative effects</p>
+
+<div class="shell">
+  <div class="chrome">
+    <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+    <span class="chrome-url">autostudyai.com/dashboard</span>
+  </div>
+
+  <div class="body">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="logo-row">
+        <div class="logo-icon">A</div>
+        <div class="logo-name">AutoStudyAI</div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-item active">
+          <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="#a78bfa" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+          Home
+        </div>
+        <div class="nav-item">
+          <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+          Create Guide
+        </div>
+        <div class="nav-item">
+          <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h7"/></svg>
+          Study Guides
+        </div>
+        <div class="nav-item">
+          <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1.5"/><path d="M6 4V3a2 2 0 014 0v1"/></svg>
+          Flashcards
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="nav-section">
+        <div class="nav-section-label">Your Classes</div>
+        <div class="nav-item">
+          <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13V5l6-3 6 3v8"/><rect x="6" y="9" width="4" height="4"/></svg>
+          Biology 201
+        </div>
+        <div class="nav-item">
+          <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13V5l6-3 6 3v8"/><rect x="6" y="9" width="4" height="4"/></svg>
+          Psych 101
+        </div>
+        <div class="nav-item">
+          <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
+          Add class
+        </div>
+      </div>
+
+      <div class="sidebar-bottom">
+        <div class="nav-item">
+          <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 13c0-3 2.7-5 6-5s6 2 6 5"/></svg>
+          Settings
+        </div>
+        <div class="user-row">
+          <div class="avatar">J</div>
+          <div>
+            <div class="user-name">Jackson L.</div>
+            <div class="user-email">Pro Plan</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+      <div class="page-head">
+        <div>
+          <div class="page-title">Good morning, Jackson</div>
+          <div class="page-sub">You have 3 guides ready to review</div>
+        </div>
+        <div class="btn-primary">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="6.5" y1="1" x2="6.5" y2="12"/><line x1="1" y1="6.5" x2="12" y2="6.5"/></svg>
+          New Study Guide
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="stat-num">12</div><div class="stat-label">Total Guides</div></div>
+        <div class="stat"><div class="stat-num">84%</div><div class="stat-label">Avg Quiz Score</div></div>
+        <div class="stat"><div class="stat-num">7</div><div class="stat-label">Day Streak</div></div>
+        <div class="stat"><div class="stat-num">248</div><div class="stat-label">Flashcards</div></div>
+      </div>
+
+      <div>
+        <div class="section-head">
+          <div class="section-title">Keep studying</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-text">
+            <div class="feature-eyebrow">AI-Powered</div>
+            <div class="feature-title">Upload a lecture, get a study guide</div>
+            <div class="feature-desc">Drop any PDF, PowerPoint, or webpage link — AutoStudyAI generates Q&A, flashcards, and NCLEX-style questions instantly.</div>
+            <div class="btn-outline">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>
+              Create a guide
+            </div>
+          </div>
+          <div class="feature-visual">📄</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head">
+          <div class="section-title">Recent guides</div>
+          <div class="section-action">View all</div>
+        </div>
+        <div class="guide-list">
+          <div class="guide-row">
+            <div class="guide-ico">🧬</div>
+            <div class="guide-info">
+              <div class="guide-name">Bio 201 — Chapter 7: Cell Division</div>
+              <div class="guide-meta">14 flashcards · Updated 2 days ago</div>
+            </div>
+            <div class="guide-right">
+              <div class="guide-count">14 cards</div>
+              <svg class="chevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg>
+            </div>
+          </div>
+          <div class="guide-row">
+            <div class="guide-ico">🧠</div>
+            <div class="guide-info">
+              <div class="guide-name">Psych 101 — Memory &amp; Learning</div>
+              <div class="guide-meta">8 flashcards · Updated 4 days ago</div>
+            </div>
+            <div class="guide-right">
+              <div class="guide-count">8 cards</div>
+              <svg class="chevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg>
+            </div>
+          </div>
+          <div class="guide-row">
+            <div class="guide-ico">⚗️</div>
+            <div class="guide-info">
+              <div class="guide-name">Chem 110 — Chemical Reactions</div>
+              <div class="guide-meta">22 flashcards · Updated 1 week ago</div>
+            </div>
+            <div class="guide-right">
+              <div class="guide-count">22 cards</div>
+              <svg class="chevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

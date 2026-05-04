@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Modern Direction</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #090716;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px 60px;
+  min-height: 100vh;
+  color: #f0ecf9;
+}
+
+h2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #f0ecf9;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.subtitle {
+  font-size: 13px;
+  color: #6b5e9e;
+  text-align: center;
+  margin-bottom: 36px;
+  font-weight: 400;
+}
+
+/* ── APP SHELL ── */
+.app-shell {
+  width: 900px;
+  max-width: 100%;
+  height: 560px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(167,139,250,0.15);
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 40px 100px rgba(0,0,0,0.8),
+    0 0 0 1px rgba(167,139,250,0.08);
+  position: relative;
+}
+
+/* window chrome */
+.chrome {
+  height: 38px;
+  background: rgba(10,8,20,0.95);
+  border-bottom: 1px solid rgba(167,139,250,0.08);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 7px;
+  flex-shrink: 0;
+  backdrop-filter: blur(20px);
+}
+.dot { width: 11px; height: 11px; border-radius: 50%; }
+.r { background: #ff5f57; }
+.y { background: #febc2e; }
+.g { background: #28c840; }
+.chrome-title {
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  margin-left: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.app-body { display: flex; flex: 1; overflow: hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: rgba(8,6,18,0.98);
+  border-right: 1px solid rgba(167,139,250,0.07);
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  /* ambient glow seeping from content area */
+  box-shadow: inset -20px 0 40px rgba(0,0,0,0.3);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 18px 20px;
+  border-bottom: 1px solid rgba(167,139,250,0.07);
+  margin-bottom: 12px;
+}
+.logo-mark {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, #a78bfa, #6d28d9);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  box-shadow: 0 4px 12px rgba(109,40,217,0.5);
+  flex-shrink: 0;
+}
+.logo-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f0ecf9;
+  letter-spacing: -0.02em;
+}
+
+.nav-group { margin-bottom: 4px; }
+
+.nav-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(167,139,250,0.3);
+  padding: 8px 18px 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.3);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+  letter-spacing: -0.01em;
+}
+
+.nav-item.active {
+  color: #f0ecf9;
+  font-weight: 600;
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 7px; bottom: 7px;
+  width: 3px;
+  background: linear-gradient(180deg, #c4b5fd 0%, #7c3aed 100%);
+  border-radius: 0 3px 3px 0;
+  box-shadow: 0 0 10px rgba(167,139,250,0.6);
+}
+
+.nav-icon { width: 15px; height: 15px; opacity: 0.4; flex-shrink: 0; }
+.nav-item.active .nav-icon { opacity: 1; }
+
+.sidebar-bottom {
+  margin-top: auto;
+  border-top: 1px solid rgba(167,139,250,0.06);
+  padding-top: 8px;
+}
+.user-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 10px 18px;
+}
+.avatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a78bfa, #6d28d9);
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.user-info {}
+.user-name { font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,0.7); letter-spacing: -0.01em; }
+.user-plan { font-size: 10px; color: rgba(167,139,250,0.5); font-weight: 500; }
+
+/* ── MAIN CONTENT ── */
+.main {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #0d0a1f;
+}
+
+/* ambient glow orbs */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(80px);
+  opacity: 0.12;
+}
+.orb-1 {
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, #7c3aed, transparent 70%);
+  top: -120px; right: -60px;
+}
+.orb-2 {
+  width: 250px; height: 250px;
+  background: radial-gradient(circle, #4f46e5, transparent 70%);
+  bottom: -100px; left: 20px;
+}
+.orb-3 {
+  width: 180px; height: 180px;
+  background: radial-gradient(circle, #a78bfa, transparent 70%);
+  top: 100px; left: 200px;
+  opacity: 0.06;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  padding: 28px 28px 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* page header */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+.page-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #f0ecf9;
+  line-height: 1.1;
+}
+.page-sub {
+  font-size: 12px;
+  color: rgba(167,139,250,0.45);
+  margin-top: 4px;
+  font-weight: 400;
+}
+.cta-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 9px;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  box-shadow:
+    0 4px 20px rgba(124,58,237,0.5),
+    0 1px 0 rgba(255,255,255,0.15) inset;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cta-plus { font-size: 16px; font-weight: 300; opacity: 0.8; }
+
+/* stats */
+.stats { display: flex; gap: 12px; margin-bottom: 20px; }
+.stat-card {
+  flex: 1;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(167,139,250,0.1);
+  border-radius: 12px;
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+  /* 3D float effect */
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.5),
+    0 1px 0 rgba(255,255,255,0.06) inset,
+    0 -1px 0 rgba(0,0,0,0.3) inset;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(167,139,250,0.25), transparent);
+}
+.stat-num {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  background: linear-gradient(135deg, #f0ecf9 30%, rgba(167,139,250,0.7));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+  margin-bottom: 5px;
+}
+.stat-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(167,139,250,0.4);
+}
+
+/* guide cards */
+.guides-section { flex: 1; overflow: hidden; }
+.section-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(167,139,250,0.35);
+  margin-bottom: 10px;
+}
+.guide-list { display: flex; flex-direction: column; gap: 8px; }
+.guide-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(167,139,250,0.1);
+  border-radius: 11px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.45),
+    0 1px 0 rgba(255,255,255,0.05) inset;
+  transition: border-color 0.15s;
+  cursor: pointer;
+}
+.guide-card:hover {
+  border-color: rgba(167,139,250,0.22);
+}
+.guide-left { display: flex; align-items: center; gap: 12px; }
+.guide-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.guide-icon.purple { background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.15); }
+.guide-icon.blue   { background: rgba(79,70,229,0.15); border: 1px solid rgba(79,70,229,0.2); }
+.guide-icon.green  { background: rgba(110,231,183,0.1); border: 1px solid rgba(110,231,183,0.15); }
+
+.guide-name { font-size: 12.5px; font-weight: 600; color: #e8e4f5; letter-spacing: -0.01em; }
+.guide-meta { font-size: 10.5px; color: rgba(167,139,250,0.35); margin-top: 2px; font-weight: 400; }
+
+.guide-right { display: flex; align-items: center; gap: 10px; }
+.score-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+}
+.score-high { color: #6ee7b7; background: rgba(110,231,183,0.1); border: 1px solid rgba(110,231,183,0.2); }
+.score-mid  { color: #fbbf24; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2); }
+
+.chevron {
+  width: 14px; height: 14px;
+  opacity: 0.2;
+}
+</style>
+</head>
+<body>
+
+<h2>Modern Direction — Does this feel closer?</h2>
+<p class="subtitle">Ambient glow orbs · floating cards with real depth · gradient CTA button with glow · bolder type hierarchy</p>
+
+<div class="app-shell">
+  <!-- window chrome -->
+  <div class="chrome">
+    <div class="dot r"></div>
+    <div class="dot y"></div>
+    <div class="dot g"></div>
+    <span class="chrome-title">autostudyai.com/dashboard</span>
+  </div>
+
+  <div class="app-body">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="logo">
+        <div class="logo-mark">✦</div>
+        <div class="logo-text">AutoStudyAI</div>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Main</div>
+        <div class="nav-item active">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="#a78bfa" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+          Create Guide
+        </div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h7"/></svg>
+          Study Guides
+        </div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1.5"/><path d="M6 4V3a2 2 0 014 0v1"/></svg>
+          Flashcards
+        </div>
+      </div>
+
+      <div class="nav-group" style="margin-top:6px;">
+        <div class="nav-label">Study</div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 100 12A6 6 0 008 2z"/><path d="M8 6v3l2 1"/></svg>
+          Classes
+        </div>
+      </div>
+
+      <div class="sidebar-bottom">
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 13c0-3 2.7-5 6-5s6 2 6 5"/></svg>
+          Settings
+        </div>
+        <div class="user-row">
+          <div class="avatar">J</div>
+          <div class="user-info">
+            <div class="user-name">Jackson</div>
+            <div class="user-plan">Pro Plan</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+
+      <div class="content">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Dashboard</div>
+            <div class="page-sub">3 guides updated this week</div>
+          </div>
+          <div class="cta-btn">
+            <span class="cta-plus">+</span> New Study Guide
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-num">12</div>
+            <div class="stat-label">Total Guides</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num">84%</div>
+            <div class="stat-label">Avg Score</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num">7</div>
+            <div class="stat-label">Day Streak</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num">248</div>
+            <div class="stat-label">Flashcards</div>
+          </div>
+        </div>
+
+        <div class="guides-section">
+          <div class="section-label">Recent Guides</div>
+          <div class="guide-list">
+            <div class="guide-card">
+              <div class="guide-left">
+                <div class="guide-icon purple">🧬</div>
+                <div>
+                  <div class="guide-name">Bio 201 — Chapter 7</div>
+                  <div class="guide-meta">14 flashcards · Updated 2 days ago</div>
+                </div>
+              </div>
+              <div class="guide-right">
+                <div class="score-pill score-high">91%</div>
+                <svg class="chevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg>
+              </div>
+            </div>
+            <div class="guide-card">
+              <div class="guide-left">
+                <div class="guide-icon blue">🧠</div>
+                <div>
+                  <div class="guide-name">Psych 101 — Memory</div>
+                  <div class="guide-meta">8 flashcards · Updated 4 days ago</div>
+                </div>
+              </div>
+              <div class="guide-right">
+                <div class="score-pill score-mid">72%</div>
+                <svg class="chevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg>
+              </div>
+            </div>
+            <div class="guide-card">
+              <div class="guide-left">
+                <div class="guide-icon green">⚗️</div>
+                <div>
+                  <div class="guide-name">Chem 110 — Reactions</div>
+                  <div class="guide-meta">22 flashcards · Updated 1 week ago</div>
+                </div>
+              </div>
+              <div class="guide-right">
+                <div class="score-pill score-high">84%</div>
+                <svg class="chevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -242,6 +242,7 @@ def generate_study_guide_from_note(note_id: str, authorization: str = Header(def
             "title": suggested_title,
             "study_guide": study_guide,
             "pairs": pairs,
+            "notes_html": html_content,  # passed back so frontend can save as the notes field
         }
 
     except HTTPException:

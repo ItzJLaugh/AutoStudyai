@@ -1,0 +1,319 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+
+  .preview-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+  }
+
+  .mockup-shell {
+    background: #0d0b1a;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(167,139,250,0.2);
+    width: 580px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(167,139,250,0.08);
+  }
+
+  .mockup-topbar {
+    background: #100d22;
+    border-bottom: 1px solid rgba(167,139,250,0.08);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot.r { background: #f87171; }
+  .dot.y { background: #fbbf24; }
+  .dot.g { background: #6ee7b7; }
+
+  .mockup-body { display: flex; height: 400px; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 195px;
+    background: #0f0c22;
+    border-right: 1px solid rgba(167,139,250,0.08);
+    padding: 18px 0 16px;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .sidebar-logo {
+    font-size: 13px;
+    font-weight: 700;
+    color: #a78bfa;
+    padding: 0 18px 18px;
+    letter-spacing: -0.01em;
+    border-bottom: 1px solid rgba(167,139,250,0.07);
+    margin-bottom: 10px;
+  }
+
+  /* NAV ITEMS — more vertical spacing */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;        /* more vertical padding */
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #6b6188;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.15s;
+    letter-spacing: -0.01em;
+    margin-bottom: 2px;        /* gap between items */
+  }
+
+  .nav-item.active {
+    color: #f0ecf9;
+    font-weight: 600;
+  }
+
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    background: linear-gradient(180deg, #c4b5fd, #7c3aed);
+    border-radius: 0 3px 3px 0;
+  }
+
+  .nav-icon {
+    width: 15px; height: 15px;
+    opacity: 0.4;
+    flex-shrink: 0;
+  }
+  .nav-item.active .nav-icon { opacity: 1; }
+
+  .nav-section-gap { height: 10px; }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid rgba(167,139,250,0.07);
+  }
+
+  /* MAIN CONTENT */
+  .main-content {
+    flex: 1;
+    background: linear-gradient(160deg, #13102a 0%, #0f0c22 100%);
+    padding: 24px 20px;
+    overflow: hidden;
+  }
+
+  .content-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #f0ecf9;
+    margin-bottom: 3px;
+    letter-spacing: -0.02em;
+  }
+  .content-sub {
+    font-size: 11px;
+    color: #4a3f6b;
+    margin-bottom: 20px;
+    font-weight: 500;
+  }
+
+  /* STAT ROW */
+  .stat-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .stat-box {
+    flex: 1;
+    background: #1a1535;
+    border: 1px solid rgba(167,139,250,0.12);
+    border-radius: 10px;
+    padding: 12px 14px;
+    /* depth: shadow below + subtle inner glow */
+    box-shadow:
+      0 4px 16px rgba(0,0,0,0.4),
+      0 1px 0 rgba(255,255,255,0.04) inset,
+      0 0 0 1px rgba(167,139,250,0.06) inset;
+  }
+  .stat-num {
+    font-size: 20px;
+    font-weight: 700;
+    color: #f0ecf9;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 10.5px;
+    font-weight: 500;
+    color: #4a3f6b;
+    margin-top: 4px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  /* GUIDE CARDS */
+  .cards { display: flex; flex-direction: column; gap: 8px; }
+
+  .guide-card {
+    background: #1a1535;
+    border: 1px solid rgba(167,139,250,0.1);
+    border-radius: 10px;
+    padding: 11px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    /* depth effect: drop shadow + top highlight */
+    box-shadow:
+      0 6px 20px rgba(0,0,0,0.45),
+      0 1px 0 rgba(255,255,255,0.05) inset;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .guide-card:hover {
+    border-color: rgba(167,139,250,0.25);
+    box-shadow:
+      0 8px 28px rgba(0,0,0,0.5),
+      0 0 0 0 rgba(167,139,250,0.1),
+      0 1px 0 rgba(255,255,255,0.06) inset;
+  }
+
+  .gc-left {}
+  .gc-title { font-size: 12.5px; font-weight: 600; color: #e8e4f5; letter-spacing: -0.01em; }
+  .gc-meta { font-size: 10.5px; color: #4a3f6b; margin-top: 3px; font-weight: 500; }
+
+  .gc-badge {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6ee7b7;
+    background: rgba(110,231,183,0.1);
+    border: 1px solid rgba(110,231,183,0.2);
+    border-radius: 20px;
+    padding: 3px 8px;
+    letter-spacing: 0.02em;
+  }
+
+  /* annotations */
+  .annotation-row {
+    display: flex;
+    gap: 20px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(167,139,250,0.06);
+  }
+  .annotation {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    color: #a78bfa;
+    font-weight: 500;
+  }
+  .ann-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #a78bfa;
+    box-shadow: 0 0 8px rgba(167,139,250,0.8);
+  }
+</style>
+
+<h2>Refined Option B — does this feel right?</h2>
+<p class="subtitle">More spacing between nav items · card depth via shadows + inner highlight · gradient background · left accent bar with gradient</p>
+
+<div class="preview-wrap">
+  <div class="mockup-shell">
+    <div class="mockup-topbar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span style="font-size:11px;color:#4a3f6b;margin-left:8px;font-weight:500;">AutoStudyAI</span>
+    </div>
+    <div class="mockup-body">
+      <div class="sidebar">
+        <div class="sidebar-logo">✦ AutoStudyAI</div>
+
+        <div class="nav-item active">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="#a78bfa" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+          Create Guide
+        </div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h7"/></svg>
+          Study Guides
+        </div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1.5"/><path d="M6 4V3a2 2 0 014 0v1"/></svg>
+          Flashcards
+        </div>
+        <div class="nav-section-gap"></div>
+        <div class="nav-item">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 100 12A6 6 0 008 2z"/><path d="M8 6v3l2 1"/></svg>
+          Classes
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 13c0-3 2.7-5 6-5s6 2 6 5"/></svg>
+            Settings
+          </div>
+        </div>
+      </div>
+
+      <div class="main-content">
+        <div class="content-title">Dashboard</div>
+        <div class="content-sub">3 guides updated recently</div>
+
+        <div class="stat-row">
+          <div class="stat-box">
+            <div class="stat-num">12</div>
+            <div class="stat-label">Guides</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num">84%</div>
+            <div class="stat-label">Avg Score</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num">7</div>
+            <div class="stat-label">Day Streak</div>
+          </div>
+        </div>
+
+        <div class="cards">
+          <div class="guide-card">
+            <div class="gc-left">
+              <div class="gc-title">Bio 201 — Chapter 7</div>
+              <div class="gc-meta">14 flashcards · 2 days ago</div>
+            </div>
+            <div class="gc-badge">91%</div>
+          </div>
+          <div class="guide-card">
+            <div class="gc-left">
+              <div class="gc-title">Psych 101 — Memory</div>
+              <div class="gc-meta">8 flashcards · 4 days ago</div>
+            </div>
+            <div class="gc-badge">84%</div>
+          </div>
+          <div class="guide-card">
+            <div class="gc-left">
+              <div class="gc-title">Chem 110 — Reactions</div>
+              <div class="gc-meta">22 flashcards · 1 week ago</div>
+            </div>
+            <div class="gc-badge">72%</div>
+          </div>
+        </div>
+
+        <div class="annotation-row">
+          <div class="annotation"><div class="ann-dot"></div>More nav spacing</div>
+          <div class="annotation"><div class="ann-dot"></div>Card depth shadows</div>
+          <div class="annotation"><div class="ann-dot"></div>Inner highlight glow</div>
+          <div class="annotation"><div class="ann-dot"></div>Gradient sidebar bar</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,289 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 20px; }
+
+  .mockup-shell {
+    background: #0d0b1a;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(167,139,250,0.2);
+  }
+
+  .mockup-topbar {
+    background: #13102a;
+    border-bottom: 1px solid rgba(167,139,250,0.1);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot.red { background: #f87171; }
+  .dot.yellow { background: #fbbf24; }
+  .dot.green { background: #6ee7b7; }
+
+  .mockup-body { display: flex; height: 360px; }
+
+  /* SIDEBAR BASE */
+  .sidebar {
+    background: #13102a;
+    border-right: 1px solid rgba(167,139,250,0.1);
+    padding: 16px 0;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .sidebar-logo {
+    font-size: 13px;
+    font-weight: 700;
+    color: #a78bfa;
+    padding: 0 16px 16px;
+    letter-spacing: -0.01em;
+    border-bottom: 1px solid rgba(167,139,250,0.08);
+    margin-bottom: 8px;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 8px 0;
+    border-top: 1px solid rgba(167,139,250,0.08);
+  }
+
+  /* MAIN CONTENT AREA */
+  .main-content {
+    flex: 1;
+    background: #13102a;
+    padding: 20px;
+  }
+
+  .content-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #f0ecf9;
+    margin-bottom: 4px;
+  }
+  .content-sub {
+    font-size: 11px;
+    color: #7c6f9b;
+    margin-bottom: 16px;
+  }
+  .content-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .content-card {
+    background: #221c42;
+    border: 1px solid rgba(167,139,250,0.12);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .cc-title { font-size: 12px; font-weight: 600; color: #f0ecf9; }
+  .cc-meta { font-size: 10px; color: #7c6f9b; margin-top: 2px; }
+
+  /* ─── OPTION A: Icons + Labels ─── */
+  .sidebar-a { width: 180px; }
+
+  .nav-item-a {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #b8b0d0;
+    cursor: pointer;
+    border-radius: 6px;
+    margin: 0 8px 1px;
+    transition: background 0.15s;
+  }
+
+  .nav-item-a.active {
+    background: rgba(167,139,250,0.12);
+    color: #f0ecf9;
+    font-weight: 600;
+  }
+
+  .nav-item-a .icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .nav-item-a.active .icon { opacity: 1; }
+
+  .nav-section-label {
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #4a3f6b;
+    padding: 10px 14px 4px 22px;
+    margin: 0 8px;
+  }
+
+  /* ─── OPTION B: Bold Left Indicator ─── */
+  .sidebar-b { width: 180px; }
+
+  .nav-item-b {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 9px 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #7c6f9b;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.15s;
+  }
+
+  .nav-item-b.active {
+    color: #f0ecf9;
+    font-weight: 600;
+  }
+
+  .nav-item-b.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    background: #a78bfa;
+    border-radius: 0 3px 3px 0;
+  }
+
+  .nav-item-b .b-icon {
+    width: 15px;
+    height: 15px;
+    margin-right: 9px;
+    opacity: 0.5;
+    flex-shrink: 0;
+  }
+  .nav-item-b.active .b-icon { opacity: 1; }
+
+  /* caption */
+  .option-label {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: #a78bfa;
+    padding: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: rgba(167,139,250,0.05);
+    border-top: 1px solid rgba(167,139,250,0.1);
+  }
+</style>
+
+<h2>How should the sidebar navigation look?</h2>
+<p class="subtitle">Both use Inter. The sidebar is the first thing users see — it sets the tone for the whole app.</p>
+
+<div class="split">
+
+  <!-- OPTION A: Icons + Labels -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)" style="background:transparent;border:none;padding:0;">
+    <div class="mockup-shell">
+      <div class="mockup-topbar">
+        <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+      </div>
+      <div class="mockup-body">
+        <div class="sidebar sidebar-a">
+          <div class="sidebar-logo">✦ AutoStudyAI</div>
+          <div class="nav-item-a active">
+            <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="#a78bfa" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+            Dashboard
+          </div>
+          <div class="nav-item-a">
+            <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+            Create Guide
+          </div>
+          <div class="nav-item-a">
+            <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h7"/></svg>
+            Study Guides
+          </div>
+          <div class="nav-item-a">
+            <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1.5"/><path d="M6 4V3a2 2 0 014 0v1"/></svg>
+            Flashcards
+          </div>
+          <div class="nav-item-a">
+            <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 100 12A6 6 0 008 2z"/><path d="M8 6v3l2 1"/></svg>
+            Classes
+          </div>
+          <div class="sidebar-footer">
+            <div class="nav-item-a">
+              <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 13c0-3 2.7-5 6-5s6 2 6 5"/></svg>
+              Settings
+            </div>
+          </div>
+        </div>
+        <div class="main-content">
+          <div class="content-title">Dashboard</div>
+          <div class="content-sub">3 guides updated recently</div>
+          <div class="content-cards">
+            <div class="content-card"><div class="cc-title">Bio 201 — Chapter 7</div><div class="cc-meta">14 flashcards · 84% score</div></div>
+            <div class="content-card"><div class="cc-title">Psych 101 — Memory</div><div class="cc-meta">8 flashcards · 72% score</div></div>
+            <div class="content-card"><div class="cc-title">Chem 110 — Reactions</div><div class="cc-meta">22 flashcards · 91% score</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="option-label">A — Icons + Labels</div>
+    </div>
+  </div>
+
+  <!-- OPTION B: Bold left bar, icons + labels -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)" style="background:transparent;border:none;padding:0;">
+    <div class="mockup-shell">
+      <div class="mockup-topbar">
+        <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+      </div>
+      <div class="mockup-body">
+        <div class="sidebar sidebar-b">
+          <div class="sidebar-logo">✦ AutoStudyAI</div>
+          <div class="nav-item-b active">
+            <svg class="b-icon" viewBox="0 0 16 16" fill="none" stroke="#a78bfa" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+            Dashboard
+          </div>
+          <div class="nav-item-b">
+            <svg class="b-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+            Create Guide
+          </div>
+          <div class="nav-item-b">
+            <svg class="b-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h7"/></svg>
+            Study Guides
+          </div>
+          <div class="nav-item-b">
+            <svg class="b-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1.5"/><path d="M6 4V3a2 2 0 014 0v1"/></svg>
+            Flashcards
+          </div>
+          <div class="nav-item-b">
+            <svg class="b-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 100 12A6 6 0 008 2z"/><path d="M8 6v3l2 1"/></svg>
+            Classes
+          </div>
+          <div class="sidebar-footer">
+            <div class="nav-item-b">
+              <svg class="b-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 13c0-3 2.7-5 6-5s6 2 6 5"/></svg>
+              Settings
+            </div>
+          </div>
+        </div>
+        <div class="main-content">
+          <div class="content-title">Dashboard</div>
+          <div class="content-sub">3 guides updated recently</div>
+          <div class="content-cards">
+            <div class="content-card"><div class="cc-title">Bio 201 — Chapter 7</div><div class="cc-meta">14 flashcards · 84% score</div></div>
+            <div class="content-card"><div class="cc-title">Psych 101 — Memory</div><div class="cc-meta">8 flashcards · 72% score</div></div>
+            <div class="content-card"><div class="cc-title">Chem 110 — Reactions</div><div class="cc-meta">22 flashcards · 91% score</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="option-label">B — Left bar indicator</div>
+    </div>
+  </div>
+
+</div>

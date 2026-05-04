@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #07060f;
+  font-family: 'Inter', sans-serif;
+  padding: 36px 24px 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; color: #f0ecf9; text-align: center; margin-bottom: 6px; }
+.sub { font-size: 12.5px; color: #4a3f6b; text-align: center; margin-bottom: 32px; }
+
+.two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 960px; max-width: 100%; }
+
+/* ── SHELL ── */
+.shell {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.09);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 28px 70px rgba(0,0,0,0.65);
+  height: 520px;
+}
+.chrome {
+  height: 34px; display: flex; align-items: center;
+  padding: 0 13px; gap: 6px; flex-shrink: 0;
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.r{background:#ff5f57} .y{background:#febc2e} .g{background:#28c840}
+.chrome-label { font-size: 10.5px; margin-left: 8px; font-weight: 400; }
+.body { display: flex; flex: 1; overflow: hidden; }
+
+/* ─── DARK THEME ─── */
+.dark .chrome { background: #0c0a1c; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.dark .chrome-label { color: rgba(255,255,255,0.18); }
+.dark .sidebar { background: #0c0a1c; border-right: 1px solid rgba(255,255,255,0.05); }
+.dark .main { background: #100e21; }
+.dark .logo-name { color: #f0ecf9; }
+.dark .logo-icon { background: #a78bfa; color: #0c0a1c; }
+.dark .nav-item { color: rgba(255,255,255,0.3); }
+.dark .nav-item.active { color: #f0ecf9; }
+.dark .nav-item.active::before { background: #a78bfa; }
+.dark .nav-divider { background: rgba(255,255,255,0.05); }
+.dark .page-title { color: #f0ecf9; }
+.dark .page-sub { color: rgba(255,255,255,0.22); }
+.dark .btn-primary { background: #a78bfa; color: #0c0a1c; box-shadow: 0 2px 14px rgba(167,139,250,0.3); }
+
+/* DARK CARDS — elevated with subtle shader */
+.dark .stat {
+  background: linear-gradient(160deg, #1e1a3a 0%, #171430 100%);
+  border-top: 1px solid rgba(255,255,255,0.1);    /* top highlight */
+  border-left: 1px solid rgba(255,255,255,0.06);
+  border-right: 1px solid rgba(0,0,0,0.3);
+  border-bottom: 1px solid rgba(0,0,0,0.4);
+  box-shadow:
+    0 6px 20px rgba(0,0,0,0.45),
+    0 1px 0 rgba(255,255,255,0.08) inset; /* inner top shine */
+}
+.dark .stat-num { color: #f0ecf9; }
+.dark .stat-label { color: rgba(255,255,255,0.28); }
+
+.dark .guide-row {
+  background: linear-gradient(160deg, #1e1a3a 0%, #171430 100%);
+  border-top: 1px solid rgba(255,255,255,0.09);
+  border-left: 1px solid rgba(255,255,255,0.05);
+  border-right: 1px solid rgba(0,0,0,0.25);
+  border-bottom: 1px solid rgba(0,0,0,0.35);
+  box-shadow:
+    0 4px 16px rgba(0,0,0,0.4),
+    0 1px 0 rgba(255,255,255,0.06) inset;
+}
+.dark .guide-row:hover {
+  border-top-color: rgba(167,139,250,0.3);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.08) inset;
+}
+.dark .guide-name { color: #e8e4f5; }
+.dark .guide-meta { color: rgba(255,255,255,0.22); }
+.dark .guide-count { color: rgba(255,255,255,0.2); }
+.dark .guide-ico { background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.12); }
+.dark .chevron { opacity: .16; stroke: #fff; }
+.dark .section-title { color: rgba(255,255,255,0.28); }
+.dark .section-action { color: #a78bfa; }
+
+/* ─── LIGHT THEME ─── */
+.light .chrome { background: #f0f4ff; border-bottom: 1px solid rgba(0,0,80,0.08); }
+.light .chrome-label { color: rgba(0,0,80,0.3); }
+.light .shell { border-color: rgba(0,0,80,0.1); box-shadow: 0 28px 70px rgba(100,80,200,0.15); }
+.light .sidebar { background: #f8f9ff; border-right: 1px solid rgba(0,0,80,0.08); }
+.light .main { background: #f0f4ff; }
+.light .logo-name { color: #1a1060; }
+.light .logo-icon { background: #7c3aed; color: #fff; }
+.light .nav-item { color: rgba(20,10,80,0.4); }
+.light .nav-item.active { color: #1a1060; }
+.light .nav-item.active::before { background: #7c3aed; }
+.light .nav-divider { background: rgba(0,0,80,0.07); }
+.light .page-title { color: #1a1060; }
+.light .page-sub { color: rgba(20,10,80,0.38); }
+.light .btn-primary { background: #7c3aed; color: #fff; box-shadow: 0 2px 14px rgba(124,58,237,0.25); }
+
+/* LIGHT CARDS — elevated with top highlight + bottom shadow */
+.light .stat {
+  background: linear-gradient(160deg, #ffffff 0%, #f4f0ff 100%);
+  border-top: 1px solid rgba(255,255,255,0.95);
+  border-left: 1px solid rgba(255,255,255,0.8);
+  border-right: 1px solid rgba(124,58,237,0.08);
+  border-bottom: 1px solid rgba(124,58,237,0.12);
+  box-shadow:
+    0 4px 16px rgba(100,80,200,0.12),
+    0 1px 0 rgba(255,255,255,1) inset;
+}
+.light .stat-num { color: #1a1060; }
+.light .stat-label { color: rgba(20,10,80,0.38); }
+
+.light .guide-row {
+  background: linear-gradient(160deg, #ffffff 0%, #f8f6ff 100%);
+  border-top: 1px solid rgba(255,255,255,1);
+  border-left: 1px solid rgba(255,255,255,0.9);
+  border-right: 1px solid rgba(124,58,237,0.07);
+  border-bottom: 1px solid rgba(124,58,237,0.1);
+  box-shadow:
+    0 3px 12px rgba(100,80,200,0.1),
+    0 1px 0 rgba(255,255,255,1) inset;
+}
+.light .guide-row:hover {
+  border-top-color: rgba(255,255,255,1);
+  box-shadow: 0 5px 18px rgba(100,80,200,0.15), 0 1px 0 rgba(255,255,255,1) inset;
+}
+.light .guide-name { color: #1a1060; }
+.light .guide-meta { color: rgba(20,10,80,0.38); }
+.light .guide-count { color: rgba(20,10,80,0.3); }
+.light .guide-ico { background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.12); }
+.light .chevron { opacity: .2; stroke: #1a1060; }
+.light .section-title { color: rgba(20,10,80,0.38); }
+.light .section-action { color: #7c3aed; }
+
+/* ── SHARED STRUCTURE ── */
+.sidebar {
+  width: 190px; flex-shrink: 0;
+  padding: 0; display: flex; flex-direction: column;
+}
+.logo-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid transparent;
+}
+.logo-icon {
+  width: 26px; height: 26px; border-radius: 7px;
+  font-size: 13px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.logo-name { font-size: 13px; font-weight: 700; letter-spacing: -0.02em; }
+.nav-section { padding: 12px 0 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 18px; font-size: 12.5px; font-weight: 500;
+  cursor: pointer; position: relative; letter-spacing: -0.01em;
+}
+.nav-item + .nav-item { margin-top: 1px; }
+.nav-item.active { font-weight: 600; }
+.nav-item.active::before {
+  content:''; position:absolute;
+  left:0; top:7px; bottom:7px; width:3px;
+  border-radius:0 3px 3px 0;
+}
+.ni { width:14px; height:14px; flex-shrink:0; opacity:.35; }
+.nav-item.active .ni { opacity: 1; }
+.nav-divider { height: 1px; margin: 8px 0; }
+.sidebar-bottom {
+  margin-top: auto; padding: 10px 0;
+  border-top: 1px solid transparent;
+}
+.user-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 18px;
+}
+.avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.25);
+  font-size: 11px; font-weight: 700; color: #7c3aed;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.user-name { font-size: 11.5px; font-weight: 600; }
+.user-plan { font-size: 10px; opacity: .4; }
+
+.main { flex: 1; padding: 22px 22px 0; overflow: hidden; display: flex; flex-direction: column; gap: 16px; }
+
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; }
+.page-title { font-size: 20px; font-weight: 800; letter-spacing: -0.04em; }
+.page-sub { font-size: 11.5px; margin-top: 3px; font-weight: 400; }
+.btn-primary {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 700;
+  padding: 9px 16px; border-radius: 100px;
+  white-space: nowrap; flex-shrink: 0; letter-spacing: -0.01em;
+}
+
+.stats { display: flex; gap: 10px; }
+.stat { flex: 1; border-radius: 11px; padding: 13px 15px; transition: box-shadow .15s; }
+.stat-num { font-size: 24px; font-weight: 800; letter-spacing: -0.05em; line-height: 1; }
+.stat-label { font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-top: 4px; }
+
+.section-head { display: flex; align-items: center; justify-content: space-between; }
+.section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; }
+.section-action { font-size: 11.5px; font-weight: 500; cursor: pointer; }
+
+.guide-list { display: flex; flex-direction: column; gap: 7px; }
+.guide-row {
+  border-radius: 10px; padding: 11px 14px;
+  display: flex; align-items: center; gap: 12px;
+  cursor: pointer; transition: box-shadow .15s;
+}
+.guide-ico {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; flex-shrink: 0;
+}
+.guide-info { flex: 1; min-width: 0; }
+.guide-name { font-size: 12.5px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.guide-meta { font-size: 10.5px; margin-top: 2px; font-weight: 400; }
+.guide-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.guide-count { font-size: 11px; font-weight: 500; }
+.chevron { width: 13px; height: 13px; }
+</style>
+</head>
+<body>
+
+<h2>Dark + Light — Elevated card treatment</h2>
+<p class="sub">Top-edge highlight + subtle gradient fill + drop shadow = cards that pop without being dramatic</p>
+
+<div class="two-up">
+
+  <!-- DARK -->
+  <div class="shell dark">
+    <div class="chrome">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="chrome-label">Dark Mode</span>
+    </div>
+    <div class="body">
+      <div class="sidebar">
+        <div class="logo-row">
+          <div class="logo-icon">A</div>
+          <div class="logo-name">AutoStudyAI</div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-item active">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="#a78bfa" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+            Home
+          </div>
+          <div class="nav-item">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+            Create Guide
+          </div>
+          <div class="nav-item">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h7"/></svg>
+            Study Guides
+          </div>
+          <div class="nav-item">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1.5"/><path d="M6 4V3a2 2 0 014 0v1"/></svg>
+            Flashcards
+          </div>
+          <div class="nav-divider"></div>
+          <div class="nav-item">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13V5l6-3 6 3v8"/><rect x="6" y="9" width="4" height="4"/></svg>
+            Classes
+          </div>
+        </div>
+        <div class="sidebar-bottom">
+          <div class="nav-item">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 13c0-3 2.7-5 6-5s6 2 6 5"/></svg>
+            Settings
+          </div>
+          <div class="user-row">
+            <div class="avatar">J</div>
+            <div><div class="user-name" style="color:rgba(255,255,255,0.6)">Jackson L.</div><div class="user-plan">Pro Plan</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="page-head">
+          <div>
+            <div class="page-title">Dashboard</div>
+            <div class="page-sub">3 guides updated this week</div>
+          </div>
+          <div class="btn-primary">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg>
+            New Guide
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="stat-num">12</div><div class="stat-label">Guides</div></div>
+          <div class="stat"><div class="stat-num">84%</div><div class="stat-label">Avg Score</div></div>
+          <div class="stat"><div class="stat-num">7</div><div class="stat-label">Streak</div></div>
+          <div class="stat"><div class="stat-num">248</div><div class="stat-label">Cards</div></div>
+        </div>
+        <div>
+          <div class="section-head" style="margin-bottom:10px">
+            <div class="section-title">Recent Guides</div>
+            <div class="section-action">View all</div>
+          </div>
+          <div class="guide-list">
+            <div class="guide-row">
+              <div class="guide-ico">🧬</div>
+              <div class="guide-info"><div class="guide-name">Bio 201 — Chapter 7</div><div class="guide-meta">14 flashcards · 2 days ago</div></div>
+              <div class="guide-right"><div class="guide-count">14 cards</div><svg class="chevron" viewBox="0 0 14 14" fill="none" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg></div>
+            </div>
+            <div class="guide-row">
+              <div class="guide-ico">🧠</div>
+              <div class="guide-info"><div class="guide-name">Psych 101 — Memory</div><div class="guide-meta">8 flashcards · 4 days ago</div></div>
+              <div class="guide-right"><div class="guide-count">8 cards</div><svg class="chevron" viewBox="0 0 14 14" fill="none" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg></div>
+            </div>
+            <div class="guide-row">
+              <div class="guide-ico">⚗️</div>
+              <div class="guide-info"><div class="guide-name">Chem 110 — Reactions</div><div class="guide-meta">22 flashcards · 1 week ago</div></div>
+              <div class="guide-right"><div class="guide-count">22 cards</div><svg class="chevron" viewBox="0 0 14 14" fill="none" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIGHT -->
+  <div class="shell light">
+    <div class="chrome">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="chrome-label">Light Mode</span>
+    </div>
+    <div class="body">
+      <div class="sidebar">
+        <div class="logo-row">
+          <div class="logo-icon">A</div>
+          <div class="logo-name">AutoStudyAI</div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-item active">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="#7c3aed" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+            Home
+          </div>
+          <div class="nav-item">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+            Create Guide
+          </div>
+          <div class="nav-item">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h7"/></svg>
+            Study Guides
+          </div>
+          <div class="nav-item">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1.5"/><path d="M6 4V3a2 2 0 014 0v1"/></svg>
+            Flashcards
+          </div>
+          <div class="nav-divider"></div>
+          <div class="nav-item">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13V5l6-3 6 3v8"/><rect x="6" y="9" width="4" height="4"/></svg>
+            Classes
+          </div>
+        </div>
+        <div class="sidebar-bottom">
+          <div class="nav-item">
+            <svg class="ni" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 13c0-3 2.7-5 6-5s6 2 6 5"/></svg>
+            Settings
+          </div>
+          <div class="user-row">
+            <div class="avatar">J</div>
+            <div><div class="user-name" style="color:#2d1b6e">Jackson L.</div><div class="user-plan" style="color:rgba(45,27,110,0.4)">Pro Plan</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="page-head">
+          <div>
+            <div class="page-title">Dashboard</div>
+            <div class="page-sub">3 guides updated this week</div>
+          </div>
+          <div class="btn-primary">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg>
+            New Guide
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="stat-num">12</div><div class="stat-label">Guides</div></div>
+          <div class="stat"><div class="stat-num">84%</div><div class="stat-label">Avg Score</div></div>
+          <div class="stat"><div class="stat-num">7</div><div class="stat-label">Streak</div></div>
+          <div class="stat"><div class="stat-num">248</div><div class="stat-label">Cards</div></div>
+        </div>
+        <div>
+          <div class="section-head" style="margin-bottom:10px">
+            <div class="section-title">Recent Guides</div>
+            <div class="section-action">View all</div>
+          </div>
+          <div class="guide-list">
+            <div class="guide-row">
+              <div class="guide-ico">🧬</div>
+              <div class="guide-info"><div class="guide-name">Bio 201 — Chapter 7</div><div class="guide-meta">14 flashcards · 2 days ago</div></div>
+              <div class="guide-right"><div class="guide-count">14 cards</div><svg class="chevron" viewBox="0 0 14 14" fill="none" stroke="#1a1060" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg></div>
+            </div>
+            <div class="guide-row">
+              <div class="guide-ico">🧠</div>
+              <div class="guide-info"><div class="guide-name">Psych 101 — Memory</div><div class="guide-meta">8 flashcards · 4 days ago</div></div>
+              <div class="guide-right"><div class="guide-count">8 cards</div><svg class="chevron" viewBox="0 0 14 14" fill="none" stroke="#1a1060" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg></div>
+            </div>
+            <div class="guide-row">
+              <div class="guide-ico">⚗️</div>
+              <div class="guide-info"><div class="guide-name">Chem 110 — Reactions</div><div class="guide-meta">22 flashcards · 1 week ago</div></div>
+              <div class="guide-right"><div class="guide-count">22 cards</div><svg class="chevron" viewBox="0 0 14 14" fill="none" stroke="#1a1060" stroke-width="1.5"><path d="M5 3l4 4-4 4"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
