@@ -186,6 +186,71 @@ def delete_note(note_id: str, authorization: str = Header(default="")):
         raise HTTPException(status_code=500, detail="Failed to delete note")
 
 
+@router.post("/{note_id}/study_guide")
+def generate_study_guide_from_note(note_id: str, authorization: str = Header(default="")):
+    """Generate a preview study guide from a SmartNote's content.
+    Does NOT save to study_guides — the frontend shows a preview and the
+    user picks Approve (which posts to /guides), Edit (manual editor),
+    or Cancel.
+    """
+    try:
+        _validate_uuid(note_id, "note ID")
+        user_id = get_user_id(authorization)
+        supabase = get_supabase()
+
+        result = supabase.table("smart_notes") \
+            .select("id, title, content") \
+            .eq("id", note_id) \
+            .eq("user_id", user_id) \
+            .execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        note = result.data[0]
+        html_content = note.get("content") or ""
+        if not html_content.strip():
+            raise HTTPException(status_code=400, detail="Note is empty — add some content first")
+
+        from services.llm import generate_study_guide_from_notes
+        study_guide = generate_study_guide_from_notes(html_content)
+
+        if not study_guide:
+            raise HTTPException(status_code=422, detail="Couldn't find educational content in this note")
+        if study_guide.startswith("[Error"):
+            raise HTTPException(status_code=502, detail=study_guide.strip("[]"))
+
+        # Parse Q&A pairs for the preview UI (saves the frontend a parse step)
+        pairs = []
+        lines = study_guide.split('\n')
+        current_q = None
+        for line in lines:
+            qm = re.match(r'^Q\d+:\s*(.+)', line)
+            am = re.match(r'^A\d+:\s*(.+)', line)
+            if qm:
+                current_q = qm.group(1).strip()
+            elif am and current_q is not None:
+                pairs.append({"question": current_q, "answer": am.group(1).strip()})
+                current_q = None
+
+        if not pairs:
+            raise HTTPException(status_code=422, detail="No Q&A pairs could be generated from this note")
+
+        title = (note.get("title") or "Untitled Notes").strip()
+        suggested_title = title if title.lower().endswith("study guide") else f"{title} — Study Guide"
+
+        return {
+            "title": suggested_title,
+            "study_guide": study_guide,
+            "pairs": pairs,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating study guide from note: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate study guide")
+
+
 @router.post("/diagram")
 def generate_diagram(request: DiagramRequest, authorization: str = Header(default="")):
     try:
