@@ -405,12 +405,15 @@ function NotesIndex({ router }) {
     if (!guidePreview || !guidePreview.study_guide) return;
     setSavingGuide(true);
     try {
+      const flashcards = (guidePreview.pairs || []).map(p => ({ front: p.question, back: p.answer }));
       const resp = await fetch(API + '/guides', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: (previewTitle || 'Untitled — Study Guide').trim(),
           study_guide: guidePreview.study_guide,
+          notes: guidePreview.notes_html || '',
+          flashcards: flashcards.length ? flashcards : undefined,
           folder_id: selectedFolderId || null,
         }),
       });
@@ -1304,12 +1307,15 @@ function SmartNotesEditor() {
     if (!guidePreview || !guidePreview.study_guide) return;
     setSavingGuide(true);
     try {
+      const flashcards = (guidePreview.pairs || []).map(p => ({ front: p.question, back: p.answer }));
       const resp = await fetch(API + '/guides', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: (previewTitle || 'Untitled — Study Guide').trim(),
           study_guide: guidePreview.study_guide,
+          notes: guidePreview.notes_html || '',
+          flashcards: flashcards.length ? flashcards : undefined,
           folder_id: folderIdRef.current || null,
         }),
       });
