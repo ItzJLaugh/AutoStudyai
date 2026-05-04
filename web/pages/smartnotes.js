@@ -404,6 +404,13 @@ function SmartNotesEditor() {
   const [diagramLoading, setDiagramLoading] = useState(false);
   const [visualizeMode, setVisualizeMode] = useState(false);
 
+  // "Turn into Study Guide" preview modal
+  const [convertingGuide, setConvertingGuide] = useState(false);
+  const [guidePreview, setGuidePreview] = useState(null); // { title, study_guide, pairs }
+  const [previewTitle, setPreviewTitle] = useState('');
+  const [previewError, setPreviewError] = useState('');
+  const [savingGuide, setSavingGuide] = useState(false);
+
   // Resize state
   const [colWidth, setColWidth] = useState(320);
   const [topPx, setTopPx] = useState(null); // null = CSS default 1fr
@@ -1087,6 +1094,79 @@ function SmartNotesEditor() {
     router.push('/smartnotes?id=' + id);
   }
 
+  async function handleConvertToGuide() {
+    setShowNotesList(false);
+    if (!noteIdRef.current) return;
+    setPreviewError('');
+    setConvertingGuide(true);
+    try {
+      await doSave(); // ensure latest content is in DB before backend reads it
+      const resp = await fetch(API + '/smart_notes/' + noteIdRef.current + '/study_guide', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setPreviewError(data?.detail || 'Failed to generate study guide');
+        setGuidePreview({ title: '', study_guide: '', pairs: [] });
+      } else {
+        setGuidePreview(data);
+        setPreviewTitle(data.title || 'Untitled — Study Guide');
+      }
+    } catch (e) {
+      setPreviewError('Network error — please try again');
+      setGuidePreview({ title: '', study_guide: '', pairs: [] });
+    } finally {
+      setConvertingGuide(false);
+    }
+  }
+
+  function handleClosePreview() {
+    setGuidePreview(null);
+    setPreviewError('');
+    setPreviewTitle('');
+  }
+
+  async function handleApprovePreview() {
+    if (!guidePreview || !guidePreview.study_guide) return;
+    setSavingGuide(true);
+    try {
+      const resp = await fetch(API + '/guides', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: (previewTitle || 'Untitled — Study Guide').trim(),
+          study_guide: guidePreview.study_guide,
+          folder_id: folderIdRef.current || null,
+        }),
+      });
+      const data = await resp.json();
+      if (resp.ok && data.guide?.id) {
+        router.push('/guide/' + data.guide.id);
+      } else {
+        setPreviewError(data?.detail || 'Failed to save study guide');
+      }
+    } catch {
+      setPreviewError('Network error while saving');
+    } finally {
+      setSavingGuide(false);
+    }
+  }
+
+  function handleEditPreview() {
+    if (!guidePreview) return;
+    const pairs = guidePreview.pairs.map(p => ({ term: p.question, definition: p.answer }));
+    try {
+      localStorage.setItem('autostudy_manual_draft', JSON.stringify({
+        title: (previewTitle || 'Untitled — Study Guide').trim(),
+        pairs,
+        inputMode: 'manual',
+      }));
+    } catch {}
+    handleClosePreview();
+    router.push('/create');
+  }
+
   return (
     <div className="sn-page">
       {/* Header bar */}
@@ -1136,6 +1216,13 @@ function SmartNotesEditor() {
                   <span className="sn-panel-label">Sessions</span>
                   <button className="sn-new-btn" onClick={handleNewNote}>+ New</button>
                 </div>
+                <button
+                  className="sn-convert-btn"
+                  onClick={handleConvertToGuide}
+                  disabled={convertingGuide}
+                >
+                  {convertingGuide ? 'Generating…' : 'Turn into Study Guide'}
+                </button>
                 {notes.map(n => (
                   <div
                     key={n.id}
@@ -1276,6 +1363,60 @@ function SmartNotesEditor() {
         </div>
 
       </div>
+
+      {guidePreview && (
+        <div className="sn-modal-overlay" onClick={handleClosePreview}>
+          <div className="sn-modal" onClick={e => e.stopPropagation()}>
+            <div className="sn-modal-header">
+              <input
+                className="sn-modal-title-input"
+                value={previewTitle}
+                onChange={e => setPreviewTitle(e.target.value)}
+                placeholder="Study guide title"
+                disabled={savingGuide}
+              />
+            </div>
+            <div className="sn-modal-body">
+              {previewError && <div className="sn-modal-error">{previewError}</div>}
+              {guidePreview.pairs && guidePreview.pairs.length > 0 ? (
+                <div className="sn-modal-pairs">
+                  {guidePreview.pairs.map((p, i) => (
+                    <div key={i} className="sn-modal-pair">
+                      <div className="sn-modal-q"><strong>Q{i + 1}.</strong> {p.question}</div>
+                      <div className="sn-modal-a">{p.answer}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                !previewError && <div className="sn-modal-empty">No questions generated.</div>
+              )}
+            </div>
+            <div className="sn-modal-footer">
+              <button
+                className="btn sn-modal-cancel"
+                onClick={handleClosePreview}
+                disabled={savingGuide}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn sn-modal-edit"
+                onClick={handleEditPreview}
+                disabled={savingGuide || !guidePreview.pairs?.length}
+              >
+                Edit
+              </button>
+              <button
+                className="btn sn-modal-approve"
+                onClick={handleApprovePreview}
+                disabled={savingGuide || !guidePreview.pairs?.length || !previewTitle.trim()}
+              >
+                {savingGuide ? 'Saving…' : 'Approve'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1950,3 +1950,107 @@ input::placeholder { color: var(--text-muted); }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .guide-progress { flex-direction: column; }
 }
+
+/* ─── SmartNotes → Study Guide convert button + preview modal ─────────────── */
+.sn-convert-btn {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-hover);
+  color: var(--accent);
+  font-size: 0.86em;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.sn-convert-btn:hover:not(:disabled) { background: var(--bg-tertiary, var(--bg-hover)); }
+.sn-convert-btn:disabled { opacity: 0.6; cursor: wait; }
+
+.sn-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+.sn-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg, 0 24px 64px rgba(0,0,0,0.4));
+  width: min(720px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.sn-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sn-modal-title-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 1.15em;
+  font-weight: 600;
+}
+.sn-modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+.sn-modal-error {
+  background: var(--bg-error, rgba(220, 50, 50, 0.12));
+  color: var(--text-error, #d33);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9em;
+  margin-bottom: 12px;
+}
+.sn-modal-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 12px 0;
+}
+.sn-modal-pairs {
+  display: flex; flex-direction: column; gap: 14px;
+}
+.sn-modal-pair {
+  padding: 12px 14px;
+  background: var(--bg-tertiary, var(--bg-hover));
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+}
+.sn-modal-q {
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+.sn-modal-a {
+  color: var(--text-secondary);
+  font-size: 0.94em;
+  line-height: 1.5;
+}
+.sn-modal-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+.sn-modal-cancel,
+.sn-modal-edit,
+.sn-modal-approve {
+  font-size: 0.9em;
+  padding: 8px 16px;
+}
+.sn-modal-approve {
+  background: var(--accent);
+  color: var(--bg-primary, white);
+  border: none;
+}
+.sn-modal-approve:disabled { opacity: 0.55; cursor: not-allowed; }
+.sn-modal-edit:disabled,
+.sn-modal-cancel:disabled { opacity: 0.55; cursor: not-allowed; }
