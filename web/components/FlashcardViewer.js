@@ -160,6 +160,13 @@ export default function FlashcardViewer({ flashcards, guideId, onComplete }) {
           <div className="flashcard-face flashcard-back">
             <div className="flashcard-label">Answer</div>
             {card.back}
+            {card.image && (
+              <img
+                src={card.image}
+                alt=""
+                style={{ maxWidth: '100%', maxHeight: 200, marginTop: 12, borderRadius: 8, objectFit: 'contain' }}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -7,7 +7,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const AUTOSAVE_MANUAL_KEY = 'autostudy_manual_draft';
 const AUTOSAVE_TEXT_KEY   = 'autostudy_text_draft';
 
-const ACCEPTED_FILE_TYPES = '.pdf,.docx,.pptx,.txt,.md';
+const ACCEPTED_FILE_TYPES = '*';
 
 export default function CreateGuidePage() {
   const router = useRouter();
@@ -158,12 +158,14 @@ export default function CreateGuidePage() {
       const validPairs = manualPairs.filter(p => p.term.trim() && p.definition.trim());
       if (validPairs.length === 0) { setError('Add at least one term and definition.'); return; }
       setStatus('saving');
-      const studyGuide = validPairs.map((p, i) => {
-        let entry = `Q${i + 1}: ${p.term.trim()}\nA${i + 1}: ${p.definition.trim()}`;
-        if (p.image) entry += `\n[IMG:${p.image}]`;
-        return entry;
-      }).join('\n');
-      const flashcards = validPairs.map(p => ({ front: p.term.trim(), back: p.definition.trim() }));
+      const studyGuide = validPairs.map((p, i) =>
+        `Q${i + 1}: ${p.term.trim()}\nA${i + 1}: ${p.definition.trim()}`
+      ).join('\n');
+      const flashcards = validPairs.map(p => ({
+        front: p.term.trim(),
+        back: p.definition.trim(),
+        ...(p.image ? { image: p.image } : {}),
+      }));
       const body = { title: title.trim(), study_guide: studyGuide, flashcards };
       if (selectedFolder) body.folder_id = selectedFolder;
       const editId = router.query.editGuideId;
