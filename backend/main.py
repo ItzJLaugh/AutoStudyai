@@ -208,7 +208,7 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
                     raise HTTPException(status_code=500, detail="python-pptx is not installed.")
                 prs = Presentation(io.BytesIO(content_bytes))
                 slides_out = []
-                all_parts = []
+                marked_parts = []
                 for slide_num, slide in enumerate(prs.slides, 1):
                     shape_texts = []
                     for shape in slide.shapes:
@@ -216,8 +216,11 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
                             shape_texts.append(shape.text.strip())
                     slides_out.append({"number": slide_num, "texts": shape_texts})
                     if shape_texts:
-                        all_parts.append("\n".join(shape_texts))
-                pptx_text = "\n\n".join(all_parts)
+                        # Embed "--- Slide N ---" markers so is_slideshow_content()
+                        # detects this as slideshow content and routes it through
+                        # the slide-aware processing path in /generate.
+                        marked_parts.append(f"--- Slide {slide_num} ---\n" + "\n".join(shape_texts))
+                pptx_text = "\n\n".join(marked_parts)
                 return {"text": pptx_text[:500_000], "slides": slides_out}
             except HTTPException:
                 raise
@@ -230,8 +233,67 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
             except Exception:
                 raise HTTPException(status_code=422, detail="Could not read text file.")
 
+        elif filename.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".tif")):
+            # Image files — use GPT-4o vision to transcribe educational content
+            try:
+                from services.llm import get_openai_client
+                client = get_openai_client()
+                if not client:
+                    raise HTTPException(status_code=500, detail="AI service unavailable")
+                import base64 as _b64
+                ext = filename.rsplit(".", 1)[-1].lower()
+                mime_map = {
+                    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                    "gif": "image/gif", "webp": "image/webp", "bmp": "image/bmp",
+                    "tiff": "image/tiff", "tif": "image/tiff",
+                }
+                mime = mime_map.get(ext, "image/jpeg")
+                b64 = _b64.b64encode(content_bytes).decode()
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+                            {"type": "text", "text": (
+                                "You are extracting educational content from an image (e.g. a photo of "
+                                "notes, a textbook page, a whiteboard, or a diagram). Transcribe ALL "
+                                "visible text exactly as written, then describe any diagrams, charts, "
+                                "or formulas with enough detail to study from. Use clear headings where "
+                                "visible. If the image contains no educational content, respond with "
+                                "exactly: NO_EDUCATIONAL_CONTENT"
+                            )}
+                        ]
+                    }],
+                    max_tokens=2000,
+                )
+                text = (response.choices[0].message.content or "").strip()
+                if "NO_EDUCATIONAL_CONTENT" in text:
+                    raise HTTPException(status_code=422, detail="No educational content found in this image.")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Image extraction failed: {e}")
+                raise HTTPException(status_code=422, detail="Could not extract content from image.")
+
         else:
-            raise HTTPException(status_code=400, detail="Unsupported file type. Use PDF, DOCX, PPTX, or TXT.")
+            # Universal fallback: try UTF-8 decode for any unknown extension.
+            # Works for json, yaml, html, xml, source code, etc.
+            decoded = None
+            try:
+                decoded = content_bytes.decode("utf-8", errors="strict")
+            except UnicodeDecodeError:
+                try:
+                    decoded = content_bytes.decode("latin-1", errors="ignore")
+                except Exception:
+                    decoded = None
+            if not decoded:
+                raise HTTPException(status_code=400, detail="This file type is not supported. Try PDF, DOCX, PPTX, an image, or a plain-text file.")
+            # Reject if content is mostly binary garbage
+            printable = sum(1 for c in decoded if c.isprintable() or c in "\n\r\t")
+            if len(decoded) > 0 and printable / len(decoded) < 0.85:
+                raise HTTPException(status_code=400, detail="This file appears to be a binary file with no readable text. Please upload a PDF, DOCX, PPTX, image, or text file.")
+            text = decoded
 
         if not text or len(text.strip()) < 10:
             raise HTTPException(status_code=422, detail="No readable text found in this file.")
