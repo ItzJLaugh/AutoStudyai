@@ -5,7 +5,7 @@ import { apiFetch } from '../lib/api';
 // Phase 1 — all questions shown once. Correct → mastered. Wrong → review queue.
 // Phase 2 — review queue shown once more. Correct or wrong → done (max 2 attempts).
 
-export default function QuizMode({ questions, guideId, onComplete }) {
+export default function QuizMode({ questions, guideId, guideContent, onComplete }) {
   const total = questions.length;
 
   // deck of original indices for phase 1
@@ -18,6 +18,11 @@ export default function QuizMode({ questions, guideId, onComplete }) {
   const [answered, setAnswered] = useState(false);
   const [allAnswers, setAllAnswers] = useState([]);
   const [score, setScore] = useState(null);
+
+  // Explanation feature state
+  const [chatbotReady, setChatbotReady] = useState(false);
+  const [explanationStage, setExplanationStage] = useState(null); // null | 'creating' | 'assigning' | 'formulating' | 'done'
+  const [explanationText, setExplanationText] = useState('');
 
   const currentQ = phase === 'learn'
     ? questions[learnIndex]
@@ -40,46 +45,86 @@ export default function QuizMode({ questions, guideId, onComplete }) {
       selected_index: i,
       is_correct: isCorrect,
     };
-    const updatedAnswers = [...allAnswers, newAnswer];
-    setAllAnswers(updatedAnswers);
+    setAllAnswers([...allAnswers, newAnswer]);
+  }
 
-    setTimeout(() => {
-      if (phase === 'learn') {
-        const newMastered = isCorrect ? masteredCount + 1 : masteredCount;
-        const newReviewQueue = isCorrect ? reviewQueue : [...reviewQueue, learnIndex];
-        setMasteredCount(newMastered);
+  function advance() {
+    const lastAnswer = allAnswers[allAnswers.length - 1];
+    const isCorrect = lastAnswer ? lastAnswer.is_correct : false;
+    const updatedAnswers = allAnswers;
 
-        const nextLearnIndex = learnIndex + 1;
-        if (nextLearnIndex < total) {
-          setReviewQueue(newReviewQueue);
-          setLearnIndex(nextLearnIndex);
-          setSelected(null);
-          setAnswered(false);
-        } else {
-          // Phase 1 complete
-          if (newReviewQueue.length > 0) {
-            setReviewQueue(newReviewQueue);
-            setPhase('review');
-            setReviewIndex(0);
-          } else {
-            finishSession(updatedAnswers);
-          }
-          setSelected(null);
-          setAnswered(false);
-        }
+    // Reset per-question UI state
+    setExplanationStage(null);
+    setExplanationText('');
+
+    if (phase === 'learn') {
+      const newMastered = isCorrect ? masteredCount + 1 : masteredCount;
+      const newReviewQueue = isCorrect ? reviewQueue : [...reviewQueue, learnIndex];
+      setMasteredCount(newMastered);
+
+      const nextLearnIndex = learnIndex + 1;
+      if (nextLearnIndex < total) {
+        setReviewQueue(newReviewQueue);
+        setLearnIndex(nextLearnIndex);
+        setSelected(null);
+        setAnswered(false);
       } else {
-        // Review phase — advance regardless of answer
-        if (isCorrect) setMasteredCount(m => m + 1);
-        const nextReviewIndex = reviewIndex + 1;
-        if (nextReviewIndex < reviewQueue.length) {
-          setReviewIndex(nextReviewIndex);
+        if (newReviewQueue.length > 0) {
+          setReviewQueue(newReviewQueue);
+          setPhase('review');
+          setReviewIndex(0);
         } else {
           finishSession(updatedAnswers);
         }
         setSelected(null);
         setAnswered(false);
       }
-    }, 1200);
+    } else {
+      if (isCorrect) setMasteredCount(m => m + 1);
+      const nextReviewIndex = reviewIndex + 1;
+      if (nextReviewIndex < reviewQueue.length) {
+        setReviewIndex(nextReviewIndex);
+      } else {
+        finishSession(updatedAnswers);
+      }
+      setSelected(null);
+      setAnswered(false);
+    }
+  }
+
+  async function requestExplanation() {
+    if (!currentQ || selected === null) return;
+    if (explanationStage && explanationStage !== 'done') return; // already in flight
+
+    try {
+      if (!chatbotReady) {
+        setExplanationStage('creating');
+        await new Promise(r => setTimeout(r, 800));
+        setExplanationStage('assigning');
+        await new Promise(r => setTimeout(r, 800));
+        setChatbotReady(true);
+      }
+      setExplanationStage('formulating');
+
+      const correctAnswer = currentQ.options[currentQ.correct_index];
+      const userAnswer = currentQ.options[selected];
+      const question = `For the question: "${currentQ.question}"\nThe correct answer is: "${correctAnswer}"\nThe student chose: "${userAnswer}"\nIn 2-3 sentences, explain why the correct answer is right and why the student's choice is wrong, based only on the study guide content.`;
+
+      const data = await apiFetch('/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          question,
+          content: guideContent || '',
+          mode: 'detailed',
+        }),
+      });
+
+      setExplanationText(data?.answer || 'No explanation available.');
+      setExplanationStage('done');
+    } catch {
+      setExplanationText('Could not load an explanation. Please try again.');
+      setExplanationStage('done');
+    }
   }
 
   async function finishSession(finalAnswers) {
@@ -102,11 +147,12 @@ export default function QuizMode({ questions, guideId, onComplete }) {
     setAnswered(false);
     setAllAnswers([]);
     setScore(null);
+    setExplanationStage(null);
+    setExplanationText('');
   }
 
   // Results screen
   if (phase === 'done') {
-    const firstTryMastered = total - (score ? (total - score.correct) : 0);
     return (
       <div className="quiz-result">
         <div className="quiz-score">{score ? score.score : masteredCount > 0 ? Math.round((masteredCount / total) * 100) : 0}%</div>
@@ -129,17 +175,26 @@ export default function QuizMode({ questions, guideId, onComplete }) {
 
   if (!currentQ) return null;
 
-  // Progress: mastered out of total, plus review queue progress
   const progressPct = Math.round((masteredCount / total) * 100);
+  const isCorrectAnswer = answered && selected === currentQ.correct_index;
+  const isWrongAnswer = answered && selected !== currentQ.correct_index;
 
   function optionClass(i) {
     if (!answered) return 'quiz-option' + (selected === i ? ' selected' : '');
-    if (i === currentQ.correct_index) return 'quiz-option correct';
-    if (i === selected && i !== currentQ.correct_index) return 'quiz-option wrong';
+    if (i === currentQ.correct_index) {
+      return 'quiz-option ' + (isCorrectAnswer ? 'correct-shine' : 'correct-glow');
+    }
+    if (i === selected) return 'quiz-option wrong-shake';
     return 'quiz-option disabled';
   }
 
   const isReview = phase === 'review';
+
+  const stageMessage = {
+    creating: '🤖 Chatbot being created...',
+    assigning: '📚 Assigning to study guide...',
+    formulating: '💬 Formulating explanation...',
+  }[explanationStage];
 
   return (
     <div className="quiz-question-card">
@@ -161,6 +216,26 @@ export default function QuizMode({ questions, guideId, onComplete }) {
           {opt}
         </button>
       ))}
+
+      {isWrongAnswer && explanationStage === null && (
+        <button className="quiz-explanation-btn" onClick={requestExplanation}>
+          Explanation
+        </button>
+      )}
+
+      {stageMessage && explanationStage !== 'done' && (
+        <div className="quiz-explanation-stage">{stageMessage}</div>
+      )}
+
+      {explanationStage === 'done' && explanationText && (
+        <div className="quiz-explanation-panel">{explanationText}</div>
+      )}
+
+      {answered && (
+        <button className="quiz-gotit-btn" onClick={advance}>
+          Got it!
+        </button>
+      )}
     </div>
   );
 }

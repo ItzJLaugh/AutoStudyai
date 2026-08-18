@@ -63,13 +63,18 @@ def generate_quiz(guide_id: str, authorization: str = Header(default="")):
         supabase = get_supabase()
 
         result = supabase.table("study_guides") \
-            .select("study_guide") \
+            .select("study_guide, quiz_questions") \
             .eq("id", guide_id) \
             .eq("user_id", user_id) \
             .execute()
 
         if not result.data:
             raise HTTPException(status_code=404, detail="Guide not found")
+
+        # Return cached questions if already generated for this guide
+        cached = result.data[0].get("quiz_questions")
+        if cached:
+            return {"questions": cached}
 
         study_guide_text = result.data[0].get("study_guide", "")
         if not study_guide_text:
@@ -87,12 +92,16 @@ def generate_quiz(guide_id: str, authorization: str = Header(default="")):
 
         qa_text = "\n".join(f"Q: {p['question']}\nA: {p['answer']}" for p in qa_pairs)
 
-        prompt = f"""For each Q&A pair below, generate exactly 3 plausible but WRONG answer choices.
+        prompt = f"""For each Q&A pair below, generate exactly 3 WRONG answer choices.
 Return as JSON array where each element has:
 - "distractors": [wrong1, wrong2, wrong3]
 
-Keep distractors similar in length and style to the correct answer.
-Make them plausible but clearly incorrect.
+CRITICAL RULES — follow every one:
+1. Each distractor MUST match the correct answer in sentence structure, length (within ±20% of the correct answer's character count), and level of detail. If the correct answer is a full sentence, every distractor must be a full sentence. If the correct answer is a short phrase, every distractor must be a short phrase. The correct answer must NEVER stand out by being longer, more specific, or more thorough than the distractors.
+2. Distractors must be plausible — wrong in a subtle, meaningful way (wrong mechanism, wrong value, wrong direction, wrong agent, wrong sequence). A student who didn't study should reasonably be tempted to choose them. They must NEVER be obviously absurd or off-topic.
+3. Never use "None of the above", "All of the above", "Both A and B", or any placeholder/filler text.
+4. Ground every distractor in the same domain/topic as the correct answer — no random facts from unrelated subjects.
+5. Distractors must be clearly factually incorrect — they cannot also be true statements about the topic.
 
 {qa_text}
 
@@ -128,6 +137,16 @@ Return ONLY a JSON array, no other text:"""
                 "options": options,
                 "correct_index": correct_index
             })
+
+        # Cache generated questions so future Retain clicks load instantly
+        try:
+            supabase.table("study_guides") \
+                .update({"quiz_questions": questions}) \
+                .eq("id", guide_id) \
+                .eq("user_id", user_id) \
+                .execute()
+        except Exception as cache_err:
+            logger.warning(f"Failed to cache quiz questions for guide {guide_id}: {cache_err}")
 
         return {"questions": questions}
 

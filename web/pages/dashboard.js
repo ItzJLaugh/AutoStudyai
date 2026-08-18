@@ -6,6 +6,7 @@ import { formatDate } from '../lib/formatters';
 import useSessionTracker from '../lib/useSessionTracker';
 import SearchModal from '../components/SearchModal';
 import AILoadingSphere from '../components/AILoadingSphere';
+import ExtensionOnboarding from '../components/ExtensionOnboarding';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [guidesSort, setGuidesSort] = useState('recent'); // recent, title, progress
   const [renamingFolder, setRenamingFolder] = useState(null);
   const [renameValue, setRenameValue] = useState('');
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const contextRef = useRef(null);
 
   useEffect(() => {
@@ -557,15 +559,14 @@ export default function Dashboard() {
       )}
 
       {/* Extension banner */}
-      <a
-        href="https://chromewebstore.google.com/detail/autostudyai/eddmfjcnfjfbaknmeccjbjdgpeipjbaf"
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        type="button"
+        onClick={() => setShowOnboarding(true)}
         style={{
-          display: 'flex', alignItems: 'center', gap: 12,
+          display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
           background: 'var(--card-bg)', border: '1px solid var(--border)',
           borderRadius: 10, padding: '10px 16px', marginBottom: 24,
-          textDecoration: 'none', color: 'inherit',
+          cursor: 'pointer', color: 'inherit', font: 'inherit',
         }}
       >
         <span style={{ fontSize: '1.4em' }}>🧩</span>
@@ -574,7 +575,7 @@ export default function Dashboard() {
           <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>Capture slides & lecture notes directly from your browser</div>
         </div>
         <span style={{ fontSize: '0.8em', color: 'var(--accent)', whiteSpace: 'nowrap' }}>Install free →</span>
-      </a>
+      </button>
 
       {/* Classes section */}
       <div className="section-header" id="classes">
@@ -633,7 +634,7 @@ export default function Dashboard() {
         <div className="empty-state">
           <div className="empty-state-icon">&#128214;</div>
           No study guides yet.{' '}
-          <a href="https://chromewebstore.google.com/detail/autostudyai/eddmfjcnfjfbaknmeccjbjdgpeipjbaf" target="_blank" rel="noopener noreferrer">
+          <a href="#" onClick={e => { e.preventDefault(); setShowOnboarding(true); }}>
             Install the Chrome extension
           </a>
           {' '}to capture slides and lecture notes.
@@ -674,6 +675,7 @@ export default function Dashboard() {
 
       {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
       {contextMenu && renderContextMenu()}
+      <ExtensionOnboarding open={showOnboarding} onClose={() => setShowOnboarding(false)} />
     </div>
   );
 }

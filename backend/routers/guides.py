@@ -33,7 +33,7 @@ class SaveGuideRequest(BaseModel):
     source_url: Optional[str] = None
     domain: Optional[str] = None
 
-    model_config = {"str_max_length": 500_000}
+    model_config = {"str_max_length": 5_000_000}
 
     @field_validator("title")
     @classmethod
