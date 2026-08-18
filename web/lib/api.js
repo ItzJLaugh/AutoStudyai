@@ -27,6 +27,12 @@ export function authHeaders() {
   };
 }
 
+export function authOnlyHeaders() {
+  return {
+    'Authorization': 'Bearer ' + getToken()
+  };
+}
+
 // Proactive token refresh — silently renews the token 2 min before expiry.
 let _proactiveTimer = null;
 

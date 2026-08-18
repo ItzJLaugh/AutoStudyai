@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { authHeaders } from '../lib/api';
+import { authHeaders, authOnlyHeaders } from '../lib/api';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -262,7 +262,7 @@ function FileViewer({ file, guideContent }) {
       setExtracting(true);
       const fd = new FormData();
       fd.append('file', file);
-      fetch(API + '/extract-file-text', { method: 'POST', headers: authHeaders(), body: fd })
+      fetch(API + '/extract-file-text', { method: 'POST', headers: authOnlyHeaders(), body: fd })
         .then(async r => {
           const data = await r.json().catch(() => ({}));
           if (cancelled) return;
