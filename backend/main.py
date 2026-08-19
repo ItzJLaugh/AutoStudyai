@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse, Response
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from starlette.concurrency import run_in_threadpool
 
 from storage import InMemoryStorage
 from schemas import (
@@ -38,7 +39,12 @@ from services.llm import (
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes
 from auth_utils import get_user_id
 from routers.billing import check_and_increment_usage
-from services.pptx_rendering import PptxRenderError, PptxRenderTimeout, render_pptx_to_pdf
+from services.pptx_rendering import (
+    PptxRenderError,
+    PptxRenderTimeout,
+    PptxRenderUnavailable,
+    render_pptx_to_pdf,
+)
 
 # Load environment variables
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
@@ -161,9 +167,11 @@ async def render_pptx(request: Request, file: UploadFile = None, authorization: 
         raise HTTPException(status_code=400, detail="File is empty")
 
     try:
-        pdf_bytes = render_pptx_to_pdf(content_bytes)
+        pdf_bytes = await run_in_threadpool(render_pptx_to_pdf, content_bytes)
     except PptxRenderTimeout as exc:
         raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except PptxRenderUnavailable as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     except PptxRenderError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

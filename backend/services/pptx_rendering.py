@@ -13,6 +13,10 @@ class PptxRenderTimeout(PptxRenderError):
     """Raised when LibreOffice exceeds the conversion time limit."""
 
 
+class PptxRenderUnavailable(PptxRenderError):
+    """Raised when the LibreOffice executable is unavailable."""
+
+
 def render_pptx_to_pdf(content_bytes: bytes) -> bytes:
     """Convert PPTX bytes to PDF bytes without persisting either file."""
     with TemporaryDirectory(prefix="autostudy-pptx-") as directory:
@@ -21,9 +25,11 @@ def render_pptx_to_pdf(content_bytes: bytes) -> bytes:
         output = workdir / "presentation.pdf"
         source.write_bytes(content_bytes)
 
+        profile_uri = (workdir / "libreoffice-profile").as_uri()
         args = [
             "soffice",
             "--headless",
+            f"-env:UserInstallation={profile_uri}",
             "--convert-to",
             "pdf",
             "--outdir",
@@ -42,7 +48,7 @@ def render_pptx_to_pdf(content_bytes: bytes) -> bytes:
         except subprocess.TimeoutExpired as exc:
             raise PptxRenderTimeout("PPTX rendering timed out") from exc
         except FileNotFoundError as exc:
-            raise PptxRenderError("PPTX renderer is unavailable") from exc
+            raise PptxRenderUnavailable("PPTX renderer is unavailable") from exc
         except OSError as exc:
             raise PptxRenderError("PPTX renderer could not start") from exc
 
