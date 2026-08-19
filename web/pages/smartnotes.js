@@ -244,6 +244,7 @@ function FileViewer({ file, guideContent }) {
   const [slidesData, setSlidesData] = useState(null);
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState(null);
+  const [fallbackNotice, setFallbackNotice] = useState(null);
 
   useEffect(() => {
     setObjectUrl(null);
@@ -251,10 +252,71 @@ function FileViewer({ file, guideContent }) {
     setSlidesData(null);
     setExtracting(false);
     setExtractError(null);
+    setFallbackNotice(null);
     if (!file) return;
 
     const ext = file.name.split('.').pop().toLowerCase();
     let cancelled = false;
+    let renderedUrl = null;
+
+    if (ext === 'pptx') {
+      setExtracting(true);
+
+      async function loadPptx() {
+        let fallbackReason = 'Visual preview was unavailable, so the slide text is shown instead.';
+        try {
+          const renderData = new FormData();
+          renderData.append('file', file);
+          const renderResponse = await fetch(API + '/render-pptx', {
+            method: 'POST',
+            headers: authOnlyHeaders(),
+            body: renderData,
+          });
+
+          if (renderResponse.ok) {
+            const pdfBlob = await renderResponse.blob();
+            renderedUrl = URL.createObjectURL(pdfBlob);
+            if (cancelled) {
+              URL.revokeObjectURL(renderedUrl);
+              renderedUrl = null;
+              return;
+            }
+            setObjectUrl(renderedUrl);
+            return;
+          }
+
+          const renderError = await renderResponse.json().catch(() => ({}));
+          if (renderError.detail) fallbackReason = `${renderError.detail} Showing extracted slide text instead.`;
+        } catch {
+          fallbackReason = 'Could not reach the visual renderer. Showing extracted slide text instead.';
+        }
+
+        if (cancelled) return;
+        setFallbackNotice(fallbackReason);
+
+        const extractData = new FormData();
+        extractData.append('file', file);
+        const extractResponse = await fetch(API + '/extract-file-text', {
+          method: 'POST',
+          headers: authOnlyHeaders(),
+          body: extractData,
+        });
+        const data = await extractResponse.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!extractResponse.ok) throw new Error(data.detail || 'Could not read this presentation.');
+        setExtractedText(data.text || '');
+        setSlidesData(data.slides || []);
+      }
+
+      loadPptx()
+        .catch(error => { if (!cancelled) setExtractError(error.message || 'Could not read this presentation.'); })
+        .finally(() => { if (!cancelled) setExtracting(false); });
+
+      return () => {
+        cancelled = true;
+        if (renderedUrl) URL.revokeObjectURL(renderedUrl);
+      };
+    }
 
     if (EXTRACT_EXTS.has(ext)) {
       const url = URL.createObjectURL(file);
@@ -298,9 +360,14 @@ function FileViewer({ file, guideContent }) {
 
   const ext = file.name.split('.').pop().toLowerCase();
 
-  if (extracting) return <div className="sn-viewer-empty"><p>Reading {file.name}…</p></div>;
+  if (extracting) return <div className="sn-viewer-empty"><p>{ext === 'pptx' ? 'Preparing visual preview' : 'Reading'} {file.name}…</p></div>;
 
-  if (slidesData !== null) return <SlideCardViewer slides={slidesData} />;
+  if (slidesData !== null) return (
+    <div className="sn-slide-fallback">
+      {fallbackNotice && <div className="sn-slide-fallback-notice">{fallbackNotice}</div>}
+      <SlideCardViewer slides={slidesData} />
+    </div>
+  );
 
   if (extractedText !== null) {
     return (
@@ -319,7 +386,7 @@ function FileViewer({ file, guideContent }) {
 
   if (!objectUrl) return null;
 
-  if (ext === 'pdf') return <iframe src={objectUrl} className="sn-iframe" title={file.name} />;
+  if (ext === 'pdf' || ext === 'pptx') return <iframe src={objectUrl} className="sn-iframe" title={file.name} />;
   if (IMAGE_EXTS.has(ext)) return <img src={objectUrl} className="sn-viewer-img" alt={file.name} />;
   if (VIDEO_EXTS.has(ext)) return <video src={objectUrl} controls className="sn-viewer-video" />;
   if (AUDIO_EXTS.has(ext)) return <audio src={objectUrl} controls style={{ width: '100%', padding: 16 }} />;
@@ -1503,7 +1570,7 @@ function SmartNotesEditor() {
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.35">
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
                 </svg>
-                <p>Open a file or drag &amp; drop a PDF/image — or select a study guide above (docx & pptx coming soon!)</p>
+                <p>Open or drag &amp; drop a PDF, PowerPoint, document, or image — or select a study guide above.</p>
               </div>
             )}
             {viewerDragOver && (
