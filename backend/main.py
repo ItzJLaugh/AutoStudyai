@@ -12,7 +12,7 @@ from uuid import uuid4
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Header, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -38,6 +38,7 @@ from services.llm import (
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes
 from auth_utils import get_user_id
 from routers.billing import check_and_increment_usage
+from services.pptx_rendering import PptxRenderError, PptxRenderTimeout, render_pptx_to_pdf
 
 # Load environment variables
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
@@ -140,6 +141,37 @@ def _validate_url(url: str) -> str:
         raise HTTPException(status_code=400, detail="Invalid URL")
     return url
 
+
+@app.post("/render-pptx")
+@limiter.limit("20/minute")
+async def render_pptx(request: Request, file: UploadFile = None, authorization: str = Header(default="")):
+    """Render an uploaded PPTX to an inline PDF without persisting either file."""
+    get_user_id(authorization)
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file uploaded")
+
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".pptx"):
+        raise HTTPException(status_code=400, detail="Unsupported file type. Use PPTX.")
+
+    content_bytes = await file.read()
+    if len(content_bytes) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 20MB)")
+    if not content_bytes:
+        raise HTTPException(status_code=400, detail="File is empty")
+
+    try:
+        pdf_bytes = render_pptx_to_pdf(content_bytes)
+    except PptxRenderTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except PptxRenderError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline"},
+    )
 
 @app.post("/extract-file-text")
 @limiter.limit("20/minute")
