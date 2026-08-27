@@ -35,6 +35,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === 'ingestContent') {
+    (async () => {
+      try {
+        const response = await authedFetch('/ingest', { method: 'POST', body: JSON.stringify({
+          content: message.content, page_url: message.url, images: message.images || []
+        }) });
+        const data = await response.json();
+        sendResponse(response.ok ? { success: true, ...data } : { success: false, error: data.detail || 'Ingest failed', status: response.status });
+      } catch (error) { sendResponse({ success: false, error: error.message || 'Request failed' }); }
+    })();
+    return true;
+  }
+
+  if (message.action === 'generateContent') {
+    (async () => {
+      try {
+        const response = await authedFetch('/generate', { method: 'POST', body: JSON.stringify({
+          content_id: message.contentId, section_ids: message.sectionIds, notes: true, study_guide: true, flashcards: true
+        }) });
+        const data = await response.json();
+        sendResponse(response.ok ? { success: true, ...data } : { success: false, error: data.detail || 'Generation failed', status: response.status });
+      } catch (error) { sendResponse({ success: false, error: error.message || 'Request failed' }); }
+    })();
+    return true;
+  }
+
   if (message.action === 'sendContent') {
     (async () => {
       try {

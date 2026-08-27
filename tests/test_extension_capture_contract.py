@@ -11,6 +11,13 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("extractUniversalContent()", handler)
         self.assertNotIn("captureAllSlides", handler)
 
+    def test_review_requires_explicit_generation(self):
+        worker = (ROOT / "extension" / "background.js").read_text(encoding="utf-8")
+        popup = (ROOT / "extension" / "popup.html").read_text(encoding="utf-8")
+        self.assertIn("message.action === 'ingestContent'", worker)
+        self.assertIn("message.action === 'generateContent'", worker)
+        self.assertIn('id="generate-selected-btn"', popup)
+
 
 if __name__ == "__main__":
     unittest.main()
