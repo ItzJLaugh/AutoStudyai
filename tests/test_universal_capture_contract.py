@@ -20,6 +20,12 @@ class UniversalCaptureContractTests(unittest.TestCase):
         self.assertEqual(selected["sections"][0]["id"], "section-1")
         self.assertEqual(parse_educational_selection("not json")["sections"], [])
 
+    def test_generation_uses_selected_sections_in_source_order(self):
+        source = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
+        self.assertIn("def selected_section_text", source)
+        self.assertIn("[section.get(\"text\", \"\") for section in sections", source)
+        self.assertIn("Selected sections are invalid or empty", source)
+
 
 if __name__ == "__main__":
     unittest.main()
