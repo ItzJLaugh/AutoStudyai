@@ -58,17 +58,25 @@ export default function Dashboard() {
 
   async function loadData() {
     setLoading(true);
-    const [foldersData, guidesData, statsData, notesData] = await Promise.all([
-      apiFetch('/folders'),
-      apiFetch('/guides'),
-      apiFetch('/stats/overview'),
-      apiFetch('/smart_notes'),
-    ]);
-    setFolders(foldersData?.folders || []);
-    setGuides(guidesData?.guides || []);
-    setStats(statsData);
-    setSmartNotes(notesData?.notes || []);
-    setLoading(false);
+    try {
+      const results = await Promise.allSettled([
+        apiFetch('/folders'),
+        apiFetch('/guides'),
+        apiFetch('/stats/overview'),
+        apiFetch('/smart_notes'),
+      ]);
+      const value = index => results[index].status === 'fulfilled' ? results[index].value : null;
+      const foldersData = value(0);
+      const guidesData = value(1);
+      const statsData = value(2);
+      const notesData = value(3);
+      setFolders(foldersData?.folders || []);
+      setGuides(guidesData?.guides || []);
+      setStats(statsData);
+      setSmartNotes(notesData?.notes || []);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function deleteSmartNote(id, e) {
@@ -532,7 +540,8 @@ export default function Dashboard() {
       {/* Page header */}
       <div className="dash-header">
         <div>
-          <h1 className="dash-title">Dashboard</h1>
+          <p className="editorial-kicker">AUTOSTUDYAI</p>
+          <h1 className="dash-title editorial-page-title">Your study workspace</h1>
           <p className="dash-subtitle">{guides.length} guides &middot; {folders.length} classes</p>
         </div>
         <button className="btn" onClick={() => router.push('/create')}>+ New Study Guide</button>
@@ -571,7 +580,7 @@ export default function Dashboard() {
           cursor: 'pointer', color: 'inherit', font: 'inherit',
         }}
       >
-        <span style={{ fontSize: '1.4em' }}>🧩</span>
+        <span className="extension-banner-badge">CHROME</span>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: '0.85em', fontWeight: 600, color: 'var(--text-primary)' }}>Get the Chrome Extension</div>
           <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>Capture slides & lecture notes directly from your browser</div>

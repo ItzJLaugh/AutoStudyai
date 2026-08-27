@@ -21,7 +21,7 @@ for (const token of ['--canvas:', '--surface:', '--ink:', '--olive:']) {
 assert.match(styles, /prefers-reduced-motion/);
 assert.match(sidebar, /label: 'SmartNotes'/);
 assert.doesNotMatch(sidebar, /label: 'Notes'/);
-for (const label of ['Appearance', 'Settings', 'Billing', 'Send feedback', 'Sign out']) {
+for (const label of ['Appearance', 'Your profile', 'Billing', 'Feedback', 'Sign out']) {
   assert.ok(sidebar.includes(label), `missing profile action ${label}`);
 }
 assert.match(dashboard, /router\.replace\('\/smartnotes'\)/);

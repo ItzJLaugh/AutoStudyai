@@ -1,4 +1,16 @@
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+export const REQUEST_TIMEOUT_MS = 15000;
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  if (options.signal) options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export function getToken() {
   return typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
@@ -73,7 +85,7 @@ async function _doRefresh() {
   const refreshToken = localStorage.getItem('refreshToken');
   if (!refreshToken) return false;
   try {
-    const resp = await fetch(API + '/auth/refresh', {
+    const resp = await fetchWithTimeout(API + '/auth/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken })
@@ -91,7 +103,7 @@ async function _doRefresh() {
 export async function apiFetch(path, options = {}) {
   if (typeof window === 'undefined' || !getToken()) return null;
   try {
-    let resp = await fetch(API + path, {
+    let resp = await fetchWithTimeout(API + path, {
       ...options,
       headers: { ...authHeaders(), ...options.headers }
     });
@@ -100,7 +112,7 @@ export async function apiFetch(path, options = {}) {
     if (resp.status === 401) {
       const refreshed = await tryRefreshToken();
       if (refreshed) {
-        resp = await fetch(API + path, {
+        resp = await fetchWithTimeout(API + path, {
           ...options,
           headers: { ...authHeaders(), ...options.headers }
         });

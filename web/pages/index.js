@@ -1,7 +1,6 @@
 import Head from 'next/head';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import LoginBackground from '../components/LoginBackground';
 import AcademicInfinityMark from '../components/AcademicInfinityMark';
 import { getToken, setToken, scheduleProactiveRefresh } from '../lib/api';
 
@@ -135,7 +134,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     const endpoint = isSignup ? '/auth/signup' : '/auth/login';
-    const body = { email, password };
+    const normalizedEmail = email.trim().toLowerCase();
+    const body = { email: normalizedEmail, password };
     if (isSignup) {
       if (name.trim()) body.name = name.trim();
       if (university) body.university = university;
@@ -155,7 +155,7 @@ export default function LoginPage() {
       } else if (resp.ok && isSignup && !data.access_token) {
         setConfirmationSent(true);
       } else {
-        setError(data.detail || 'Authentication failed');
+        setError(resp.status === 401 ? 'That email and password did not match. Try again or reset your password.' : (data.detail || 'Authentication failed'));
       }
     } catch {
       setError('Cannot connect to server');
@@ -174,8 +174,7 @@ export default function LoginPage() {
       <meta property="og:type" content="website" />
       <link rel="canonical" href="https://autostudyai.online" />
     </Head>
-    <LoginBackground />
-    <div className="login-page">
+    <div className="login-page" style={{ '--login-backdrop': "url('/login-learning-backdrop.webp')" }}>
       <div className="login-split">
 
         {/* Left brand panel */}
@@ -185,7 +184,8 @@ export default function LoginPage() {
             <div className="login-brand-name">
               <span className="login-brand-blue">Auto</span><span className="login-brand-dark">Study</span><span className="login-brand-blue">AI</span>
             </div>
-            <p className="login-brand-tagline">Study guides in a single click ~<br />AI Chat bot integration ~<br />Eliminating the extensive study guide creation process</p>
+            <h1 className="login-editorial-title">Learn from anything.</h1>
+            <p className="login-brand-tagline">Capture educational material from any page and turn it into a focused study workspace.</p>
           </div>
         </div>
 
@@ -218,7 +218,11 @@ export default function LoginPage() {
             </div>
           ) : (
             <div className="login-form-wrap">
-              <h2 className="login-form-title">{isSignup ? 'Create Account' : 'Login Your Account'}</h2>
+              <h2 className="login-form-title">{isSignup ? 'Create account' : 'Sign in'}</h2>
+              <div className="login-mode-tabs" role="tablist" aria-label="Account access">
+                <button type="button" role="tab" aria-selected={!isSignup} className={!isSignup ? 'active' : ''} onClick={() => { setIsSignup(false); setError(''); }}>Sign in</button>
+                <button type="button" role="tab" aria-selected={isSignup} className={isSignup ? 'active' : ''} onClick={() => { setIsSignup(true); setError(''); }}>Create account</button>
+              </div>
               <form onSubmit={handleSubmit}>
                 {isSignup && (
                   <div className="login-input-row">
@@ -268,7 +272,7 @@ export default function LoginPage() {
                 {error && <p style={{ color: 'var(--error)', marginBottom: 10, fontSize: '0.85em' }}>{error}</p>}
                 {confirmationSent && <p style={{ color: 'var(--accent)', marginBottom: 10, fontSize: '0.85em' }}>Account created! Check your email to confirm before logging in.</p>}
                 <button type="submit" className="btn login-cta-btn">
-                  {isSignup ? 'Sign Up' : 'Login'}
+                  {isSignup ? 'Create account' : 'Sign in'}
                 </button>
               </form>
               <p className="login-switch-text">
