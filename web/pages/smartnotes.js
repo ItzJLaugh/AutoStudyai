@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { authHeaders, authOnlyHeaders } from '../lib/api';
+import StudyWorkspaceFrame from '../components/StudyWorkspaceFrame';
+import { organizeDashboardGuides } from '../lib/dashboardOrganization';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -395,9 +397,10 @@ function FileViewer({ file, guideContent }) {
 }
 
 // ─── Notes Index — grid of saved notes with stacked-paper preview ────────────
-function NotesIndex({ router }) {
+function NotesIndex({ router, timerState, setTimerState }) {
   const [notes, setNotes] = useState([]);
   const [folders, setFolders] = useState([]);
+  const [guides, setGuides] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Select-mode for "Turn into Study Guide" → click a note to convert
@@ -413,14 +416,17 @@ function NotesIndex({ router }) {
     Promise.all([
       fetch(API + '/smart_notes', { headers: authHeaders() }).then(r => r.json()).catch(() => ({ notes: [] })),
       fetch(API + '/folders', { headers: authHeaders() }).then(r => r.json()).catch(() => ({ folders: [] })),
-    ]).then(([notesData, foldersData]) => {
+      fetch(API + '/guides', { headers: authHeaders() }).then(r => r.json()).catch(() => ({ guides: [] })),
+    ]).then(([notesData, foldersData, guidesData]) => {
       setNotes(notesData.notes || []);
       setFolders(foldersData.folders || []);
+      setGuides(guidesData.guides || []);
       setLoading(false);
     });
   }, []);
 
   const folderById = Object.fromEntries(folders.map(f => [f.id, f]));
+  const organized = organizeDashboardGuides(folders, guides);
 
   async function handleNew() {
     try {
@@ -530,6 +536,17 @@ function NotesIndex({ router }) {
   }
 
   return (
+    <StudyWorkspaceFrame
+      classes={organized.classes}
+      section="smartnotes"
+      timerState={timerState}
+      setTimerState={setTimerState}
+      classRail={{
+        allowCreate: false,
+        openFolder: folderId => router.push('/folder/' + folderId),
+        openGuide: guideId => router.push('/guide/' + guideId),
+      }}
+    >
     <div className="sn-index">
       <div className="sn-index-header">
         <div>
@@ -623,13 +640,14 @@ function NotesIndex({ router }) {
         onEdit={handleEditPreview}
       />
     </div>
+    </StudyWorkspaceFrame>
   );
 }
 
 // ─── Page entry — routes between index and editor based on ?id ───────────────
-export default function SmartNotesPage() {
+export default function SmartNotesPage({ timerState, setTimerState }) {
   const router = useRouter();
-  if (router.isReady && !router.query.id) return <NotesIndex router={router} />;
+  if (router.isReady && !router.query.id) return <NotesIndex router={router} timerState={timerState} setTimerState={setTimerState} />;
   return <SmartNotesEditor />;
 }
 

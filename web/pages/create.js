@@ -1,13 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { apiFetch, getToken } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const AUTOSAVE_MANUAL_KEY = 'autostudy_manual_draft';
-const AUTOSAVE_TEXT_KEY   = 'autostudy_text_draft';
-
-const ACCEPTED_FILE_TYPES = '*';
+const MANUAL_DRAFT_KEY = 'autostudy_manual_draft';
+const SOURCE_DRAFT_KEY = 'autostudy_text_draft';
 
 export default function CreateGuidePage() {
   const router = useRouter();
@@ -16,7 +14,6 @@ export default function CreateGuidePage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [uploadFile, setUploadFile] = useState(null);
-  const [uploadFileName, setUploadFileName] = useState('');
   const [manualPairs, setManualPairs] = useState([{ term: '', definition: '' }, { term: '', definition: '' }]);
   const [cardCount, setCardCount] = useState('');
   const [folders, setFolders] = useState([]);
@@ -27,222 +24,177 @@ export default function CreateGuidePage() {
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
 
-  // Prevent two-finger swipe back-navigation
-  useEffect(() => {
-    const preventSwipeBack = (e) => { if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) e.preventDefault(); };
-    window.addEventListener('wheel', preventSwipeBack, { passive: false });
-    return () => window.removeEventListener('wheel', preventSwipeBack);
-  }, []);
-
-  // Load autosaved drafts on mount
   useEffect(() => {
     if (router.query.editGuideId) return;
     try {
-      const manualDraft = localStorage.getItem(AUTOSAVE_MANUAL_KEY);
-      if (manualDraft) {
-        const d = JSON.parse(manualDraft);
-        if (d.inputMode === 'manual') {
-          if (d.title) setTitle(d.title);
-          if (d.pairs?.length) setManualPairs(d.pairs);
-          setInputMode('manual');
-          return;
-        }
+      const manualDraft = JSON.parse(localStorage.getItem(MANUAL_DRAFT_KEY) || 'null');
+      if (manualDraft?.inputMode === 'manual') {
+        setTitle(manualDraft.title || '');
+        if (manualDraft.pairs?.length) setManualPairs(manualDraft.pairs);
+        setInputMode('manual');
+        return;
       }
-      const textDraft = localStorage.getItem(AUTOSAVE_TEXT_KEY);
-      if (textDraft) {
-        const d = JSON.parse(textDraft);
-        if (d.title) setTitle(d.title);
-        if (d.content) setContent(d.content);
+      const sourceDraft = JSON.parse(localStorage.getItem(SOURCE_DRAFT_KEY) || 'null');
+      if (sourceDraft) {
+        setTitle(sourceDraft.title || '');
+        setContent(sourceDraft.content || '');
       }
     } catch {}
   }, []);
 
-  // Autosave manual drafts
   useEffect(() => {
-    if (inputMode !== 'manual') return;
-    const hasContent = title.trim() || manualPairs.some(p => p.term.trim() || p.definition.trim());
-    if (hasContent) {
-      localStorage.setItem(AUTOSAVE_MANUAL_KEY, JSON.stringify({ title, pairs: manualPairs, inputMode: 'manual' }));
+    if (inputMode === 'manual') {
+      if (title.trim() || manualPairs.some(pair => pair.term.trim() || pair.definition.trim())) {
+        localStorage.setItem(MANUAL_DRAFT_KEY, JSON.stringify({ title, pairs: manualPairs, inputMode }));
+      }
+      return;
     }
-  }, [title, manualPairs, inputMode]);
+    if (title.trim() || content.trim()) localStorage.setItem(SOURCE_DRAFT_KEY, JSON.stringify({ title, content }));
+  }, [content, inputMode, manualPairs, title]);
 
-  // Autosave paste text drafts
-  useEffect(() => {
-    if (inputMode !== 'text') return;
-    if (title.trim() || content.trim()) {
-      localStorage.setItem(AUTOSAVE_TEXT_KEY, JSON.stringify({ title, content }));
-    }
-  }, [title, content, inputMode]);
-
-  const applyCardCount = useCallback((count) => {
-    const num = parseInt(count);
-    if (!num || num < 1) return;
-    const clamped = Math.min(num, 100);
-    setManualPairs(prev => {
-      if (prev.length < clamped) return [...prev, ...Array(clamped - prev.length).fill(null).map(() => ({ term: '', definition: '' }))];
-      return prev.slice(0, clamped);
-    });
-  }, []);
-
-  // Load existing guide for editing
   useEffect(() => {
     const editId = router.query.editGuideId;
-    if (ready && editId) {
-      apiFetch('/guides/' + editId).then(data => {
-        if (data?.guide) {
-          setTitle(data.guide.title || '');
-          setInputMode('manual');
-          const pairs = [];
-          const lines = (data.guide.study_guide || '').split('\n');
-          let currentQ = '';
-          for (const line of lines) {
-            const qMatch = line.match(/^Q\d+:\s*(.+)/);
-            const aMatch = line.match(/^A\d+:\s*(.+)/);
-            if (qMatch) currentQ = qMatch[1].trim();
-            else if (aMatch && currentQ) { pairs.push({ term: currentQ, definition: aMatch[1].trim() }); currentQ = ''; }
-          }
-          if (pairs.length > 0) setManualPairs(pairs);
-          localStorage.removeItem(AUTOSAVE_MANUAL_KEY);
+    if (!ready || !editId) return;
+    apiFetch('/guides/' + editId).then(data => {
+      if (!data?.guide) return;
+      setTitle(data.guide.title || '');
+      setInputMode('manual');
+      const pairs = [];
+      let question = '';
+      for (const line of (data.guide.study_guide || '').split('\n')) {
+        const questionMatch = line.match(/^Q\d+:\s*(.+)/);
+        const answerMatch = line.match(/^A\d+:\s*(.+)/);
+        if (questionMatch) question = questionMatch[1].trim();
+        if (answerMatch && question) {
+          pairs.push({ term: question, definition: answerMatch[1].trim() });
+          question = '';
         }
-      });
-    }
+      }
+      if (pairs.length) setManualPairs(pairs);
+      localStorage.removeItem(MANUAL_DRAFT_KEY);
+    });
   }, [ready, router.query.editGuideId]);
 
   useEffect(() => {
-    if (ready) {
-      apiFetch('/folders').then(data => {
-        if (data?.folders) {
-          setFolders(data.folders);
-          const folderId = router.query.folder;
-          if (folderId && data.folders.some(f => f.id === folderId)) setSelectedFolder(folderId);
-        }
-      });
-    }
-  }, [ready]);
+    if (!ready) return;
+    apiFetch('/folders').then(data => {
+      const nextFolders = data?.folders || [];
+      setFolders(nextFolders);
+      const folderId = router.query.folder;
+      if (folderId && nextFolders.some(folder => folder.id === folderId)) setSelectedFolder(folderId);
+    });
+  }, [ready, router.query.folder]);
 
-  function handleFileSelect(e) {
-    const file = e.target.files[0];
+  const applyCardCount = useCallback(count => {
+    const size = Math.min(parseInt(count, 10) || 0, 100);
+    if (size < 1) return;
+    setManualPairs(previous => previous.length < size
+      ? [...previous, ...Array.from({ length: size - previous.length }, () => ({ term: '', definition: '' }))]
+      : previous.slice(0, size));
+  }, []);
+
+  function selectFile(file) {
     if (!file) return;
     setUploadFile(file);
-    setUploadFileName(file.name);
-    // Set inputMode to 'pdf' for any supported file type to trigger extraction flow
     setInputMode('pdf');
-    if (!title) setTitle(file.name.replace(/\.[^.]+$/, ''));
+    setError('');
+    if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ''));
   }
 
-  function switchMode(mode) {
-    setInputMode(mode);
+  function switchToManual() {
+    setInputMode(mode => mode === 'manual' ? (uploadFile ? 'pdf' : 'text') : 'manual');
     setError('');
-    setUploadFile(null);
-    setUploadFileName('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   function updatePair(index, field, value) {
-    setManualPairs(prev => prev.map((p, i) => i === index ? { ...p, [field]: value } : p));
+    setManualPairs(previous => previous.map((pair, pairIndex) => pairIndex === index ? { ...pair, [field]: value } : pair));
   }
 
-  function addPair() { setManualPairs(prev => [...prev, { term: '', definition: '' }]); }
-
-  function removePair(index) {
-    if (manualPairs.length <= 1) return;
-    setManualPairs(prev => prev.filter((_, i) => i !== index));
+  function resolvedTitle() {
+    if (title.trim()) return title.trim();
+    if (uploadFile?.name) return uploadFile.name.replace(/\.[^.]+$/, '');
+    const firstLine = content.split('\n').map(line => line.trim()).find(Boolean);
+    return firstLine?.slice(0, 72) || 'New Study Guide';
   }
 
-  async function handleCreate(e) {
-    e.preventDefault();
-    if (!title.trim()) return;
-    setError('');
-
-    if (inputMode === 'manual') {
-      const validPairs = manualPairs.filter(p => p.term.trim() && p.definition.trim());
-      if (validPairs.length === 0) { setError('Add at least one term and definition.'); return; }
-      setStatus('saving');
-      const studyGuide = validPairs.map((p, i) =>
-        `Q${i + 1}: ${p.term.trim()}\nA${i + 1}: ${p.definition.trim()}`
-      ).join('\n');
-      const flashcards = validPairs.map(p => ({
-        front: p.term.trim(),
-        back: p.definition.trim(),
-        ...(p.image ? { image: p.image } : {}),
-      }));
-      const body = { title: title.trim(), study_guide: studyGuide, flashcards };
-      if (selectedFolder) body.folder_id = selectedFolder;
-      const editId = router.query.editGuideId;
-      let savedData;
-      if (editId) {
-        savedData = await apiFetch('/guides/' + editId, { method: 'PATCH', body: JSON.stringify(body) });
-      } else {
-        savedData = await apiFetch('/guides', { method: 'POST', body: JSON.stringify(body) });
-      }
-      if (savedData?.guide) {
-        setStatus('done');
-        localStorage.removeItem(AUTOSAVE_MANUAL_KEY);
-        router.push('/guide/' + savedData.guide.id);
-      } else {
-        setError('Failed to save guide.');
-        setStatus('error');
-      }
+  async function saveManualGuide() {
+    const pairs = manualPairs.filter(pair => pair.term.trim() && pair.definition.trim());
+    if (!pairs.length) {
+      setError('Add at least one complete term and definition.');
       return;
     }
+    setStatus('saving');
+    const body = {
+      title: resolvedTitle(),
+      study_guide: pairs.map((pair, index) => `Q${index + 1}: ${pair.term.trim()}\nA${index + 1}: ${pair.definition.trim()}`).join('\n'),
+      flashcards: pairs.map(pair => ({ front: pair.term.trim(), back: pair.definition.trim(), ...(pair.image ? { image: pair.image } : {}) })),
+      ...(selectedFolder ? { folder_id: selectedFolder } : {}),
+    };
+    const editId = router.query.editGuideId;
+    const saved = await apiFetch(editId ? '/guides/' + editId : '/guides', {
+      method: editId ? 'PATCH' : 'POST',
+      body: JSON.stringify(body),
+    });
+    if (!saved?.guide) throw new Error('Failed to save guide.');
+    localStorage.removeItem(MANUAL_DRAFT_KEY);
+    router.push('/guide/' + saved.guide.id);
+  }
 
-    let finalContent = content.trim();
+  async function extractFile() {
+    if (!uploadFile) return '';
+    setStatus('extracting');
+    const formData = new FormData();
+    formData.append('file', uploadFile);
+    const response = await fetch(API + '/extract-file-text', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + (getToken() || '') },
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok || !data.text) throw new Error(data.detail || 'Could not read this file.');
+    return data.text;
+  }
 
-    if (inputMode === 'pdf') {
-      if (!uploadFile) { setError('Please select a file.'); return; }
-      setStatus('extracting');
-      const formData = new FormData();
-      formData.append('file', uploadFile);
-      // Debug: print FormData contents to verify file is present
-      for (let [key, value] of formData.entries()) {
-        console.log('FormData:', key, value);
-      }
-      try {
-        const resp = await fetch(API + '/extract-file-text', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + (getToken() || '') },
-          body: formData,
-        });
-        const data = await resp.json();
-        if (!resp.ok || !data.text) {
-          setError(data.detail || 'Could not extract text from this file.');
-          setStatus('error');
-          return;
-        }
-        finalContent = data.text;
-      } catch {
-        setError('Failed to upload file. Please try again.');
-        setStatus('error');
+  async function handleCreate(event) {
+    event.preventDefault();
+    setError('');
+    try {
+      if (inputMode === 'manual') return await saveManualGuide();
+      const source = inputMode === 'pdf' ? await extractFile() : content.trim();
+      if (source.length < 10) {
+        setError('Add a little more study material before creating your guide.');
         return;
       }
-    } else if (finalContent.length < 10) {
-      return;
-    }
+      setStatus('ingesting');
+      const ingested = await apiFetch('/ingest', {
+        method: 'POST',
+        body: JSON.stringify({ content: source, page_url: '', content_type: 'webpage' }),
+      });
+      if (!ingested?.content_id) throw new Error('Failed to process content.');
 
-    setStatus('ingesting');
-    const ingestData = await apiFetch('/ingest', {
-      method: 'POST',
-      body: JSON.stringify({ content: finalContent, page_url: '', content_type: 'webpage' })
-    });
-    if (!ingestData?.content_id) { setError('Failed to process content.'); setStatus('error'); return; }
+      setStatus('generating');
+      const generated = await apiFetch('/generate', {
+        method: 'POST',
+        body: JSON.stringify({ content_id: ingested.content_id, notes: generateNotes, study_guide: true, flashcards: generateFlashcards }),
+      });
+      if (!generated) throw new Error('Failed to generate study materials. You may have reached your usage limit.');
 
-    setStatus('generating');
-    const generateData = await apiFetch('/generate', {
-      method: 'POST',
-      body: JSON.stringify({ content_id: ingestData.content_id, notes: generateNotes, study_guide: true, flashcards: generateFlashcards })
-    });
-    if (!generateData) { setError('Failed to generate study materials. You may have reached your usage limit.'); setStatus('error'); return; }
-
-    setStatus('saving');
-    const body = { title: title.trim(), notes: generateData.notes || null, study_guide: generateData.study_guide || null, flashcards: generateData.flashcards || null };
-    if (selectedFolder) body.folder_id = selectedFolder;
-    const savedData = await apiFetch('/guides', { method: 'POST', body: JSON.stringify(body) });
-    if (savedData?.guide) {
-      setStatus('done');
-      localStorage.removeItem(AUTOSAVE_TEXT_KEY);
-      router.push('/guide/' + savedData.guide.id);
-    } else {
-      setError('Failed to save guide.');
+      setStatus('saving');
+      const saved = await apiFetch('/guides', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: resolvedTitle(),
+          notes: generated.notes || null,
+          study_guide: generated.study_guide || null,
+          flashcards: generated.flashcards || null,
+          ...(selectedFolder ? { folder_id: selectedFolder } : {}),
+        }),
+      });
+      if (!saved?.guide) throw new Error('Failed to save guide.');
+      localStorage.removeItem(SOURCE_DRAFT_KEY);
+      router.push('/guide/' + saved.guide.id);
+    } catch (caught) {
+      setError(caught.message || 'Something went wrong. Please try again.');
       setStatus('error');
     }
   }
@@ -250,244 +202,86 @@ export default function CreateGuidePage() {
   if (!ready) return null;
 
   const isLoading = ['extracting', 'ingesting', 'generating', 'saving'].includes(status);
+  const validManualPair = manualPairs.some(pair => pair.term.trim() && pair.definition.trim());
+  const canSubmit = !isLoading && (inputMode === 'manual' ? validManualPair : inputMode === 'pdf' ? !!uploadFile : content.trim().length >= 10);
   const statusMessages = {
-    extracting: 'Reading your file...',
-    ingesting: 'Processing your content...',
-    generating: 'AI is generating your study guide — this may take 20–40 seconds...',
-    saving: 'Saving your guide...',
+    extracting: 'Reading your file…',
+    ingesting: 'Organizing your material…',
+    generating: 'Building your study guide…',
+    saving: 'Saving your guide…',
   };
-  const canSubmit = !isLoading && title.trim() && (
-    inputMode === 'manual'
-      ? manualPairs.some(p => p.term.trim() && p.definition.trim())
-      : inputMode === 'pdf' ? !!uploadFile : content.trim().length >= 10
-  );
-  const filledCards = manualPairs.filter(p => p.term.trim() && p.definition.trim()).length;
 
   return (
-    <div className="fade-in create-page">
+    <div className="fade-in create-page create-page-redesign">
+      <button type="button" className="create-back-link" onClick={() => router.push('/dashboard?view=guides')}>Back to Study Guides</button>
+      <header className="create-header create-hero">
+        <p className="editorial-kicker">NEW STUDY GUIDE</p>
+        <h1 className="create-title">Turn material into something you can study.</h1>
+        <p className="create-subtitle">Paste notes or add a file. AutoStudyAI handles the structure, title, and flashcards for you.</p>
+      </header>
 
-      {/* Page header */}
-      <div className="create-header">
-        <h2 className="create-title">Create Study Guide</h2>
-        <p className="create-subtitle">
-          {inputMode === 'manual'
-            ? 'Add your own terms and definitions to build a custom flashcard set.'
-            : 'Paste notes or upload a file — AI generates your study guide automatically.'}
-        </p>
-      </div>
+      {isLoading && <div className="create-banner create-banner-info">{statusMessages[status]}</div>}
+      {error && <div className="create-banner create-banner-error" role="alert">{error}</div>}
 
-      {/* Status / error banners */}
-      {isLoading && (
-        <div className="create-banner create-banner-info">{statusMessages[status]}</div>
-      )}
-      {error && (
-        <div className="create-banner create-banner-error">{error}</div>
-      )}
+      <form className="create-flow-card" onSubmit={handleCreate}>
+        {inputMode !== 'manual' ? (
+          <>
+            <section className="create-source-section">
+              <div className="create-step-heading"><span>1</span><div><h2>Add your study material</h2><p>Paste text below or choose a document—whichever is faster.</p></div></div>
+              <textarea
+                className="create-textarea create-source-textarea"
+                placeholder="Paste lecture notes, textbook content, slides, or anything you need to learn…"
+                value={content}
+                onChange={event => { setContent(event.target.value); if (event.target.value.trim()) setInputMode('text'); }}
+                disabled={isLoading}
+              />
+              <div className="create-source-divider"><span>or</span></div>
+              <button type="button" className={'create-upload-button' + (uploadFile ? ' selected' : '')} onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+                <span>{uploadFile ? uploadFile.name : 'Choose a PDF, PowerPoint, Word file, or text file'}</span>
+                <small>{uploadFile ? 'Click to replace this file' : 'Any class material works'}</small>
+              </button>
+              <input ref={fileInputRef} type="file" accept="*" onChange={event => selectFile(event.target.files?.[0])} hidden />
+            </section>
 
-      <form onSubmit={handleCreate}>
-
-        {/* Mode tabs */}
-        <div className="create-tabs">
-          {[['manual', 'Manual'], ['text', 'Paste Text'], ['pdf', 'Upload File']].map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => switchMode(mode)}
-              disabled={isLoading}
-              className={'create-tab' + (inputMode === mode ? ' create-tab-active' : '')}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Guide Title */}
-        <div className="create-field">
-          <label className="create-label">Guide Title</label>
-          <input
-            type="text"
-            placeholder="e.g. Chapter 5: Cell Biology"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            required
-            disabled={isLoading}
-            className="create-input"
-          />
-        </div>
-
-        {/* ── Manual mode ── */}
-        {inputMode === 'manual' && (
-          <div className="create-field">
-            {/* Terms & Definitions header with card count */}
-            <div className="create-manual-header">
-              <label className="create-label">Terms &amp; Definitions</label>
-              <div className="create-cardcount-wrap">
-                <span className="create-cardcount-label">Set size</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  placeholder="—"
-                  value={cardCount}
-                  onChange={e => setCardCount(e.target.value)}
-                  onBlur={() => applyCardCount(cardCount)}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), applyCardCount(cardCount))}
-                  className="create-cardcount-input"
-                />
-                <span className="create-cardcount-badge">
-                  {filledCards} / {manualPairs.length}
-                </span>
+            <section className="create-details-section">
+              <div className="create-step-heading"><span>2</span><div><h2>Choose where it belongs</h2><p>Both fields are optional. The title is created automatically if left blank.</p></div></div>
+              <div className="create-details-grid">
+                <label><span>Title</span><input className="create-input" value={title} onChange={event => setTitle(event.target.value)} placeholder="Automatic title" disabled={isLoading} /></label>
+                <label><span>Class</span><select className="create-select" value={selectedFolder} onChange={event => setSelectedFolder(event.target.value)} disabled={isLoading}><option value="">No class</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
               </div>
-            </div>
-
-            {/* Card pairs */}
+              <div className="create-checks">
+                <label className="create-check-label"><input type="checkbox" checked={generateNotes} onChange={event => setGenerateNotes(event.target.checked)} /> Include summary notes</label>
+                <label className="create-check-label"><input type="checkbox" checked={generateFlashcards} onChange={event => setGenerateFlashcards(event.target.checked)} /> Include flashcards</label>
+              </div>
+            </section>
+          </>
+        ) : (
+          <section className="create-manual-section">
+            <div className="create-step-heading"><span>1</span><div><h2>Build manually</h2><p>Add the exact questions and answers you want to study.</p></div></div>
+            <label className="create-manual-title"><span>Guide title</span><input className="create-input" value={title} onChange={event => setTitle(event.target.value)} placeholder="Custom study guide" /></label>
+            <div className="create-manual-header"><span>{manualPairs.filter(pair => pair.term.trim() && pair.definition.trim()).length} complete cards</span><label>Set size <input type="number" min="1" max="100" value={cardCount} onChange={event => setCardCount(event.target.value)} onBlur={() => applyCardCount(cardCount)} /></label></div>
             <div className="create-cards-list">
-              {manualPairs.map((pair, i) => (
-                <div key={i} className="create-card">
-                  <div className="create-card-num">{i + 1}</div>
+              {manualPairs.map((pair, index) => (
+                <div className="create-card" key={index}>
+                  <div className="create-card-num">{index + 1}</div>
                   <div className="create-card-body">
-                    <input
-                      type="text"
-                      placeholder="Term or Question"
-                      value={pair.term}
-                      onChange={e => updatePair(i, 'term', e.target.value)}
-                      disabled={isLoading}
-                      className="create-card-input create-card-term"
-                    />
+                    <input className="create-card-input create-card-term" value={pair.term} onChange={event => updatePair(index, 'term', event.target.value)} placeholder="Question or term" />
                     <div className="create-card-divider" />
-                    <input
-                      type="text"
-                      placeholder="Definition or Answer"
-                      value={pair.definition}
-                      onChange={e => updatePair(i, 'definition', e.target.value)}
-                      disabled={isLoading}
-                      className="create-card-input create-card-def"
-                    />
-                    {pair.image ? (
-                      <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
-                        <img src={pair.image} alt="Card" style={{ maxWidth: '100%', maxHeight: 130, borderRadius: 8, border: '1px solid var(--border-default)' }} />
-                        <button
-                          type="button"
-                          onClick={() => updatePair(i, 'image', null)}
-                          style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: '0.8em', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >&times;</button>
-                      </div>
-                    ) : (
-                      <label className="create-card-img-btn">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-                        </svg>
-                        Add image
-                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => {
-                          const file = e.target.files[0]; if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = () => updatePair(i, 'image', reader.result);
-                          reader.readAsDataURL(file);
-                          e.target.value = '';
-                        }} />
-                      </label>
-                    )}
+                    <input className="create-card-input create-card-def" value={pair.definition} onChange={event => updatePair(index, 'definition', event.target.value)} placeholder="Answer or definition" />
                   </div>
-                  {manualPairs.length > 1 && (
-                    <button type="button" onClick={() => removePair(i)} disabled={isLoading} className="create-card-remove" title="Remove">×</button>
-                  )}
+                  {manualPairs.length > 1 && <button type="button" className="create-card-remove" onClick={() => setManualPairs(pairs => pairs.filter((_, pairIndex) => pairIndex !== index))} aria-label="Remove card">×</button>}
                 </div>
               ))}
             </div>
-
-            <button type="button" onClick={addPair} disabled={isLoading} className="create-add-card">
-              + Add Card
-            </button>
-          </div>
+            <button type="button" className="create-add-card" onClick={() => setManualPairs(pairs => [...pairs, { term: '', definition: '' }])}>Add another card</button>
+            <label className="create-manual-title"><span>Class</span><select className="create-select" value={selectedFolder} onChange={event => setSelectedFolder(event.target.value)}><option value="">No class</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
+          </section>
         )}
 
-        {/* ── Paste text mode ── */}
-        {inputMode === 'text' && (
-          <div className="create-field">
-            <label className="create-label">
-              Content <span className="create-label-hint">(paste your notes, slides, or reading material)</span>
-            </label>
-            <textarea
-              placeholder="Paste your lecture notes, textbook content, or study material here..."
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              required
-              disabled={isLoading}
-              className="create-textarea"
-            />
-            <div className="create-char-count">{content.length.toLocaleString()} characters</div>
-          </div>
-        )}
-
-        {/* ── Upload file mode ── */}
-        {inputMode === 'pdf' && (
-          <div className="create-field">
-            <label className="create-label">
-              File <span className="create-label-hint">(PDF, DOCX, PPTX, or TXT — max 20MB)</span>
-            </label>
-            <div
-              className={'create-upload-zone' + (uploadFile ? ' create-upload-zone-active' : '')}
-              onClick={() => !isLoading && fileInputRef.current?.click()}
-            >
-              <div className="create-upload-icon">{uploadFile ? '✅' : '📂'}</div>
-              {uploadFile ? (
-                <>
-                  <div className="create-upload-filename">{uploadFileName}</div>
-                  <div className="create-upload-hint">{(uploadFile.size / 1024 / 1024).toFixed(2)} MB · click to change</div>
-                </>
-              ) : (
-                <>
-                  <div className="create-upload-cta">Click to choose a file</div>
-                  <div className="create-upload-hint">PDF, DOCX, PPTX, TXT — or drag and drop</div>
-                </>
-              )}
-            </div>
-            <input ref={fileInputRef} type="file" accept={ACCEPTED_FILE_TYPES} onChange={handleFileSelect} style={{ display: 'none' }} />
-          </div>
-        )}
-
-        {/* Save to Class */}
-        <div className="create-field">
-          <label className="create-label">Save to Class <span className="create-label-hint">(optional)</span></label>
-          <select
-            value={selectedFolder}
-            onChange={e => setSelectedFolder(e.target.value)}
-            disabled={isLoading}
-            className="create-select"
-          >
-            <option value="">No class</option>
-            {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        </div>
-
-        {/* Generate options (non-manual only) */}
-        {inputMode !== 'manual' && (
-          <div className="create-checks">
-            {[['generateNotes', generateNotes, setGenerateNotes, 'Generate Notes'],
-              ['generateFlashcards', generateFlashcards, setGenerateFlashcards, 'Generate Flashcards']
-            ].map(([key, val, setter, lbl]) => (
-              <label key={key} className="create-check-label">
-                <input
-                  type="checkbox"
-                  checked={val}
-                  onChange={e => setter(e.target.checked)}
-                  disabled={isLoading}
-                  style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
-                />
-                {lbl}
-              </label>
-            ))}
-          </div>
-        )}
-
-        <button type="submit" className="btn create-submit-btn" disabled={!canSubmit}>
-          {isLoading
-            ? (inputMode === 'manual' ? 'Saving…' : 'Generating…')
-            : (inputMode === 'manual'
-                ? (router.query.editGuideId ? 'Update Study Guide' : 'Save Study Guide')
-                : 'Generate Study Guide')}
-        </button>
-
+        <footer className="create-flow-footer">
+          <button type="button" className="create-manual-toggle" onClick={switchToManual}>{inputMode === 'manual' ? 'Use AI from source material' : 'Build manually'}</button>
+          <button type="submit" className="btn create-submit-btn" disabled={!canSubmit}>{isLoading ? statusMessages[status] : router.query.editGuideId ? 'Update study guide' : 'Create study guide'}</button>
+        </footer>
       </form>
     </div>
   );

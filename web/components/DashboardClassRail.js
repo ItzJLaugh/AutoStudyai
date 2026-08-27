@@ -11,6 +11,7 @@ export default function DashboardClassRail({
   onDragLeave,
   onDrop,
   dropTargetId,
+  allowCreate = true,
 }) {
   return (
     <aside className="dashboard-class-rail" aria-label="Classes">
@@ -19,10 +20,10 @@ export default function DashboardClassRail({
           <span className="dashboard-rail-kicker">ORGANIZE</span>
           <h2>Classes</h2>
         </div>
-        <button type="button" className="class-add-trigger" onClick={() => setShowNewFolder(true)}>New</button>
+        {allowCreate && <button type="button" className="class-add-trigger" onClick={() => setShowNewFolder(true)}>New</button>}
       </div>
 
-      {showNewFolder && (
+      {allowCreate && showNewFolder && (
         <div className="class-create-form">
           <input
             type="text"
@@ -76,7 +77,7 @@ export default function DashboardClassRail({
         ))}
       </div>
 
-      {classes.length === 0 && !showNewFolder && (
+      {allowCreate && classes.length === 0 && !showNewFolder && (
         <button type="button" className="class-rail-empty" onClick={() => setShowNewFolder(true)}>
           Create your first class
         </button>

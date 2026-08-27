@@ -6,8 +6,7 @@ import { formatDate } from '../lib/formatters';
 import useSessionTracker from '../lib/useSessionTracker';
 import SearchModal from '../components/SearchModal';
 import AILoadingSphere from '../components/AILoadingSphere';
-import DashboardClassRail from '../components/DashboardClassRail';
-import DashboardStudyRail from '../components/DashboardStudyRail';
+import StudyWorkspaceFrame from '../components/StudyWorkspaceFrame';
 import { organizeDashboardGuides } from '../lib/dashboardOrganization';
 
 export default function Dashboard({ timerState, setTimerState }) {
@@ -215,16 +214,28 @@ export default function Dashboard({ timerState, setTimerState }) {
     );
   }
 
+  const organized = organizeDashboardGuides(folders, guides);
+  const workspaceClassRail = {
+    newFolderName,
+    setNewFolderName,
+    showNewFolder,
+    setShowNewFolder,
+    createFolder,
+    openFolder: folderId => router.push('/folder/' + folderId),
+    openGuide: guideId => router.push('/guide/' + guideId),
+    onDragOver,
+    onDragLeave,
+    onDrop,
+    dropTargetId,
+  };
+
   // ============== CLASSES VIEW ==============
   if (view === 'classes') {
     return (
       <div className="fade-in">
         <div className="section-header">
           <h2>My Classes</h2>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn" onClick={() => router.push('/create')}>+ Create Guide</button>
-            <button className="btn" onClick={() => setShowNewFolder(true)}>+ New Class</button>
-          </div>
+          <button className="btn" onClick={() => setShowNewFolder(true)}>+ New Class</button>
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: 16 }}>
           {folders.length} classes &middot; Drag study guides onto a class to organize them
@@ -269,48 +280,6 @@ export default function Dashboard({ timerState, setTimerState }) {
             <div className="empty-state-icon">&#128193;</div>
             No classes yet. Create one to organize your study guides!
           </div>
-        )}
-
-        {/* Unassigned guides section */}
-        {guides.filter(g => !g.folder_id).length > 0 && (
-          <>
-            <div className="section-header" style={{ marginTop: 28 }}>
-              <h2>Unassigned Guides</h2>
-            </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: 12 }}>
-              Drag these into a class above to organize them
-            </p>
-            {guides.filter(g => !g.folder_id).map(guide => (
-              <div
-                key={guide.id}
-                className={'card draggable-guide' + (dragGuideId === guide.id ? ' dragging' : '')}
-                draggable
-                onDragStart={e => onDragStart(e, guide.id)}
-                onDragEnd={onDragEnd}
-                onClick={() => router.push('/guide/' + guide.id)}
-                onContextMenu={e => onGuideContextMenu(e, guide)}
-              >
-                <div className="card-row">
-                  <div className="drag-handle" title="Drag to move">&#9776;</div>
-                  <div style={{ flex: 1 }}>
-                    <h3>{guide.title}</h3>
-                    <p><span className="timestamp">{formatDate(guide.created_at)}</span></p>
-                  </div>
-                  <button className={'bookmark-btn' + (guide.is_bookmarked ? ' active' : '')} onClick={e => toggleBookmark(guide.id, e)}>
-                    {guide.is_bookmarked ? '\u2605' : '\u2606'}
-                  </button>
-                  <button
-                    className="bookmark-btn"
-                    style={{ color: 'var(--error)', opacity: 0.55, fontSize: '0.95em' }}
-                    title="Delete guide"
-                    onClick={e => { e.stopPropagation(); if (window.confirm('Delete "' + guide.title + '"?')) deleteGuide(guide.id); }}
-                  >
-                    &#128465;
-                  </button>
-                </div>
-              </div>
-            ))}
-          </>
         )}
 
         {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
@@ -374,11 +343,21 @@ export default function Dashboard({ timerState, setTimerState }) {
   if (view === 'guides') {
     const filteredGuides = getFilteredGuides();
     return (
-      <div className="fade-in">
-        <div className="section-header">
-          <h2>Study Guides</h2>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn" onClick={() => router.push('/create')} style={{ fontSize: '0.8em' }}>+ Create Guide</button>
+      <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="guides" timerState={timerState} setTimerState={setTimerState}>
+        <div className="fade-in study-library">
+          <div className="study-library-header">
+            <div>
+              <p className="editorial-kicker">LIBRARY</p>
+              <h1>Study Guides</h1>
+              <p>Everything you have captured or created, ready to review.</p>
+            </div>
+            <button className="btn" onClick={() => router.push('/create')}>New study guide</button>
+          </div>
+          <div className="study-library-tabs" role="tablist" aria-label="Study library">
+            <button type="button" className="active" role="tab" aria-selected="true">Study guides</button>
+            <button type="button" role="tab" aria-selected="false" onClick={() => router.push('/flashcards')}>Flashcards</button>
+          </div>
+          <div className="study-library-toolbar">
             <button className="guides-search-trigger" onClick={() => setShowSearch(true)}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
@@ -387,7 +366,6 @@ export default function Dashboard({ timerState, setTimerState }) {
               <kbd>Ctrl+K</kbd>
             </button>
           </div>
-        </div>
 
         {/* Filters & Sort */}
         <div className="guides-toolbar">
@@ -473,7 +451,8 @@ export default function Dashboard({ timerState, setTimerState }) {
 
         {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
         {contextMenu && renderContextMenu()}
-      </div>
+        </div>
+      </StudyWorkspaceFrame>
     );
   }
 
@@ -536,27 +515,10 @@ export default function Dashboard({ timerState, setTimerState }) {
   }
 
   // ============== DEFAULT DASHBOARD VIEW ==============
-  const organized = organizeDashboardGuides(folders, guides);
-
   return (
-    <div className="dashboard-workspace-grid">
+    <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="dashboard" timerState={timerState} setTimerState={setTimerState}>
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
-      <DashboardClassRail
-        classes={organized.classes}
-        newFolderName={newFolderName}
-        setNewFolderName={setNewFolderName}
-        showNewFolder={showNewFolder}
-        setShowNewFolder={setShowNewFolder}
-        createFolder={createFolder}
-        openFolder={folderId => router.push('/folder/' + folderId)}
-        openGuide={guideId => router.push('/guide/' + guideId)}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-        dropTargetId={dropTargetId}
-      />
-
-      <section className="dashboard-center-column">
+      <div>
         <div className="dashboard-desktop-header">
           <div>
             <p className="editorial-kicker">AUTOSTUDYAI</p>
@@ -620,11 +582,9 @@ export default function Dashboard({ timerState, setTimerState }) {
             </div>
           ))}
         </div>
-      </section>
-
-      <DashboardStudyRail timerState={timerState} setTimerState={setTimerState} />
+      </div>
       {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
       {contextMenu && renderContextMenu()}
-    </div>
+    </StudyWorkspaceFrame>
   );
 }

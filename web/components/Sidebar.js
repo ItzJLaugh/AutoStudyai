@@ -6,9 +6,7 @@ import AcademicInfinityMark from './AcademicInfinityMark';
 
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', match: '/dashboard' },
-  { label: 'Create', href: '/create', match: '/create' },
   { label: 'Study Guides', href: '/dashboard?view=guides', match: 'view=guides' },
-  { label: 'Flashcards', href: '/flashcards', match: '/flashcards' },
   { label: 'SmartNotes', href: '/smartnotes', match: '/smartnotes' },
   { label: 'Classes', href: '/dashboard?view=classes', match: 'view=classes' },
 ];
@@ -40,6 +38,7 @@ export default function Sidebar() {
 
   function isActive(item) {
     if (item.match === '/dashboard') return router.pathname === '/dashboard' && !router.query.view;
+    if (item.match === 'view=guides') return (router.pathname === '/dashboard' && router.query.view === 'guides') || router.pathname.startsWith('/flashcards') || router.pathname === '/create';
     if (item.match.startsWith('view=')) return router.pathname === '/dashboard' && router.query.view === item.match.split('=')[1];
     return router.pathname.startsWith(item.match);
   }

@@ -6,21 +6,21 @@ import { useRouter } from 'next/router';
 
 export default function Layout({ children, timerState, setTimerState }) {
   const router = useRouter();
-  const dashboardOwnsTools = router.pathname === '/dashboard' && !router.query.view;
+  const pageOwnsTools = ['/dashboard', '/smartnotes', '/flashcards', '/create'].includes(router.pathname);
 
   return (
     <div className="app-shell">
       <Sidebar />
       <main className="main-content fade-in">
         {children}
-        {!dashboardOwnsTools && (
+        {!pageOwnsTools && (
           <section className="workspace-tools" aria-label="Study tools">
             <StreakCounter />
             <StudyTimer timerState={timerState} setTimerState={setTimerState} />
           </section>
         )}
       </main>
-      {!dashboardOwnsTools && <AIChatWidget />}
+      {!pageOwnsTools && <AIChatWidget />}
     </div>
   );
 }
