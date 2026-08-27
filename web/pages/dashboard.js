@@ -31,6 +31,10 @@ export default function Dashboard() {
   const contextRef = useRef(null);
 
   useEffect(() => {
+    if (ready && router.query.view === 'notes') router.replace('/smartnotes');
+  }, [ready, router, router.query.view]);
+
+  useEffect(() => {
     if (ready) {
       setLoading(true);
       loadData();
@@ -188,7 +192,7 @@ export default function Dashboard() {
     return filtered;
   }
 
-  if (!ready) return null;
+  if (!ready || view === 'notes') return null;
 
   // ============== LOADING STATE ==============
   if (!ready || loading) {

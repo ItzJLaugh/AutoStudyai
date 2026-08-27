@@ -1,4 +1,5 @@
 import { useRequireAuth } from '../lib/auth';
+import AcademicInfinityMark from '../components/AcademicInfinityMark';
 
 const STORE_URL = 'https://chromewebstore.google.com/detail/autostudyai/eddmfjcnfjfbaknmeccjbjdgpeipjbaf';
 
@@ -9,7 +10,7 @@ export default function InstallExtensionPage() {
   return (
     <div className="extension-install-page fade-in">
       <div className="extension-install-hero">
-        <img src="/icon128.png" alt="AutoStudyAI extension icon" className="extension-install-logo" />
+        <AcademicInfinityMark className="extension-install-logo" />
         <div>
           <p className="extension-install-eyebrow">AutoStudyAI for Chrome</p>
           <h1>Capture course material in a few clicks.</h1>

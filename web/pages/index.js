@@ -2,6 +2,7 @@ import Head from 'next/head';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import LoginBackground from '../components/LoginBackground';
+import AcademicInfinityMark from '../components/AcademicInfinityMark';
 import { getToken, setToken, scheduleProactiveRefresh } from '../lib/api';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -180,7 +181,7 @@ export default function LoginPage() {
         {/* Left brand panel */}
         <div className="login-panel-left">
           <div className="login-brand-mark">
-            <img src="/icon128.png" alt="AutoStudyAI" className="login-brand-img" />
+            <AcademicInfinityMark className="login-academic-mark" />
             <div className="login-brand-name">
               <span className="login-brand-blue">Auto</span><span className="login-brand-dark">Study</span><span className="login-brand-blue">AI</span>
             </div>

@@ -1,29 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { clearAuth, getUserEmail } from '../lib/api';
 import FeedbackModal from './FeedbackModal';
+import AcademicInfinityMark from './AcademicInfinityMark';
 
 export default function Sidebar() {
   const router = useRouter();
   const path = router.pathname;
   const [email, setEmail] = useState('');
   const [showFeedback, setShowFeedback] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => setEmail(getUserEmail() || ''), []);
 
   useEffect(() => {
-    setEmail(getUserEmail() || '');
-  }, []);
+    const close = (event) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.type === 'mousedown' && menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false);
+    };
+    const routeClose = () => setMenuOpen(false);
+    document.addEventListener('keydown', close);
+    document.addEventListener('mousedown', close);
+    router.events.on('routeChangeStart', routeClose);
+    return () => {
+      document.removeEventListener('keydown', close);
+      document.removeEventListener('mousedown', close);
+      router.events.off('routeChangeStart', routeClose);
+    };
+  }, [router.events]);
 
   const mainTabs = [
     { label: 'Dashboard', href: '/dashboard', icon: dashboardIcon, match: '/dashboard' },
     { label: 'Create Guide', href: '/create', icon: createIcon, match: '/create' },
     { label: 'Study Guides', href: '/dashboard?view=guides', icon: guidesIcon, match: 'view=guides' },
-    { label: 'Notes', href: '/dashboard?view=notes', icon: notesIcon, match: 'view=notes' },
     { label: 'Flashcards', href: '/flashcards', icon: flashcardsIcon, match: '/flashcards' },
     { label: 'SmartNotes', href: '/smartnotes', icon: smartNotesIcon, match: '/smartnotes' },
   ];
-  const classesTabs = [
-    { label: 'Classes', href: '/dashboard?view=classes', icon: classesIcon, match: 'view=classes' },
-  ];
+  const classesTabs = [{ label: 'Classes', href: '/dashboard?view=classes', icon: classesIcon, match: 'view=classes' }];
 
   function isActive(tab) {
     if (tab.match === '/dashboard') return path === '/dashboard' && !router.query.view;
@@ -32,62 +46,62 @@ export default function Sidebar() {
     return path.startsWith(tab.match);
   }
 
-  function NavTab({ tab }) {
-    return (
-      <div
-        className={'sidebar-tab' + (isActive(tab) ? ' sidebar-tab-active' : '') + (tab.match === '/smartnotes' ? ' sidebar-tab-smartnotes' : '')}
-        onClick={() => router.push(tab.href)}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          {tab.icon}
-        </svg>
-        {tab.label}
-      </div>
-    );
-  }
-
   function logout() {
     clearAuth();
     router.push('/');
   }
 
+  function setAppearance(theme) {
+    localStorage.setItem('theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+
+  function NavTab({ tab }) {
+    return (
+      <button type="button" className={'sidebar-tab' + (isActive(tab) ? ' sidebar-tab-active' : '')} onClick={() => router.push(tab.href)}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{tab.icon}</svg>
+        <span>{tab.label}</span>
+      </button>
+    );
+  }
+
   return (
-    <nav className="sidebar">
-      <div className="sidebar-logo">
-        <img src="/icon128.png" alt="AutoStudyAI" className="sidebar-logo-img" />
-        <span className="sidebar-logo-text"><span className="logo-blue">Auto</span><span className="logo-dark">Study</span><span className="logo-blue">AI</span></span>
-      </div>
+    <nav className="sidebar" aria-label="Primary navigation">
+      <a href="/dashboard" className="sidebar-logo" aria-label="AutoStudyAI dashboard">
+        <AcademicInfinityMark className="sidebar-logo-mark" />
+        <span className="sidebar-logo-text">AutoStudyAI</span>
+      </a>
 
       <div className="sidebar-nav">
         {mainTabs.map(tab => <NavTab key={tab.label} tab={tab} />)}
-
         <div className="sidebar-section-divider" />
-        <div className="sidebar-section-label">Your Classes</div>
+        <div className="sidebar-section-label">Organize</div>
         {classesTabs.map(tab => <NavTab key={tab.label} tab={tab} />)}
       </div>
 
-      <div className="sidebar-footer">
-        <div
-          className={'sidebar-tab' + (path === '/settings' ? ' sidebar-tab-active' : '')}
-          onClick={() => router.push('/settings')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            {settingsIcon}
-          </svg>
-          Settings
-        </div>
-        <div className="sidebar-user-row">
-          <div className="sidebar-user-avatar">{email ? email[0].toUpperCase() : 'U'}</div>
-          <div className="sidebar-user-info">
-            <div className="sidebar-email">{email}</div>
-            <button className="sidebar-logout" onClick={logout}>Log Out</button>
+      <div className="sidebar-footer" ref={menuRef}>
+        <button type="button" className="profile-trigger" onClick={() => setMenuOpen(open => !open)} aria-expanded={menuOpen} aria-haspopup="menu">
+          <span className="sidebar-user-avatar">{email ? email[0].toUpperCase() : 'U'}</span>
+          <span className="profile-trigger-copy"><strong>{email ? email.split('@')[0] : 'Your account'}</strong><small>{email || 'Account menu'}</small></span>
+          <span aria-hidden="true">⌄</span>
+        </button>
+        {menuOpen && (
+          <div className="profile-menu" role="menu" aria-label="Account menu">
+            <div className="profile-menu-account"><strong>{email || 'Your account'}</strong><span>AutoStudyAI student</span></div>
+            <div className="profile-menu-section">
+              <span>Appearance</span>
+              <div className="appearance-toggle" role="group" aria-label="Appearance">
+                <button type="button" onClick={() => setAppearance('light')}>Light</button>
+                <button type="button" onClick={() => setAppearance('dark')}>Dark</button>
+              </div>
+            </div>
+            <button type="button" role="menuitem" onClick={() => router.push('/settings')}>Settings</button>
+            <button type="button" role="menuitem" onClick={() => router.push('/settings#billing')}>Billing</button>
+            <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setShowFeedback(true); }}>Send feedback</button>
+            <div className="profile-menu-divider" />
+            <button type="button" role="menuitem" className="profile-menu-signout" onClick={logout}>Sign out</button>
           </div>
-          <button className="sidebar-feedback-icon" onClick={() => setShowFeedback(true)} title="Send Feedback">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-            </svg>
-          </button>
-        </div>
+        )}
       </div>
       {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
     </nav>
@@ -99,7 +113,4 @@ const classesIcon = <><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h
 const guidesIcon = <><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /></>;
 const flashcardsIcon = <><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M12 4v16" /></>;
 const createIcon = <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>;
-const missionIcon = <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></>;
-const smartNotesIcon = <><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></>;
-const notesIcon = <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></>;
-const settingsIcon =<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></>;
+const smartNotesIcon = <><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></>;
