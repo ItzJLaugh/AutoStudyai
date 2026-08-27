@@ -1,408 +1,161 @@
 import Head from 'next/head';
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import AcademicInfinityMark from '../components/AcademicInfinityMark';
 import { getToken, setToken, scheduleProactiveRefresh } from '../lib/api';
-import { validateAuthFields } from '../lib/auth-form';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-// Searchable dropdown component for university/major selection
-function SearchableSelect({ options, value, onChange, placeholder, loading }) {
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    function handleClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  const filtered = query
-    ? options.filter(o => o.toLowerCase().includes(query.toLowerCase())).slice(0, 80)
-    : options.slice(0, 80);
-
-  return (
-    <div className="searchable-select" ref={ref}>
-      <input
-        type="text"
-        placeholder={value || placeholder}
-        value={open ? query : (value || '')}
-        onFocus={() => { setOpen(true); setQuery(''); }}
-        onChange={e => { setQuery(e.target.value); setOpen(true); }}
-        className={value ? 'has-value' : ''}
-        autoComplete="off"
-      />
-      {value && (
-        <button type="button" className="clear-btn" onClick={(e) => { e.stopPropagation(); onChange(''); setQuery(''); }}>
-          &times;
-        </button>
-      )}
-      {open && (
-        <div className="select-dropdown">
-          {loading ? (
-            <div className="select-option disabled">Loading...</div>
-          ) : (
-            <>
-              <div
-                className={'select-option' + (value === 'Other' ? ' selected' : '')}
-                onClick={() => { onChange('Other'); setOpen(false); setQuery(''); }}
-              >
-                Other
-              </div>
-              {filtered.map((o, i) => (
-                <div
-                  key={i}
-                  className={'select-option' + (value === o ? ' selected' : '')}
-                  onClick={() => { onChange(o); setOpen(false); setQuery(''); }}
-                >
-                  {o}
-                </div>
-              ))}
-              {filtered.length === 0 && <div className="select-option disabled">No results found</div>}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [university, setUniversity] = useState('');
-  const [major, setMajor] = useState('');
   const [error, setError] = useState('');
   const [isSignup, setIsSignup] = useState(false);
   const [confirmationSent, setConfirmationSent] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState({});
-
-  // Data for dropdowns
-  const [universities, setUniversities] = useState([]);
-  const [majors, setMajors] = useState([]);
-  const [dataLoading, setDataLoading] = useState(false);
 
   useEffect(() => {
     if (getToken()) router.push('/dashboard');
   }, []);
 
-  // Load dropdown data when switching to signup mode
-  useEffect(() => {
-    if (isSignup && universities.length === 0) {
-      setDataLoading(true);
-      Promise.all([
-        fetch('/data/universities.json').then(r => r.json()),
-        fetch('/data/majors.json').then(r => r.json())
-      ]).then(([uniData, majorData]) => {
-        setUniversities(uniData);
-        setMajors(majorData);
-      }).catch(() => {
-        // Silently fail — dropdowns will just be empty
-      }).finally(() => setDataLoading(false));
-    }
-  }, [isSignup]);
-
-  async function handleForgotSubmit(e) {
-    e.preventDefault();
+  async function handleForgotSubmit(event) {
+    event.preventDefault();
     setError('');
-    const emailError = validateAuthFields({ email: forgotEmail, password: 'valid-password' }).email;
-    if (emailError) {
-      setFieldErrors({ forgotEmail: emailError });
-      e.currentTarget.elements.namedItem('forgotEmail')?.focus();
-      return;
-    }
-    setFieldErrors({});
+    const email = String(new FormData(event.currentTarget).get('email') || '').trim().toLowerCase();
+
     try {
-      const resp = await fetch(API + '/auth/forgot-password', {
+      const response = await fetch(`${API}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail })
+        body: JSON.stringify({ email }),
       });
-      if (resp.ok) {
-        setForgotSent(true);
-      } else {
-        const data = await resp.json();
-        setError(data.detail || 'Something went wrong');
-      }
+      if (response.ok) setForgotSent(true);
+      else setError((await response.json()).detail || 'Unable to send reset email.');
     } catch {
-      setError('Cannot connect to server');
+      setError('Service unavailable. Try again in a moment.');
     }
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(event) {
+    event.preventDefault();
     setError('');
-    const nextFieldErrors = validateAuthFields({ email, password, name, isSignup });
-    if (Object.keys(nextFieldErrors).length) {
-      setFieldErrors(nextFieldErrors);
-      e.currentTarget.elements.namedItem(Object.keys(nextFieldErrors)[0])?.focus();
-      return;
-    }
-    setFieldErrors({});
-    const endpoint = isSignup ? '/auth/signup' : '/auth/login';
-    const normalizedEmail = email.trim().toLowerCase();
-    const body = { email: normalizedEmail, password };
-    if (isSignup) {
-      if (name.trim()) body.name = name.trim();
-      if (university) body.university = university;
-      if (major) body.major = major;
-    }
+    setConfirmationSent(false);
+
+    const form = new FormData(event.currentTarget);
+    const body = {
+      email: String(form.get('email') || '').trim().toLowerCase(),
+      password: String(form.get('password') || ''),
+    };
+    if (isSignup) body.name = String(form.get('name') || '').trim();
+
     try {
-      const resp = await fetch(API + endpoint, {
+      const response = await fetch(`${API}/auth/${isSignup ? 'signup' : 'login'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       });
-      const data = await resp.json();
-      if (resp.ok && data.access_token) {
+      const data = await response.json();
+
+      if (response.ok && data.access_token) {
         setToken(data.access_token, data.email, data.refresh_token);
         scheduleProactiveRefresh();
         router.push('/dashboard');
-      } else if (resp.ok && isSignup && !data.access_token) {
+      } else if (response.ok && isSignup) {
         setConfirmationSent(true);
       } else {
-        setError(resp.status === 401 ? 'That email and password did not match. Try again or reset your password.' : (data.detail || 'Authentication failed'));
+        setError(response.status === 401
+          ? 'That email and password did not match. Try again or reset your password.'
+          : data.detail || 'Authentication failed.');
       }
     } catch {
-      setError('Cannot connect to server');
+      setError('Service unavailable. Try again in a moment.');
     }
+  }
+
+  function showLogin() {
+    setForgotMode(false);
+    setForgotSent(false);
+    setError('');
+  }
+
+  function selectMode(signup) {
+    setIsSignup(signup);
+    setConfirmationSent(false);
+    setError('');
   }
 
   return (
     <>
-    <Head>
-      <title>AutoStudyAI — AI Study Guides, Notes & Flashcards</title>
-      <meta name="description" content="AutoStudyAI instantly turns any lecture, textbook, or course page into study guides, notes, and flashcards using AI. Install the Chrome extension and start studying smarter." />
-      <meta name="keywords" content="AutoStudyAI, AI study guide, study tool, flashcards, notes generator, Chrome extension, student AI" />
-      <meta property="og:title" content="AutoStudyAI — AI Study Guides, Notes & Flashcards" />
-      <meta property="og:description" content="Turn any lecture or textbook into study materials instantly with AI." />
-      <meta property="og:url" content="https://autostudyai.online" />
-      <meta property="og:type" content="website" />
-      <link rel="canonical" href="https://autostudyai.online" />
-    </Head>
-    <div className="login-page" style={{ '--login-backdrop': "url('/login-learning-backdrop.webp')" }}>
-      <div className="login-split">
+      <Head>
+        <title>AutoStudyAI — AI Study Guides, Notes & Flashcards</title>
+        <meta name="description" content="Turn lectures, textbooks, and course pages into focused study materials." />
+        <link rel="canonical" href="https://autostudyai.online" />
+      </Head>
 
-        {/* Left brand panel */}
-        <div className="login-panel-left">
-          <div className="login-brand-mark">
-            <AcademicInfinityMark className="login-academic-mark" />
-            <div className="login-brand-name">
-              <span className="login-brand-blue">Auto</span><span className="login-brand-dark">Study</span><span className="login-brand-blue">AI</span>
+      <main className="login-page" style={{ '--login-backdrop': "url('/login-learning-backdrop.webp')" }}>
+        <div className="login-split">
+          <section className="login-panel-left">
+            <div className="login-brand-mark">
+              <AcademicInfinityMark className="login-academic-mark" />
+              <div className="login-brand-name">AutoStudyAI</div>
+              <h1 className="login-editorial-title">Learn from anything.</h1>
+              <p className="login-brand-tagline">Capture educational material from any page and turn it into a focused study workspace.</p>
             </div>
-            <h1 className="login-editorial-title">Learn from anything.</h1>
-            <p className="login-brand-tagline">Capture educational material from any page and turn it into a focused study workspace.</p>
-          </div>
-        </div>
+          </section>
 
-        {/* Right form panel */}
-        <div className="login-panel-right">
-          {forgotMode ? (
-            <div className="login-form-wrap">
-              <h2 className="login-form-title">Reset Password</h2>
-              {forgotSent ? (
-                <p style={{ color: 'var(--accent)', fontSize: '0.88em', textAlign: 'center', lineHeight: 1.5 }}>
-                  If an account exists with that email, a reset link has been sent. Check your inbox.
-                </p>
-              ) : (
-                <form onSubmit={handleForgotSubmit} noValidate>
-                  <div className="login-input-row">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-                    </svg>
-                    <input name="forgotEmail" type="email" className="login-underline-input" placeholder="Your email address" value={forgotEmail} onChange={e => { setForgotEmail(e.target.value); setFieldErrors({}); }} aria-invalid={Boolean(fieldErrors.forgotEmail)} aria-describedby={fieldErrors.forgotEmail ? 'forgot-email-error' : undefined} />
-                  </div>
-                  {fieldErrors.forgotEmail && <p id="forgot-email-error" className="login-field-error">{fieldErrors.forgotEmail}</p>}
-                  {error && <p className="login-form-error" role="alert">{error}</p>}
-                  <button type="submit" className="btn login-cta-btn">Send Reset Link</button>
-                </form>
-              )}
-              <p className="login-switch-text">
-                  <a href="#" onClick={e => { e.preventDefault(); setForgotMode(false); setForgotSent(false); setError(''); setFieldErrors({}); }}>
-                  &#8592; Back to login
-                </a>
-              </p>
-            </div>
-          ) : (
-            <div className="login-form-wrap">
-              <h2 className="login-form-title">{isSignup ? 'Create account' : 'Sign in'}</h2>
-              <div className="login-mode-tabs" role="tablist" aria-label="Account access">
-                <button type="button" role="tab" aria-selected={!isSignup} className={!isSignup ? 'active' : ''} onClick={() => { setIsSignup(false); setError(''); setFieldErrors({}); }}>Sign in</button>
-                <button type="button" role="tab" aria-selected={isSignup} className={isSignup ? 'active' : ''} onClick={() => { setIsSignup(true); setError(''); setFieldErrors({}); }}>Create account</button>
+          <section className="login-panel-right">
+            {forgotMode ? (
+              <div className="login-form-wrap">
+                <h2 className="login-form-title">Reset password</h2>
+                {forgotSent ? (
+                  <p className="login-success">If an account exists with that email, a reset link has been sent.</p>
+                ) : (
+                  <form onSubmit={handleForgotSubmit}>
+                    <div className="login-input-row">
+                      <input name="email" type="email" className="login-underline-input" placeholder="Email" autoComplete="email" required />
+                    </div>
+                    {error && <p className="login-form-error" role="alert">{error}</p>}
+                    <button type="submit" className="btn login-cta-btn">Send reset link</button>
+                  </form>
+                )}
+                <p className="login-switch-text"><a href="#" onClick={(event) => { event.preventDefault(); showLogin(); }}>Back to sign in</a></p>
               </div>
-              <form onSubmit={handleSubmit} noValidate>
-                {isSignup && (
+            ) : (
+              <div className="login-form-wrap">
+                <h2 className="login-form-title">{isSignup ? 'Create account' : 'Sign in'}</h2>
+                <div className="login-mode-tabs" role="tablist" aria-label="Account access">
+                  <button type="button" role="tab" aria-selected={!isSignup} className={!isSignup ? 'active' : ''} onClick={() => selectMode(false)}>Sign in</button>
+                  <button type="button" role="tab" aria-selected={isSignup} className={isSignup ? 'active' : ''} onClick={() => selectMode(true)}>Create account</button>
+                </div>
+
+                <form key={isSignup ? 'signup' : 'login'} onSubmit={handleSubmit}>
+                  {isSignup && (
+                    <div className="login-input-row">
+                      <input name="name" type="text" className="login-underline-input" placeholder="Full name" autoComplete="name" required />
+                    </div>
+                  )}
                   <div className="login-input-row">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                    </svg>
-                    <input name="name" type="text" className="login-underline-input" placeholder="Full Name" value={name} onChange={e => { setName(e.target.value); setFieldErrors(current => ({ ...current, name: '' })); }} aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? 'name-error' : undefined} autoComplete="name" />
+                    <input name="email" type="email" className="login-underline-input" placeholder="Email" autoComplete="email" required />
                   </div>
-                )}
-                {isSignup && fieldErrors.name && <p id="name-error" className="login-field-error">{fieldErrors.name}</p>}
-                <div className="login-input-row">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-                  </svg>
-                  <input name="email" type="email" className="login-underline-input" placeholder="Email" value={email} onChange={e => { setEmail(e.target.value); setFieldErrors(current => ({ ...current, email: '' })); }} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'email-error' : undefined} autoComplete="email" />
-                </div>
-                {fieldErrors.email && <p id="email-error" className="login-field-error">{fieldErrors.email}</p>}
-                <div className="login-input-row">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-                  </svg>
-                  <input name="password" type={showPassword ? 'text' : 'password'} className="login-underline-input" placeholder="Password" value={password} onChange={e => { setPassword(e.target.value); setFieldErrors(current => ({ ...current, password: '' })); }} aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'password-error' : undefined} autoComplete={isSignup ? 'new-password' : 'current-password'} />
-                  <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', flexShrink: 0 }} onClick={() => setShowPassword(p => !p)}>
-                    {showPassword ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                {fieldErrors.password && <p id="password-error" className="login-field-error">{fieldErrors.password}</p>}
-                {!isSignup && (
-                  <div className="login-forgot">
-                    <a href="#" onClick={e => { e.preventDefault(); setForgotMode(true); setError(''); setFieldErrors({}); setForgotEmail(email); }}>
-                      Forgot password?
-                    </a>
+                  <div className="login-input-row">
+                    <input name="password" type="password" className="login-underline-input" placeholder="Password" autoComplete={isSignup ? 'new-password' : 'current-password'} minLength={6} required />
                   </div>
-                )}
-                {isSignup && (
-                  <>
-                    <SearchableSelect options={universities} value={university} onChange={setUniversity} placeholder="University (optional)" loading={dataLoading} />
-                    <SearchableSelect options={majors} value={major} onChange={setMajor} placeholder="Major (optional)" loading={dataLoading} />
-                  </>
-                )}
-                {error && <p className="login-form-error" role="alert">{error}</p>}
-                {confirmationSent && <p style={{ color: 'var(--accent)', marginBottom: 10, fontSize: '0.85em' }}>Account created! Check your email to confirm before logging in.</p>}
-                <button type="submit" className="btn login-cta-btn">
-                  {isSignup ? 'Create account' : 'Sign in'}
-                </button>
-              </form>
-              <p className="login-switch-text">
-                {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
-                <a href="#" onClick={e => { e.preventDefault(); setIsSignup(!isSignup); setError(''); setFieldErrors({}); }}>
-                  {isSignup ? 'Login' : 'Sign Up'}
-                </a>
-              </p>
-            </div>
-          )}
+
+                  {!isSignup && <div className="login-forgot"><a href="#" onClick={(event) => { event.preventDefault(); setForgotMode(true); setError(''); }}>Forgot password?</a></div>}
+                  {error && <p className="login-form-error" role="alert">{error}</p>}
+                  {confirmationSent && <p className="login-success">Account created. Check your email to confirm it.</p>}
+                  <button type="submit" className="btn login-cta-btn">{isSignup ? 'Create account' : 'Sign in'}</button>
+                </form>
+
+                <p className="login-switch-text">
+                  {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
+                  <a href="#" onClick={(event) => { event.preventDefault(); selectMode(!isSignup); }}>{isSignup ? 'Sign in' : 'Sign up'}</a>
+                </p>
+              </div>
+            )}
+          </section>
         </div>
-
-      </div>
-    </div>
-
-    <style jsx>{`
-      .searchable-select {
-        position: relative;
-        margin-bottom: 12px;
-      }
-      .searchable-select input {
-        width: 100%;
-        padding: 10px 32px 10px 12px;
-        border-radius: 8px;
-        border: 1px solid var(--border-default);
-        background: var(--bg-tertiary);
-        color: var(--text-primary);
-        font-size: 0.95em;
-      }
-      .searchable-select input::placeholder {
-        color: var(--text-muted);
-      }
-      .searchable-select input:focus {
-        outline: none;
-        border-color: var(--accent);
-      }
-      .clear-btn {
-        position: absolute;
-        right: 8px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        color: var(--text-muted);
-        font-size: 1.2em;
-        cursor: pointer;
-        padding: 0 4px;
-        line-height: 1;
-      }
-      .clear-btn:hover {
-        color: var(--text-primary);
-      }
-      .select-dropdown {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        max-height: 168px;
-        overflow-y: auto;
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-default);
-        border-radius: 8px;
-        margin-top: 4px;
-        z-index: 200;
-        box-shadow: var(--shadow-md);
-      }
-      .select-option {
-        padding: 8px 12px;
-        font-size: 0.9em;
-        color: var(--text-secondary);
-        cursor: pointer;
-        user-select: none;
-      }
-      .select-option:hover {
-        background: var(--bg-hover);
-        color: var(--text-primary);
-      }
-      .select-option.selected {
-        color: var(--accent);
-        font-weight: 600;
-      }
-      .select-option.disabled {
-        color: var(--text-muted);
-        cursor: default;
-        font-style: italic;
-      }
-      .select-option.disabled:hover {
-        background: none;
-      }
-      .password-wrapper {
-        position: relative;
-        margin-bottom: 10px;
-      }
-      .toggle-pw-btn {
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        color: var(--text-muted);
-        cursor: pointer;
-        padding: 0;
-        display: flex;
-        align-items: center;
-      }
-      .toggle-pw-btn:hover {
-        color: var(--text-primary);
-      }
-    `}</style>
+      </main>
     </>
   );
 }

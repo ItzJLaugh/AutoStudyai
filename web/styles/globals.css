@@ -2518,8 +2518,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .login-cta-btn:hover { background: #2b2d28 !important; }
 .login-forgot { margin: -2px 0 15px; }
 .login-switch-text { margin-top: 19px; }
-.login-field-error,
-.login-form-error { margin: -7px 2px 13px; color: #a42f2f; font-size: 0.78rem; font-weight: 620; line-height: 1.4; }
+.login-form-error { margin: 0 2px 13px; color: #a42f2f; font-size: 0.78rem; font-weight: 620; line-height: 1.4; }
+.login-success { margin: 0 0 14px; color: #526149; font-size: 0.82rem; line-height: 1.5; text-align: center; }
 .login-page { color: #161714; }
 .login-page .login-academic-mark { color: #526149; }
 .login-page .login-brand-name,
@@ -2533,12 +2533,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .login-page .login-switch-text a { color: #596b51; }
 .login-page .login-input-row { border-color: #dedfd8; background: #ffffff; }
 .login-page .login-input-row:focus-within { border-color: #66775e; box-shadow: 0 0 0 3px rgba(89, 107, 81, 0.14), 0 7px 18px rgba(38, 43, 34, 0.09); }
-.login-page .login-input-row:has([aria-invalid="true"]) { border-color: #b84a4a; box-shadow: 0 0 0 3px rgba(184, 74, 74, 0.1); }
-.login-page .login-underline-input,
-.login-page .searchable-select input { border: 0 !important; background: #ffffff !important; color: #161714 !important; }
+.login-page .login-underline-input { border: 0 !important; background: #ffffff !important; color: #161714 !important; }
 .login-page input::placeholder { color: #777b72; opacity: 1; }
-.login-page .login-input-row svg,
-.login-page .login-input-row button { color: #74796f !important; }
 
 [data-theme="dark"] .btn,
 [data-theme="dark"] .btn-green,

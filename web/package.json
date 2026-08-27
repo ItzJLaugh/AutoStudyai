@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "test": "node --experimental-default-type=module --test tests/*.test.mjs"
+    "start": "next start"
   },
   "keywords": [],
   "author": "",
