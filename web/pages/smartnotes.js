@@ -533,7 +533,7 @@ function NotesIndex({ router }) {
     <div className="sn-index">
       <div className="sn-index-header">
         <div>
-          <h1 className="sn-index-title">Notes</h1>
+          <h1 className="sn-index-title">SmartNotes</h1>
           <p className="sn-index-subtitle">
             {selectMode
               ? 'Click the note you want to turn into a study guide.'
@@ -1503,7 +1503,7 @@ function SmartNotesEditor() {
         {/* Left: notes paper — spans all 3 rows */}
         <div className="sn-paper-wrap">
           <div className="sn-paper-label-row">
-            <span className="sn-panel-label">Notes</span>
+            <span className="sn-panel-label">SmartNotes</span>
             {visualizeMode && (
               <button
                 className="sn-visualize-confirm"

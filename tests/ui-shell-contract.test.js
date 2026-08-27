@@ -1,0 +1,32 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.resolve(__dirname, '..');
+const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8');
+
+const mark = read('web', 'components', 'AcademicInfinityMark.js');
+const styles = read('web', 'styles', 'globals.css');
+const sidebar = read('web', 'components', 'Sidebar.js');
+const dashboard = read('web', 'pages', 'dashboard.js');
+const login = read('web', 'pages', 'index.js');
+const install = read('web', 'pages', 'install-extension.js');
+const documentPage = read('web', 'pages', '_document.js');
+
+assert.match(mark, /export default function AcademicInfinityMark/);
+assert.match(mark, /open-book|book-pages/);
+for (const token of ['--canvas:', '--surface:', '--ink:', '--olive:']) {
+  assert.ok(styles.includes(token), `missing visual token ${token}`);
+}
+assert.match(styles, /prefers-reduced-motion/);
+assert.match(sidebar, /label: 'SmartNotes'/);
+assert.doesNotMatch(sidebar, /label: 'Notes'/);
+for (const label of ['Appearance', 'Settings', 'Billing', 'Send feedback', 'Sign out']) {
+  assert.ok(sidebar.includes(label), `missing profile action ${label}`);
+}
+assert.match(dashboard, /router\.replace\('\/smartnotes'\)/);
+assert.match(login, /AcademicInfinityMark/);
+assert.match(install, /AcademicInfinityMark/);
+assert.match(documentPage, /Cormorant\+Garamond/);
+
+console.log('UI shell contract passed');
