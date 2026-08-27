@@ -40,7 +40,7 @@ export default function App({ Component, pageProps }) {
   return (
     <>
       <Layout timerState={timerState} setTimerState={setTimerState} guideContent={guideContent} guideTitle={guideTitle}>
-        <Component {...pageProps} setGuideContent={setGuideContent} setGuideTitle={setGuideTitle} />
+        <Component {...pageProps} setGuideContent={setGuideContent} setGuideTitle={setGuideTitle} timerState={timerState} setTimerState={setTimerState} />
       </Layout>
     </>
   );

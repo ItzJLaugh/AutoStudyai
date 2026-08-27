@@ -6,8 +6,11 @@ import { formatDate } from '../lib/formatters';
 import useSessionTracker from '../lib/useSessionTracker';
 import SearchModal from '../components/SearchModal';
 import AILoadingSphere from '../components/AILoadingSphere';
+import DashboardClassRail from '../components/DashboardClassRail';
+import DashboardStudyRail from '../components/DashboardStudyRail';
+import { organizeDashboardGuides } from '../lib/dashboardOrganization';
 
-export default function Dashboard() {
+export default function Dashboard({ timerState, setTimerState }) {
   const router = useRouter();
   const { ready } = useRequireAuth();
   useSessionTracker('browse');
@@ -533,157 +536,93 @@ export default function Dashboard() {
   }
 
   // ============== DEFAULT DASHBOARD VIEW ==============
+  const organized = organizeDashboardGuides(folders, guides);
+
   return (
-    <div>
+    <div className="dashboard-workspace-grid">
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
+      <DashboardClassRail
+        classes={organized.classes}
+        newFolderName={newFolderName}
+        setNewFolderName={setNewFolderName}
+        showNewFolder={showNewFolder}
+        setShowNewFolder={setShowNewFolder}
+        createFolder={createFolder}
+        openFolder={folderId => router.push('/folder/' + folderId)}
+        openGuide={guideId => router.push('/guide/' + guideId)}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        dropTargetId={dropTargetId}
+      />
 
-      {/* Page header */}
-      <div className="dash-header">
-        <div>
-          <p className="editorial-kicker">AUTOSTUDYAI</p>
-          <h1 className="dash-title editorial-page-title">Your study workspace</h1>
-          <p className="dash-subtitle">{guides.length} guides &middot; {folders.length} classes</p>
+      <section className="dashboard-center-column">
+        <div className="dashboard-desktop-header">
+          <div>
+            <p className="editorial-kicker">AUTOSTUDYAI</p>
+            <h1>Your study workspace</h1>
+            <p>{guides.length} guides across {folders.length} classes</p>
+          </div>
+          <button className="btn" onClick={() => router.push('/create')}>New study guide</button>
         </div>
-        <button className="btn" onClick={() => router.push('/create')}>+ New Study Guide</button>
-      </div>
 
-      {/* Stats row */}
-      {stats && (
-        <div className="stats-grid">
-          <div className="stat-card" onClick={() => router.push('/dashboard?view=guides')} style={{ cursor: 'pointer' }} title="View all study guides">
-            <div className="stat-number">{stats.total_guides}</div>
-            <div className="stat-label">Study Guides</div>
+        {stats && (
+          <div className="dashboard-metrics-strip" aria-label="Study overview">
+            <button type="button" onClick={() => router.push('/dashboard?view=guides')}><strong>{stats.total_guides}</strong><span>Guides</span></button>
+            <div><strong>{stats.total_flashcards}</strong><span>Flashcards</span></div>
+            <div><strong>{stats.avg_quiz_score}%</strong><span>Quiz average</span></div>
+            <div><strong>{stats.minutes_today}</strong><span>Minutes today</span></div>
           </div>
-          <div className="stat-card">
-            <div className="stat-number">{stats.total_flashcards}</div>
-            <div className="stat-label">Flashcards</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-number">{stats.avg_quiz_score}%</div>
-            <div className="stat-label">Avg Quiz Score</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-number">{stats.minutes_today}</div>
-            <div className="stat-label">Minutes Today</div>
-          </div>
-        </div>
-      )}
+        )}
 
-      {/* Extension banner */}
-      <button
-        type="button"
-        onClick={() => router.push('/install-extension')}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
-          background: 'var(--card-bg)', border: '1px solid var(--border)',
-          borderRadius: 10, padding: '10px 16px', marginBottom: 24,
-          cursor: 'pointer', color: 'inherit', font: 'inherit',
-        }}
-      >
-        <span className="extension-banner-badge">CHROME</span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '0.85em', fontWeight: 600, color: 'var(--text-primary)' }}>Get the Chrome Extension</div>
-          <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>Capture slides & lecture notes directly from your browser</div>
-        </div>
-        <span style={{ fontSize: '0.8em', color: 'var(--accent)', whiteSpace: 'nowrap' }}>Install free →</span>
-      </button>
-
-      {/* Classes section */}
-      <div className="section-header" id="classes">
-        <h2>My Classes</h2>
-        <button className="btn-outline" onClick={() => router.push('/dashboard?view=classes')} style={{ fontSize: '0.8em' }}>
-          View All &rarr;
+        <button type="button" className="dashboard-extension-banner" onClick={() => router.push('/install-extension')}>
+          <span className="extension-banner-badge">CHROME</span>
+          <span className="dashboard-extension-copy">
+            <strong>Install the Chrome extension</strong>
+            <small>Capture educational material from any page.</small>
+          </span>
+          <span className="dashboard-extension-action">Install free</span>
         </button>
-      </div>
 
-      <div className="folder-grid">
-        {folders.map(folder => (
-          <div
-            key={folder.id}
-            className={'folder-card' + (dropTargetId === folder.id ? ' drop-target' : '')}
-            onClick={() => router.push('/folder/' + folder.id)}
-            onDragOver={e => onDragOver(e, folder.id)}
-            onDragLeave={e => onDragLeave(e, folder.id)}
-            onDrop={e => onDrop(e, folder.id)}
-          >
-            <h3>{folder.name}</h3>
-            <p>{guideCount(folder.id)} study guides</p>
+        <div className="dashboard-guides-heading">
+          <div>
+            <span className="dashboard-rail-kicker">INBOX</span>
+            <h2>Not in a class</h2>
+            <p>Drag a guide onto a class in the left sidebar to organize it.</p>
           </div>
-        ))}
-        <div className="folder-card add-folder-card" onClick={() => setShowNewFolder(true)}>
-          {showNewFolder ? (
-            <div onClick={e => e.stopPropagation()}>
-              <input
-                type="text" placeholder="Class name..." value={newFolderName}
-                onChange={e => setNewFolderName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') setShowNewFolder(false); }}
-                autoFocus
-              />
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn btn-green" style={{ flex: 1, fontSize: '0.85em', padding: '6px 0' }} onClick={createFolder}>Create</button>
-                <button className="btn btn-gray" style={{ flex: 1, fontSize: '0.85em', padding: '6px 0' }} onClick={() => setShowNewFolder(false)}>Cancel</button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '1.8em', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1 }}>+</div>
-              <div style={{ fontWeight: 800, letterSpacing: '-0.03em', marginTop: 6, fontSize: '0.95em' }}>New Class</div>
-            </div>
-          )}
+          <button type="button" className="btn-outline" onClick={() => router.push('/dashboard?view=guides')}>View all guides</button>
         </div>
-      </div>
 
-      {/* Recent guides */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 }}>
-        <span className="section-label" style={{ marginBottom: 0 }}>Recent Study Guides</span>
-        <button className="btn-outline" onClick={() => router.push('/dashboard?view=guides')} style={{ fontSize: '0.78em', padding: '5px 14px' }}>
-          View All &rarr;
-        </button>
-      </div>
-
-      {guides.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">&#128214;</div>
-          No study guides yet.{' '}
-          <a href="/install-extension">
-            Install the Chrome extension
-          </a>
-          {' '}to capture slides and lecture notes.
-        </div>
-      ) : (
-        guides.slice(0, 8).map(guide => (
-          <div
-            key={guide.id}
-            className="guide-row"
-            draggable
-            onDragStart={e => onDragStart(e, guide.id)}
-            onDragEnd={onDragEnd}
-            onClick={() => router.push('/guide/' + guide.id)}
-            onContextMenu={e => onGuideContextMenu(e, guide)}
-          >
-            <div className="guide-row-icon">&#128214;</div>
-            <div className="guide-row-info">
-              <div className="guide-row-title">{guide.title}</div>
-              <div className="guide-row-meta">
-                {folders.find(f => f.id === guide.folder_id)?.name || 'No class'} &middot; {formatDate(guide.created_at)}
-              </div>
+        <div className="dashboard-unclassified-guides">
+          {organized.unclassified.length === 0 ? (
+            <div className="dashboard-guides-empty">
+              <strong>Everything is organized.</strong>
+              <span>New captures without a class will appear here.</span>
             </div>
-            <div className="guide-row-right">
-              <button
-                className={'bookmark-btn' + (guide.is_bookmarked ? ' active' : '')}
-                onClick={e => toggleBookmark(guide.id, e)}
-              >
+          ) : organized.unclassified.map(guide => (
+            <div
+              key={guide.id}
+              className="guide-row"
+              draggable
+              onDragStart={event => onDragStart(event, guide.id)}
+              onDragEnd={onDragEnd}
+              onClick={() => router.push('/guide/' + guide.id)}
+              onContextMenu={event => onGuideContextMenu(event, guide)}
+            >
+              <span className="guide-row-type">GUIDE</span>
+              <div className="guide-row-info">
+                <div className="guide-row-title">{guide.title}</div>
+                <div className="guide-row-meta">No class &middot; {formatDate(guide.created_at)}</div>
+              </div>
+              <button className={'bookmark-btn' + (guide.is_bookmarked ? ' active' : '')} onClick={event => toggleBookmark(guide.id, event)} aria-label="Toggle bookmark">
                 {guide.is_bookmarked ? '\u2605' : '\u2606'}
               </button>
-              <svg className="guide-row-chevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M5 3l4 4-4 4"/>
-              </svg>
             </div>
-          </div>
-        ))
-      )}
+          ))}
+        </div>
+      </section>
 
-
+      <DashboardStudyRail timerState={timerState} setTimerState={setTimerState} />
       {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
       {contextMenu && renderContextMenu()}
     </div>
