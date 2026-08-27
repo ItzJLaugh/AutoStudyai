@@ -32,6 +32,11 @@ class UniversalCaptureContractTests(unittest.TestCase):
         self.assertIn("analyze_images_for_slides(images_data", ingest)
         self.assertLess(ingest.index("analyze_images_for_slides(images_data"), ingest.index("select_educational_sections(content)"))
 
+    def test_screenshot_vision_output_is_not_reanalyzed_during_generation(self):
+        source = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
+        ingest = source[source.index("async def ingest"):source.index("@app.post(\"/generate\"")]
+        self.assertIn("images_data = []", ingest)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,7 +17,7 @@ class ImageData(BaseModel):
 
 class IngestRequest(BaseModel):
     """Request to ingest page content."""
-    content: str = Field(..., min_length=10, max_length=500_000)
+    content: str = Field(..., min_length=1, max_length=500_000)
     page_url: str = Field(..., max_length=2_048)
     content_type: str = Field(default="webpage", max_length=20)
     images: Optional[List[ImageData]] = Field(default=[])

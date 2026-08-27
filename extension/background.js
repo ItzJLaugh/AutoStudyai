@@ -61,60 +61,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.action === 'sendContent') {
-    (async () => {
-      try {
-        const ingestBody = {
-          content: message.content,
-          page_url: message.url
-        };
-        if (message.images && message.images.length > 0) {
-          ingestBody.images = message.images;
-        }
-        const ingestResp = await authedFetch('/ingest', {
-          method: 'POST',
-          body: JSON.stringify(ingestBody)
-        });
-        const ingestData = await ingestResp.json();
-
-        if (!ingestResp.ok) {
-          const detail = ingestData.detail;
-          const errMsg = typeof detail === 'object' ? (detail.message || 'Request failed') : (detail || 'Ingest failed');
-          sendResponse({ success: false, error: errMsg, status: ingestResp.status });
-          return;
-        }
-
-        const genResp = await authedFetch('/generate', {
-          method: 'POST',
-          body: JSON.stringify({
-            content_id: ingestData.content_id,
-            notes: true,
-            study_guide: true,
-            flashcards: true
-          })
-        });
-        const genData = await genResp.json();
-
-        if (!genResp.ok) {
-          const detail = genData.detail;
-          const errMsg = typeof detail === 'object' ? (detail.message || 'Request failed') : (detail || 'Generation failed');
-          sendResponse({ success: false, error: errMsg, status: genResp.status });
-          return;
-        }
-
-        sendResponse({
-          success: true,
-          notes: genData.notes,
-          study_guide: genData.study_guide,
-          flashcards: genData.flashcards || []
-        });
-      } catch (e) {
-        sendResponse({ success: false, error: e.message || 'Request failed' });
-      }
-    })();
-    return true; // Keep the message channel open for async response
-  }
-
   if (message.action === 'chatWithContent') {
     (async () => {
       try {

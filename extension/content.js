@@ -721,9 +721,13 @@ function extractUniversalContent() {
   const container = document.querySelector('main, article, [role="main"]') || document.body;
   const clone = container.cloneNode(true);
   clone.querySelectorAll('nav, header, footer, [role="navigation"], script, style').forEach(el => el.remove());
-  const content = selected || clone.innerText.trim();
-  if (content.length < 50) return { content: '', contentType: 'webpage', images: [] };
-  return { content, contentType: 'webpage', images: collectPageImages(container) };
+  // A deliberate selection is the user's source of truth. Keep it intact even
+  // when it is short; the server decides whether it is useful study material.
+  if (selected) return { content: selected, contentType: 'webpage', images: [], selected: Boolean(selected) };
+
+  // Normal page images are not reviewable source sections, so do not silently
+  // attach them. Screenshot fallback is the explicit visual-capture path.
+  return { content: clone.innerText.trim(), contentType: 'webpage', images: [], selected: Boolean(selected) };
 }
 
 /**

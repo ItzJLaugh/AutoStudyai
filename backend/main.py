@@ -346,7 +346,7 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
         content = _sanitize_text(body.content, MAX_CONTENT_LENGTH)
         page_url = _validate_url(body.page_url)
 
-        if not content or len(content) < 10:
+        if not content:
             raise HTTPException(status_code=400, detail="Content too short")
 
         logger.info(f"Content length: {len(content)} chars")
@@ -374,6 +374,9 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
             visual_text = "\n\n".join(image_descriptions.values()) if image_descriptions else ""
             if visual_text:
                 content = visual_text
+                # The transcription is now the reviewable source. Do not retain
+                # the screenshot for a second vision pass during generation.
+                images_data = []
             else:
                 logger.warning("Screenshot fallback produced no readable educational text")
 

@@ -22,6 +22,7 @@ const progressLog = document.getElementById('progress-log');
 const reviewDiv = document.getElementById('capture-review');
 const sectionList = document.getElementById('section-list');
 const generateSelectedBtn = document.getElementById('generate-selected-btn');
+const captureSource = document.getElementById('capture-source');
 
 // Auth DOM elements
 const authLoginDiv = document.getElementById('auth-login');
@@ -520,9 +521,10 @@ captureBtn.addEventListener('click', async () => {
 function fallbackToPageContent(tabId, tabUrl, subjectName = 'content') {
   statusDiv.innerText = 'Capturing page content...';
 
-  // First try smart extraction (LMS selectors, nav filtering, image collection)
+  // First capture the user's selection, otherwise readable page content.
   sendTabMessage(tabId, { action: 'extractContent' }).then((resp) => {
-    if (resp && resp.content && resp.content.trim().length > 50) {
+    const hasContent = resp && resp.content && resp.content.trim();
+    if (hasContent && (resp.selected || resp.content.trim().length > 50)) {
       showProgress('Page content captured!', true);
       sendToBackend(resp.content, tabUrl, subjectName, resp.images || []);
     } else {
@@ -563,6 +565,15 @@ function sendToBackend(content, url, subjectName = 'content', images = []) {
 function renderCaptureReview(response) {
   reviewDiv.style.display = 'block';
   sectionList.innerHTML = '';
+  captureSource.replaceChildren();
+  const sourceTitle = document.createElement('strong');
+  sourceTitle.textContent = lastPageTitle || 'Captured page';
+  const sourceUrl = document.createElement('a');
+  sourceUrl.href = lastPageUrl;
+  sourceUrl.target = '_blank';
+  sourceUrl.rel = 'noopener noreferrer';
+  sourceUrl.textContent = lastPageUrl;
+  captureSource.append('Source: ', sourceTitle, document.createElement('br'), sourceUrl);
   document.getElementById('excluded-summary').textContent = response.excluded_summary || '';
   (response.sections || []).forEach(section => {
     const label = document.createElement('label');
@@ -570,7 +581,9 @@ function renderCaptureReview(response) {
     label.innerHTML = `<input type="checkbox" value="${escapeHtml(section.id)}" checked> <b>${escapeHtml(section.heading)}</b>`;
     sectionList.appendChild(label);
   });
-  if (!response.is_educational || !(response.sections || []).length) statusDiv.innerText = 'No study material found. Try selecting text or another page.';
+  if (!response.is_educational || !(response.sections || []).length) {
+    statusDiv.innerText = 'No study material found. Try selecting the material, capturing a screenshot, or opening a PDF or PowerPoint.';
+  }
   updateGenerateButton();
 }
 
