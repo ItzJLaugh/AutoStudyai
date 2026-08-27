@@ -353,7 +353,6 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
 
         content_id = str(uuid4())
 
-        selection = select_educational_sections(content)
         # Detect if content is from a slideshow
         is_slideshow, slideshow_type = is_slideshow_content(content)
 
@@ -367,6 +366,18 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
                     "context": img.context,
                     "alt": img.alt,
                 })
+
+        # Screenshot-only capture has no DOM text. Transcribe visual material before
+        # selection so it reaches the same student review step as page text.
+        if images_data and content.strip() == "[Screenshot fallback]":
+            image_descriptions = analyze_images_for_slides(images_data)
+            visual_text = "\n\n".join(image_descriptions.values()) if image_descriptions else ""
+            if visual_text:
+                content = visual_text
+            else:
+                logger.warning("Screenshot fallback produced no readable educational text")
+
+        selection = select_educational_sections(content)
 
         # Store content with metadata (keyed by user to prevent cross-user access)
         storage.save_content(

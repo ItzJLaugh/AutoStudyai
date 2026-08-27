@@ -26,6 +26,12 @@ class UniversalCaptureContractTests(unittest.TestCase):
         self.assertIn("[section.get(\"text\", \"\") for section in sections", source)
         self.assertIn("Selected sections are invalid or empty", source)
 
+    def test_image_only_ingest_uses_vision_before_section_selection(self):
+        source = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
+        ingest = source[source.index("async def ingest"):source.index("@app.post(\"/generate\"")]
+        self.assertIn("analyze_images_for_slides(images_data", ingest)
+        self.assertLess(ingest.index("analyze_images_for_slides(images_data"), ingest.index("select_educational_sections(content)"))
+
 
 if __name__ == "__main__":
     unittest.main()
