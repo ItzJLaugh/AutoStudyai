@@ -3,16 +3,17 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { scheduleProactiveRefresh, getToken } from '../lib/api';
+import { resolveTheme } from '../lib/theme';
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
   const isLoginPage = router.pathname === '/';
 
-  // Load saved theme on mount
+  // Authentication pages stay light; workspace routes honor the saved preference.
   useEffect(() => {
     const saved = typeof window !== 'undefined' && localStorage.getItem('theme');
-    if (saved) document.documentElement.setAttribute('data-theme', saved);
-  }, []);
+    document.documentElement.setAttribute('data-theme', resolveTheme(router.pathname, saved));
+  }, [router.pathname]);
 
   // Start proactive token refresh if already logged in
   useEffect(() => {

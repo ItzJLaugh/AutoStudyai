@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import AcademicInfinityMark from '../components/AcademicInfinityMark';
 import { getToken, setToken, scheduleProactiveRefresh } from '../lib/api';
+import { validateAuthFields } from '../lib/auth-form';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -84,6 +85,7 @@ export default function LoginPage() {
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Data for dropdowns
   const [universities, setUniversities] = useState([]);
@@ -113,6 +115,13 @@ export default function LoginPage() {
   async function handleForgotSubmit(e) {
     e.preventDefault();
     setError('');
+    const emailError = validateAuthFields({ email: forgotEmail, password: 'valid-password' }).email;
+    if (emailError) {
+      setFieldErrors({ forgotEmail: emailError });
+      e.currentTarget.elements.namedItem('forgotEmail')?.focus();
+      return;
+    }
+    setFieldErrors({});
     try {
       const resp = await fetch(API + '/auth/forgot-password', {
         method: 'POST',
@@ -133,6 +142,13 @@ export default function LoginPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    const nextFieldErrors = validateAuthFields({ email, password, name, isSignup });
+    if (Object.keys(nextFieldErrors).length) {
+      setFieldErrors(nextFieldErrors);
+      e.currentTarget.elements.namedItem(Object.keys(nextFieldErrors)[0])?.focus();
+      return;
+    }
+    setFieldErrors({});
     const endpoint = isSignup ? '/auth/signup' : '/auth/login';
     const normalizedEmail = email.trim().toLowerCase();
     const body = { email: normalizedEmail, password };
@@ -199,19 +215,20 @@ export default function LoginPage() {
                   If an account exists with that email, a reset link has been sent. Check your inbox.
                 </p>
               ) : (
-                <form onSubmit={handleForgotSubmit}>
+                <form onSubmit={handleForgotSubmit} noValidate>
                   <div className="login-input-row">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
                     </svg>
-                    <input type="email" className="login-underline-input" placeholder="Your email address" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} required />
+                    <input name="forgotEmail" type="email" className="login-underline-input" placeholder="Your email address" value={forgotEmail} onChange={e => { setForgotEmail(e.target.value); setFieldErrors({}); }} aria-invalid={Boolean(fieldErrors.forgotEmail)} aria-describedby={fieldErrors.forgotEmail ? 'forgot-email-error' : undefined} />
                   </div>
-                  {error && <p style={{ color: 'var(--error)', marginBottom: 12, fontSize: '0.85em' }}>{error}</p>}
+                  {fieldErrors.forgotEmail && <p id="forgot-email-error" className="login-field-error">{fieldErrors.forgotEmail}</p>}
+                  {error && <p className="login-form-error" role="alert">{error}</p>}
                   <button type="submit" className="btn login-cta-btn">Send Reset Link</button>
                 </form>
               )}
               <p className="login-switch-text">
-                <a href="#" onClick={e => { e.preventDefault(); setForgotMode(false); setForgotSent(false); setError(''); }}>
+                  <a href="#" onClick={e => { e.preventDefault(); setForgotMode(false); setForgotSent(false); setError(''); setFieldErrors({}); }}>
                   &#8592; Back to login
                 </a>
               </p>
@@ -220,29 +237,31 @@ export default function LoginPage() {
             <div className="login-form-wrap">
               <h2 className="login-form-title">{isSignup ? 'Create account' : 'Sign in'}</h2>
               <div className="login-mode-tabs" role="tablist" aria-label="Account access">
-                <button type="button" role="tab" aria-selected={!isSignup} className={!isSignup ? 'active' : ''} onClick={() => { setIsSignup(false); setError(''); }}>Sign in</button>
-                <button type="button" role="tab" aria-selected={isSignup} className={isSignup ? 'active' : ''} onClick={() => { setIsSignup(true); setError(''); }}>Create account</button>
+                <button type="button" role="tab" aria-selected={!isSignup} className={!isSignup ? 'active' : ''} onClick={() => { setIsSignup(false); setError(''); setFieldErrors({}); }}>Sign in</button>
+                <button type="button" role="tab" aria-selected={isSignup} className={isSignup ? 'active' : ''} onClick={() => { setIsSignup(true); setError(''); setFieldErrors({}); }}>Create account</button>
               </div>
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} noValidate>
                 {isSignup && (
                   <div className="login-input-row">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
                     </svg>
-                    <input type="text" className="login-underline-input" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} required />
+                    <input name="name" type="text" className="login-underline-input" placeholder="Full Name" value={name} onChange={e => { setName(e.target.value); setFieldErrors(current => ({ ...current, name: '' })); }} aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? 'name-error' : undefined} autoComplete="name" />
                   </div>
                 )}
+                {isSignup && fieldErrors.name && <p id="name-error" className="login-field-error">{fieldErrors.name}</p>}
                 <div className="login-input-row">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
                   </svg>
-                  <input type="email" className="login-underline-input" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
+                  <input name="email" type="email" className="login-underline-input" placeholder="Email" value={email} onChange={e => { setEmail(e.target.value); setFieldErrors(current => ({ ...current, email: '' })); }} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'email-error' : undefined} autoComplete="email" />
                 </div>
+                {fieldErrors.email && <p id="email-error" className="login-field-error">{fieldErrors.email}</p>}
                 <div className="login-input-row">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
                   </svg>
-                  <input type={showPassword ? 'text' : 'password'} className="login-underline-input" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
+                  <input name="password" type={showPassword ? 'text' : 'password'} className="login-underline-input" placeholder="Password" value={password} onChange={e => { setPassword(e.target.value); setFieldErrors(current => ({ ...current, password: '' })); }} aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'password-error' : undefined} autoComplete={isSignup ? 'new-password' : 'current-password'} />
                   <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', flexShrink: 0 }} onClick={() => setShowPassword(p => !p)}>
                     {showPassword ? (
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -256,9 +275,10 @@ export default function LoginPage() {
                     )}
                   </button>
                 </div>
+                {fieldErrors.password && <p id="password-error" className="login-field-error">{fieldErrors.password}</p>}
                 {!isSignup && (
                   <div className="login-forgot">
-                    <a href="#" onClick={e => { e.preventDefault(); setForgotMode(true); setError(''); setForgotEmail(email); }}>
+                    <a href="#" onClick={e => { e.preventDefault(); setForgotMode(true); setError(''); setFieldErrors({}); setForgotEmail(email); }}>
                       Forgot password?
                     </a>
                   </div>
@@ -269,7 +289,7 @@ export default function LoginPage() {
                     <SearchableSelect options={majors} value={major} onChange={setMajor} placeholder="Major (optional)" loading={dataLoading} />
                   </>
                 )}
-                {error && <p style={{ color: 'var(--error)', marginBottom: 10, fontSize: '0.85em' }}>{error}</p>}
+                {error && <p className="login-form-error" role="alert">{error}</p>}
                 {confirmationSent && <p style={{ color: 'var(--accent)', marginBottom: 10, fontSize: '0.85em' }}>Account created! Check your email to confirm before logging in.</p>}
                 <button type="submit" className="btn login-cta-btn">
                   {isSignup ? 'Create account' : 'Sign in'}
@@ -277,7 +297,7 @@ export default function LoginPage() {
               </form>
               <p className="login-switch-text">
                 {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
-                <a href="#" onClick={e => { e.preventDefault(); setIsSignup(!isSignup); setError(''); }}>
+                <a href="#" onClick={e => { e.preventDefault(); setIsSignup(!isSignup); setError(''); setFieldErrors({}); }}>
                   {isSignup ? 'Login' : 'Sign Up'}
                 </a>
               </p>
