@@ -6,7 +6,6 @@ import { formatDate } from '../lib/formatters';
 import useSessionTracker from '../lib/useSessionTracker';
 import SearchModal from '../components/SearchModal';
 import AILoadingSphere from '../components/AILoadingSphere';
-import ExtensionOnboarding from '../components/ExtensionOnboarding';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -29,7 +28,6 @@ export default function Dashboard() {
   const [guidesSort, setGuidesSort] = useState('recent'); // recent, title, progress
   const [renamingFolder, setRenamingFolder] = useState(null);
   const [renameValue, setRenameValue] = useState('');
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const contextRef = useRef(null);
 
   useEffect(() => {
@@ -561,7 +559,7 @@ export default function Dashboard() {
       {/* Extension banner */}
       <button
         type="button"
-        onClick={() => setShowOnboarding(true)}
+        onClick={() => router.push('/install-extension')}
         style={{
           display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
           background: 'var(--card-bg)', border: '1px solid var(--border)',
@@ -634,7 +632,7 @@ export default function Dashboard() {
         <div className="empty-state">
           <div className="empty-state-icon">&#128214;</div>
           No study guides yet.{' '}
-          <a href="#" onClick={e => { e.preventDefault(); setShowOnboarding(true); }}>
+          <a href="/install-extension">
             Install the Chrome extension
           </a>
           {' '}to capture slides and lecture notes.
@@ -675,7 +673,6 @@ export default function Dashboard() {
 
       {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
       {contextMenu && renderContextMenu()}
-      <ExtensionOnboarding open={showOnboarding} onClose={() => setShowOnboarding(false)} />
     </div>
   );
 }
