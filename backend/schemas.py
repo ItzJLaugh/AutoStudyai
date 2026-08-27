@@ -44,6 +44,16 @@ class IngestResponse(BaseModel):
     content_id: str
     content_type: str = "webpage"
     detected_slideshow: bool = False
+    is_educational: bool = False
+    sections: List["EducationalSection"] = Field(default_factory=list)
+    excluded_summary: str = ""
+
+
+class EducationalSection(BaseModel):
+    """A student-reviewable source section selected from captured content."""
+    id: str = Field(..., pattern=r"^section-[1-9][0-9]*$")
+    heading: str = Field(..., min_length=1, max_length=500)
+    text: str = Field(..., min_length=1, max_length=50_000)
 
 
 class GenerateRequest(BaseModel):
@@ -52,6 +62,7 @@ class GenerateRequest(BaseModel):
     notes: bool = True
     study_guide: bool = True
     flashcards: bool = False
+    section_ids: Optional[List[str]] = Field(default=None, max_length=100)
     domain: Optional[str] = Field(default=None, max_length=30)
 
 
