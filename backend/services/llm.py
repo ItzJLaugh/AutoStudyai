@@ -4,10 +4,18 @@ Uses OpenAI GPT-4o for intelligent content processing.
 """
 
 import os
+import json
 import logging
 from typing import List, Optional
-from openai import OpenAI
-from dotenv import load_dotenv
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*_args, **_kwargs):
+        return False
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
@@ -20,7 +28,51 @@ def get_openai_client() -> Optional[OpenAI]:
     if not api_key:
         logger.error("OPENAI_API_KEY not set")
         return None
-    return OpenAI(api_key=api_key)
+    return OpenAI(api_key=api_key) if OpenAI else None
+
+
+def parse_educational_selection(raw_json: str) -> dict:
+    """Validate model selection output and fail closed on malformed content."""
+    empty = {"is_educational": False, "sections": [], "excluded_summary": ""}
+    try:
+        payload = json.loads(raw_json)
+    except (TypeError, json.JSONDecodeError):
+        return empty
+    if not isinstance(payload, dict) or payload.get("is_educational") is not True:
+        return empty
+    sections = []
+    for item in payload.get("sections", []):
+        if not isinstance(item, dict):
+            continue
+        heading, text = item.get("heading"), item.get("text")
+        if not isinstance(heading, str) or not isinstance(text, str):
+            continue
+        heading, text = heading.strip()[:500], text.strip()[:50_000]
+        if heading and text:
+            sections.append({"id": f"section-{len(sections) + 1}", "heading": heading, "text": text})
+    return {"is_educational": bool(sections), "sections": sections,
+            "excluded_summary": str(payload.get("excluded_summary", "")).strip()[:1_000]}
+
+
+def select_educational_sections(raw_text: str) -> dict:
+    """Ask the inexpensive model to return only student-relevant source sections."""
+    client = get_openai_client()
+    empty = {"is_educational": False, "sections": [], "excluded_summary": ""}
+    if not client or not raw_text.strip():
+        return empty
+    prompt = ("Return JSON only with is_educational, sections, and excluded_summary. "
+              "Keep only material a student should study. Exclude navigation, account controls, "
+              "menus, dates, links, and administrative noise. Preserve heading and source order. "
+              "Each section must have heading and text. If no meaningful academic material exists, "
+              "use false and [].\n\nCaptured content:\n" + raw_text[:100_000])
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}],
+            temperature=0, max_tokens=4_000)
+        return parse_educational_selection(response.choices[0].message.content or "")
+    except Exception as error:
+        logger.warning("Educational selection failed: %s", error)
+        return empty
 
 
 def generate_notes_ai(content: str, max_notes: int = 25) -> List[str]:

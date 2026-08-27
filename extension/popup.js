@@ -7,6 +7,7 @@ let lastPageUrl = '';
 let lastPageTitle = '';
 let chatHistory = [];
 let exampleModeEnabled = false;
+let pendingContentId = '';
 
 // DOM elements
 const statusDiv = document.getElementById('status');
@@ -18,6 +19,10 @@ const chatExampleBtn = document.getElementById('chat-example-btn');
 const chatAnswerDiv = document.getElementById('chat-answer');
 const chatHistoryDiv = document.getElementById('chat-history');
 const progressLog = document.getElementById('progress-log');
+const reviewDiv = document.getElementById('capture-review');
+const sectionList = document.getElementById('section-list');
+const generateSelectedBtn = document.getElementById('generate-selected-btn');
+const captureSource = document.getElementById('capture-source');
 
 // Auth DOM elements
 const authLoginDiv = document.getElementById('auth-login');
@@ -508,7 +513,7 @@ captureBtn.addEventListener('click', async () => {
 
     // Ensure content script is loaded before starting detection
     ensureContentScript(tabId, () => {
-      runCaptureFlow(tabId, tabUrl, lastPageTitle);
+      fallbackToPageContent(tabId, tabUrl, lastPageTitle);
     });
   });
 });
@@ -516,29 +521,17 @@ captureBtn.addEventListener('click', async () => {
 function fallbackToPageContent(tabId, tabUrl, subjectName = 'content') {
   statusDiv.innerText = 'Capturing page content...';
 
-  // First try smart extraction (LMS selectors, nav filtering, image collection)
+  // First capture the user's selection, otherwise readable page content.
   sendTabMessage(tabId, { action: 'extractContent' }).then((resp) => {
-    if (resp && resp.content && resp.content.trim().length > 50) {
+    const hasContent = resp && resp.content && resp.content.trim();
+    if (hasContent && (resp.selected || resp.content.trim().length > 50)) {
       showProgress('Page content captured!', true);
       sendToBackend(resp.content, tabUrl, subjectName, resp.images || []);
     } else {
-      // Fallback: raw body.innerText as safety net
-      showProgress('Smart extract too short, using full page text...');
-      chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        func: () => {
-          let main = document.querySelector('main') || document.body;
-          return main.innerText;
-        }
-      }, (results) => {
-        if (results && results[0]) {
-          const pageText = results[0].result;
-          showProgress('Page content captured!', true);
-          sendToBackend(pageText, tabUrl, subjectName);
-        } else {
-          statusDiv.innerText = 'Failed to capture page content.';
-          showProgress('Failed to capture content', false);
-        }
+      showProgress('No readable text found — capturing a screenshot...');
+      takeScreenshot().then(screenshot => {
+        if (screenshot) sendToBackend('[Screenshot fallback]', tabUrl, subjectName, [{ data: screenshot }]);
+        else { statusDiv.innerText = 'Failed to capture content.'; showProgress('Failed to capture content', false); }
       });
     }
   });
@@ -548,10 +541,10 @@ function sendToBackend(content, url, subjectName = 'content', images = []) {
   statusDiv.innerText = 'Processing...';
   showProgress('Sending to AI for analysis...' + (images.length > 0 ? ' (' + images.length + ' images)' : ''));
 
-  chrome.runtime.sendMessage({action: 'sendContent', content: content, url: url, images: images}, (response) => {
+  chrome.runtime.sendMessage({action: 'ingestContent', content: content, url: url, images: images}, (response) => {
     if (response && response.success) {
-      showProgress('Complete!', true);
-      displayResults(response);
+      pendingContentId = response.content_id;
+      renderCaptureReview(response);
     } else if (response && response.status === 402) {
       showProgress('Free guide limit reached', false);
       statusDiv.innerText = 'Free limit reached — upgrade to Pro';
@@ -568,6 +561,47 @@ function sendToBackend(content, url, subjectName = 'content', images = []) {
     }
   });
 }
+
+function renderCaptureReview(response) {
+  reviewDiv.style.display = 'block';
+  sectionList.innerHTML = '';
+  captureSource.replaceChildren();
+  const sourceTitle = document.createElement('strong');
+  sourceTitle.textContent = lastPageTitle || 'Captured page';
+  const sourceUrl = document.createElement('a');
+  sourceUrl.href = lastPageUrl;
+  sourceUrl.target = '_blank';
+  sourceUrl.rel = 'noopener noreferrer';
+  sourceUrl.textContent = lastPageUrl;
+  captureSource.append('Source: ', sourceTitle, document.createElement('br'), sourceUrl);
+  document.getElementById('excluded-summary').textContent = response.excluded_summary || '';
+  (response.sections || []).forEach(section => {
+    const label = document.createElement('label');
+    label.className = 'capture-section';
+    label.innerHTML = `<input type="checkbox" value="${escapeHtml(section.id)}" checked> <b>${escapeHtml(section.heading)}</b>`;
+    sectionList.appendChild(label);
+  });
+  if (!response.is_educational || !(response.sections || []).length) {
+    statusDiv.innerText = 'No study material found. Try selecting the material, capturing a screenshot, or opening a PDF or PowerPoint.';
+  }
+  updateGenerateButton();
+}
+
+function updateGenerateButton() {
+  generateSelectedBtn.disabled = !sectionList.querySelector('input:checked');
+}
+
+sectionList.addEventListener('change', updateGenerateButton);
+generateSelectedBtn.addEventListener('click', () => {
+  const sectionIds = [...sectionList.querySelectorAll('input:checked')].map(input => input.value);
+  if (!sectionIds.length || !pendingContentId) return;
+  generateSelectedBtn.disabled = true;
+  chrome.runtime.sendMessage({ action: 'generateContent', contentId: pendingContentId, sectionIds }, response => {
+    generateSelectedBtn.disabled = false;
+    if (response?.success) { reviewDiv.style.display = 'none'; displayResults(response); }
+    else { statusDiv.innerText = 'Error: ' + (response?.error || 'Generation failed'); }
+  });
+});
 
 // =====================
 // Save to platform

@@ -34,7 +34,7 @@ from services.text_processing import (
 from services.llm import (
     generate_notes_ai, generate_study_guide,
     generate_flashcards, answer_question,
-    analyze_images_for_slides
+    analyze_images_for_slides, select_educational_sections
 )
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes
 from auth_utils import get_user_id
@@ -124,6 +124,16 @@ app.include_router(smart_notes.router)
 
 # Initialize storage with limits
 storage = InMemoryStorage()
+
+
+def selected_section_text(selection, section_ids):
+    """Return approved sections in source order, or an empty string if invalid."""
+    if not isinstance(selection, dict) or not section_ids:
+        return ""
+    wanted = set(section_ids)
+    sections = selection.get("sections", [])
+    picked = [section.get("text", "") for section in sections if section.get("id") in wanted]
+    return "\n\n".join(text for text in picked if text.strip()) if len(picked) == len(wanted) else ""
 
 # === Input sanitization helpers ===
 MAX_CONTENT_LENGTH = 500_000  # 500KB max content
@@ -376,7 +386,7 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
         content = _sanitize_text(body.content, MAX_CONTENT_LENGTH)
         page_url = _validate_url(body.page_url)
 
-        if not content or len(content) < 10:
+        if not content:
             raise HTTPException(status_code=400, detail="Content too short")
 
         logger.info(f"Content length: {len(content)} chars")
@@ -397,6 +407,21 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
                     "alt": img.alt,
                 })
 
+        # Screenshot-only capture has no DOM text. Transcribe visual material before
+        # selection so it reaches the same student review step as page text.
+        if images_data and content.strip() == "[Screenshot fallback]":
+            image_descriptions = analyze_images_for_slides(images_data)
+            visual_text = "\n\n".join(image_descriptions.values()) if image_descriptions else ""
+            if visual_text:
+                content = visual_text
+                # The transcription is now the reviewable source. Do not retain
+                # the screenshot for a second vision pass during generation.
+                images_data = []
+            else:
+                logger.warning("Screenshot fallback produced no readable educational text")
+
+        selection = select_educational_sections(content)
+
         # Store content with metadata (keyed by user to prevent cross-user access)
         storage.save_content(
             content_id,
@@ -408,6 +433,7 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
                 "slideshow_type": slideshow_type,
                 "user_id": user_id,
                 "domain": body.domain,
+                "selection": selection,
             },
             images=images_data
         )
@@ -417,7 +443,10 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
         return IngestResponse(
             content_id=content_id,
             content_type=body.content_type,
-            detected_slideshow=is_slideshow
+            detected_slideshow=is_slideshow,
+            is_educational=selection["is_educational"],
+            sections=selection["sections"],
+            excluded_summary=selection["excluded_summary"],
         )
 
     except HTTPException:
@@ -438,9 +467,6 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         user_id = get_user_id(authorization)
         logger.info(f"Generating materials for user={user_id[:8]}...")
 
-        # Enforce freemium usage limit before doing any work
-        check_and_increment_usage(user_id)
-
         content_obj = storage.get_content(body.content_id)
         if not content_obj:
             raise HTTPException(status_code=404, detail="Content not found")
@@ -449,13 +475,24 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         if content_obj.get("metadata", {}).get("user_id") != user_id:
             raise HTTPException(status_code=403, detail="Access denied")
 
-        raw_text = content_obj["content"]
         metadata = content_obj.get("metadata", {})
+        selection = metadata.get("selection")
+        if selection is not None:
+            if body.section_ids is None:
+                raise HTTPException(status_code=422, detail="Select at least one study section")
+            raw_text = selected_section_text(selection, body.section_ids)
+            if not raw_text:
+                raise HTTPException(status_code=422, detail="Selected sections are invalid or empty")
+        else:
+            raw_text = content_obj["content"]
+
+        # Enforce usage only after an explicit valid generation request.
+        check_and_increment_usage(user_id)
 
         # Check if this is slideshow content
         slide_count = 0
         slides = None
-        if metadata.get("is_slideshow"):
+        if selection is None and metadata.get("is_slideshow"):
             slides = extract_slideshow_content(raw_text)
             if slides:
                 # Format all slides as structured XML text — no AI compression

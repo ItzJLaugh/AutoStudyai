@@ -183,3 +183,7 @@ pre {
 	content: "*";
 	color: #4caf50;
 }
+
+#capture-review { margin-top: 10px; padding: 10px; background: #fff; border-radius: 8px; }
+.capture-section { display: block; padding: 7px 0; border-bottom: 1px solid #eee; cursor: pointer; }
+#excluded-summary { color: #666; font-size: .88em; margin-bottom: 6px; }

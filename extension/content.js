@@ -716,6 +716,20 @@ function extractPageContent() {
   return { content, contentType, hasSlideshow: slideshowInfo.hasSlideshow, images: collectedImages };
 }
 
+function extractUniversalContent() {
+  const selected = window.getSelection()?.toString().trim() || '';
+  const container = document.querySelector('main, article, [role="main"]') || document.body;
+  const clone = container.cloneNode(true);
+  clone.querySelectorAll('nav, header, footer, [role="navigation"], script, style').forEach(el => el.remove());
+  // A deliberate selection is the user's source of truth. Keep it intact even
+  // when it is short; the server decides whether it is useful study material.
+  if (selected) return { content: selected, contentType: 'webpage', images: [], selected: Boolean(selected) };
+
+  // Normal page images are not reviewable source sections, so do not silently
+  // attach them. Screenshot fallback is the explicit visual-capture path.
+  return { content: clone.innerText.trim(), contentType: 'webpage', images: [], selected: Boolean(selected) };
+}
+
 /**
  * Find PowerPoint download links
  */
@@ -948,34 +962,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Synchronous operations
   switch (request.action) {
     case 'extractContent':
-      // Check if there's a navigable slideshow first
-      const slideshowInfo = detectSlideshow();
-      if (slideshowInfo.hasSlideshow && slideshowInfo.hasNavigation) {
-        // Auto-capture all slides
-        captureAllSlides().then(result => {
-          let content = formatSlidesContent(result);
-
-          // Also include page content
-          const container = findContentContainer();
-          content += '\n\n--- Additional Page Content ---\n\n';
-          content += container.innerText;
-
-          sendResponse({
-            content,
-            contentType: 'slideshow',
-            hasSlideshow: true,
-            slidesCaptured: result.totalCaptured
-          });
-        }).catch(() => {
-          // Fallback to regular extraction
-          const pageData = extractPageContent();
-          sendResponse(pageData);
-        });
-        return true; // Keep channel open
-      } else {
-        const pageData = extractPageContent();
-        sendResponse(pageData);
-      }
+      sendResponse(extractUniversalContent());
       break;
 
     case 'detectSlideshow':
