@@ -217,7 +217,7 @@ export default function CreateGuidePage() {
       <header className="create-header create-hero">
         <p className="editorial-kicker">NEW STUDY GUIDE</p>
         <h1 className="create-title">Turn material into something you can study.</h1>
-        <p className="create-subtitle">Paste notes or add a file. AutoStudyAI handles the structure, title, and flashcards for you.</p>
+        <p className="create-subtitle">Paste notes or add a file. CordiaClassroom handles the structure, title, and flashcards for you.</p>
       </header>
 
       {isLoading && <div className="create-banner create-banner-info">{statusMessages[status]}</div>}

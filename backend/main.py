@@ -78,6 +78,7 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "https://autostudyai.online",
     "https://www.autostudyai.online",
+    "https://classroom.cordiacode.com",
 ]
 if os.getenv("FRONTEND_URL"):
     ALLOWED_ORIGINS.append(os.getenv("FRONTEND_URL"))

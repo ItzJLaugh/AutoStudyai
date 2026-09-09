@@ -308,7 +308,7 @@ def get_current_user(authorization: str = Header(default="")):
 def forgot_password(request: ForgotPasswordRequest, req: Request):
     """Send a password reset email. Always returns 200 to prevent email enumeration."""
     _check_rate_limit(req, _auth_attempts, MAX_AUTH_ATTEMPTS)
-    site_url = os.getenv("SITE_URL", "https://autostudyai.online")
+    site_url = os.getenv("SITE_URL", "https://classroom.cordiacode.com")
     try:
         get_auth_supabase().auth.reset_password_for_email(
             request.email,

@@ -69,10 +69,10 @@ export default function ResetPasswordPage() {
   return (
     <>
       <Head>
-        <title>Reset Password — AutoStudyAI</title>
+        <title>Reset Password — CordiaClassroom</title>
       </Head>
       <div className="login-page">
-        <h1 className="login-title">AutoStudyAI</h1>
+        <h1 className="login-title">CordiaClassroom</h1>
         <div className="login-box">
           <h2>Set New Password</h2>
           {tokenError ? (

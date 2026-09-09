@@ -1,5 +1,5 @@
 // asai-bridge.js
-// Minimal presence beacon: runs ONLY on autostudyai.online so the web app can
+// Minimal presence beacon: runs only on the configured platform domains so the web app can
 // detect that the extension is installed and unlock the onboarding walkthrough.
 // Does not touch capture logic (content.js / pptxParser.js).
 (function () {

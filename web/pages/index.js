@@ -87,9 +87,9 @@ export default function LoginPage() {
   return (
     <>
       <Head>
-        <title>AutoStudyAI — AI Study Guides, Notes & Flashcards</title>
+        <title>CordiaClassroom — AI Study Guides, Notes & Flashcards</title>
         <meta name="description" content="Turn lectures, textbooks, and course pages into focused study materials." />
-        <link rel="canonical" href="https://autostudyai.online" />
+        <link rel="canonical" href="https://classroom.cordiacode.com" />
       </Head>
 
       <main className="login-page" style={{ '--login-backdrop': "url('/login-learning-backdrop.webp')" }}>
@@ -97,7 +97,7 @@ export default function LoginPage() {
           <section className="login-panel-left">
             <div className="login-brand-mark">
               <AcademicInfinityMark className="login-academic-mark" />
-              <div className="login-brand-name">AutoStudyAI</div>
+              <div className="login-brand-name">CordiaClassroom</div>
               <h1 className="login-editorial-title">Learn from anything.</h1>
               <p className="login-brand-tagline">Capture educational material from any page and turn it into a focused study workspace.</p>
             </div>

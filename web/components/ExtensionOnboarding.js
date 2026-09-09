@@ -4,20 +4,20 @@ const STORE_URL =
   'https://chromewebstore.google.com/detail/autostudyai/eddmfjcnfjfbaknmeccjbjdgpeipjbaf';
 
 // The extension stamps this attribute on <html> once its content script runs on
-// autostudyai.online. See extension/asai-bridge.js + manifest web_accessible_resources.
+// classroom.cordiacode.com. See extension/asai-bridge.js + manifest content_scripts.
 const INSTALL_MARKER_ATTR = 'data-asai-extension';
 
 const STEPS = [
   {
     id: 1,
     title: 'Open the extension',
-    body: 'On any lecture slideshow or course page, click the AutoStudyAI icon in your Chrome toolbar.',
+    body: 'On any lecture slideshow or course page, click the CordiaClassroom icon in your Chrome toolbar.',
     scene: 'toolbar',
   },
   {
     id: 2,
     title: 'Capture the content',
-    body: 'Hit “Capture Content” and let AutoStudyAI read the page. Sit tight for a few seconds while it works.',
+    body: 'Hit “Capture Content” and let CordiaClassroom read the page. Sit tight for a few seconds while it works.',
     scene: 'capture',
   },
   {
@@ -29,7 +29,7 @@ const STEPS = [
   {
     id: 4,
     title: 'Open it here',
-    body: 'Head back to autostudyai.online and click your new study guide to start studying.',
+    body: 'Head back to classroom.cordiacode.com and click your new study guide to start studying.',
     scene: 'platform',
   },
 ];
@@ -112,7 +112,7 @@ export default function ExtensionOnboarding({ open, onClose }) {
   const isLast = step === STEPS.length - 1;
 
   return (
-    <div className="asai-onb-backdrop" role="dialog" aria-modal="true" aria-label="Install the AutoStudyAI extension">
+    <div className="asai-onb-backdrop" role="dialog" aria-modal="true" aria-label="Install the CordiaClassroom extension">
       <div className="asai-onb-card">
         <button className="asai-onb-close" onClick={onClose} aria-label="Close">&times;</button>
 
@@ -122,7 +122,7 @@ export default function ExtensionOnboarding({ open, onClose }) {
           {installed ? 'Extension detected — you’re all set!' : 'Waiting for extension…'}
         </div>
 
-        <h2 className="asai-onb-title">Get the AutoStudyAI extension</h2>
+        <h2 className="asai-onb-title">Get the CordiaClassroom extension</h2>
 
         {!storeOpened && !installed && (
           <p className="asai-onb-lead">
@@ -274,7 +274,7 @@ function Scene({ scene }) {
         <div className="asai-browser-bar">
           <span className="asai-tl asai-tl-r" /><span className="asai-tl asai-tl-y" /><span className="asai-tl asai-tl-g" />
           <div className="asai-url">
-            {scene === 'platform' ? 'autostudyai.online' : 'canvas.university.edu/lecture'}
+            {scene === 'platform' ? 'classroom.cordiacode.com' : 'canvas.university.edu/lecture'}
           </div>
           {/* Extension icon in toolbar */}
           <div className={'asai-ext-icon' + (scene === 'toolbar' ? ' highlight' : '')}>🧩</div>
@@ -294,7 +294,7 @@ function Scene({ scene }) {
           {scene === 'capture' && (
             <>
               <div className="asai-popup">
-                <div className="asai-popup-title">AutoStudyAI</div>
+                <div className="asai-popup-title">CordiaClassroom</div>
                 <button className="asai-capture-btn">Capture Content</button>
                 <div className="asai-popup-status">Working… reading page</div>
               </div>

@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "AutoStudyAI",
+  "name": "CordiaClassroom",
   "version": "1.2.0",
   "description": "Instantly generate notes, study guides, and flashcards from any lecture, textbook, or course page with AI.",
-  "homepage_url": "https://autostudyai.online",
+  "homepage_url": "https://classroom.cordiacode.com",
   "minimum_chrome_version": "114",
   "permissions": ["scripting", "activeTab", "storage"],
   "host_permissions": ["https://autostudy-ai.fly.dev/*"],
@@ -24,7 +24,7 @@
       "js": ["content.js"]
     },
     {
-      "matches": ["https://autostudyai.online/*", "https://*.autostudyai.online/*"],
+      "matches": ["https://classroom.cordiacode.com/*", "https://autostudyai.online/*", "https://*.autostudyai.online/*"],
       "js": ["asai-bridge.js"],
       "run_at": "document_start"
     }

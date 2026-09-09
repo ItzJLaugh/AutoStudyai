@@ -550,7 +550,7 @@ function sendToBackend(content, url, subjectName = 'content', images = []) {
       statusDiv.innerText = 'Free limit reached — upgrade to Pro';
       if (platformBanner) {
         platformBanner.style.display = 'block';
-        platformBanner.innerHTML = '&#9888; Free guide limit reached. <a href="https://autostudyai.online/billing" target="_blank">Upgrade to Pro</a> for unlimited guides.';
+        platformBanner.innerHTML = '&#9888; Free guide limit reached. <a href="https://classroom.cordiacode.com/billing" target="_blank">Upgrade to Pro</a> for unlimited guides.';
       }
       if (saveBtn) saveBtn.style.display = 'none';
     } else {

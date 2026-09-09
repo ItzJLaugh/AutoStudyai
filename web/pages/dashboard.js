@@ -521,7 +521,7 @@ export default function Dashboard({ timerState, setTimerState }) {
       <div>
         <div className="dashboard-desktop-header">
           <div>
-            <p className="editorial-kicker">AUTOSTUDYAI</p>
+            <p className="editorial-kicker">CORDIACLASSROOM</p>
             <h1>Your study workspace</h1>
             <p>{guides.length} guides across {folders.length} classes</p>
           </div>

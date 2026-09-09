@@ -4,8 +4,8 @@ export default function PrivacyPolicy() {
   return (
     <>
       <Head>
-        <title>Privacy Policy — AutoStudyAI</title>
-        <meta name="description" content="AutoStudyAI Privacy Policy" />
+        <title>Privacy Policy — CordiaClassroom</title>
+        <meta name="description" content="CordiaClassroom Privacy Policy" />
       </Head>
       <div style={{
         maxWidth: '800px',
@@ -23,8 +23,8 @@ export default function PrivacyPolicy() {
         </p>
 
         <p style={{ marginBottom: '32px' }}>
-          AutoStudyAI ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy
-          explains how we collect, use, disclose, and safeguard your information when you use the AutoStudyAI
+          CordiaClassroom ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy
+          explains how we collect, use, disclose, and safeguard your information when you use the CordiaClassroom
           Chrome extension and web platform (collectively, the "Service"). Please read this policy carefully.
           By using the Service, you agree to the practices described herein.
         </p>
@@ -81,7 +81,7 @@ export default function PrivacyPolicy() {
         </Section>
 
         <Section title="5. Chrome Extension — Data Practices">
-          <p>The AutoStudyAI Chrome extension:</p>
+          <p>The CordiaClassroom Chrome extension:</p>
           <ul style={{ paddingLeft: '20px', marginTop: '8px' }}>
             <li>Reads page content <strong style={{ color: 'var(--text-primary)' }}>only</strong> when you explicitly click "Capture Page"</li>
             <li>Does not run in the background or monitor your browsing activity</li>
@@ -93,7 +93,7 @@ export default function PrivacyPolicy() {
 
         <Section title="6. Cookies and Local Storage">
           <p>
-            The AutoStudyAI web platform uses browser local storage to maintain your authenticated session.
+            The CordiaClassroom web platform uses browser local storage to maintain your authenticated session.
             We do not use third-party tracking cookies or advertising cookies. No cross-site tracking is performed.
           </p>
         </Section>
@@ -151,9 +151,9 @@ export default function PrivacyPolicy() {
             please contact us at:
           </p>
           <p style={{ marginTop: '12px' }}>
-            <strong style={{ color: 'var(--text-primary)' }}>AutoStudyAI</strong><br />
+            <strong style={{ color: 'var(--text-primary)' }}>CordiaClassroom</strong><br />
             Email: <a href="mailto:jackson.laughlin0804@gmail.com" style={{ color: 'var(--accent)' }}>support@autostudyai.online</a><br />
-            Website: <a href="https://autostudyai.online" style={{ color: 'var(--accent)' }}>https://autostudyai.online</a>
+            Website: <a href="https://classroom.cordiacode.com" style={{ color: 'var(--accent)' }}>https://classroom.cordiacode.com</a>
           </p>
         </Section>
       </div>
