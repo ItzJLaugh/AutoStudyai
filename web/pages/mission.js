@@ -7,16 +7,16 @@ export default function MissionPage() {
   const features = [
     {
       title: 'Instant Extraction',
-      description: 'Unlike any other study platform, AutoStudyAI allows you to skip the copy and paste/upload process. Simply navigate to the material you want to extract and click the "Capture Content" button within the extension. That\'s it!',
+      description: 'Unlike any other study platform, CordiaClassroom allows you to skip the copy and paste/upload process. Simply navigate to the material you want to extract and click the "Capture Content" button within the extension. That\'s it!',
     },
     {
       title: 'NCLEX Question Generation',
       subtitle: 'Nursing User Group (More specific user groups to be added soon!)',
-      description: 'There is no other platform that offers NCLEX question generation. AutoStudyAI allows for you to use the material you are learning to generate NCLEX questions. This task is used to assist Nursing students in making study guides exactly like their exams with two button clicks.',
+      description: 'There is no other platform that offers NCLEX question generation. CordiaClassroom allows for you to use the material you are learning to generate NCLEX questions. This task is used to assist Nursing students in making study guides exactly like their exams with two button clicks.',
     },
     {
-      title: 'AutoStudyAI Never Allows the AI to Search for Answers on the Web!',
-      description: 'The main issue with simply asking an LLM to create a study guide is that the answers and questions are NOT DIRECTLY from your class material. AutoStudyAI makes this super simple and easy. It only uses the context that was captured as its knowledge! This way it is the exact material from your classes.',
+      title: 'CordiaClassroom Never Allows the AI to Search for Answers on the Web!',
+      description: 'The main issue with simply asking an LLM to create a study guide is that the answers and questions are NOT DIRECTLY from your class material. CordiaClassroom makes this super simple and easy. It only uses the context that was captured as its knowledge! This way it is the exact material from your classes.',
     },
     {
       title: 'AI Chat',
@@ -34,9 +34,9 @@ export default function MissionPage() {
 
   return (
     <div className="fade-in" style={{ maxWidth: 760 }}>
-      <h2 style={{ marginBottom: 4 }}>AutoStudyAI Features</h2>
+      <h2 style={{ marginBottom: 4 }}>CordiaClassroom Features</h2>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.92em', marginBottom: 28, lineHeight: 1.6 }}>
-        AutoStudyAI was built by a college student, for college students. Our mission is to make studying smarter, faster, and more accessible for every student — regardless of major or learning style.
+        CordiaClassroom was built by a college student, for college students. Our mission is to make studying smarter, faster, and more accessible for every student — regardless of major or learning style.
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

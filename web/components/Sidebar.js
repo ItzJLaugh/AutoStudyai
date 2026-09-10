@@ -55,9 +55,9 @@ export default function Sidebar() {
 
   return (
     <header className="top-navigation">
-      <a className="top-navigation-brand" href="/dashboard" aria-label="AutoStudyAI dashboard">
+      <a className="top-navigation-brand" href="/dashboard" aria-label="CordiaClassroom dashboard">
         <AcademicInfinityMark className="top-navigation-mark" />
-        <span>AutoStudyAI</span>
+        <span>CordiaClassroom</span>
       </a>
 
       <nav className="top-navigation-links" aria-label="Primary navigation">
@@ -77,7 +77,7 @@ export default function Sidebar() {
           <div className="account-menu-panel" role="menu" aria-label="Account menu">
             <div className="account-menu-identity">
               <strong>{email ? email.split('@')[0] : 'Your profile'}</strong>
-              <span>{email || 'AutoStudyAI account'}</span>
+              <span>{email || 'CordiaClassroom account'}</span>
             </div>
             <button type="button" role="menuitem" onClick={() => router.push('/settings')}>Your profile</button>
             <button type="button" role="menuitem" onClick={() => router.push('/billing')}>Billing</button>
