@@ -6,8 +6,9 @@ export default function BillingRedirect() {
   useEffect(() => {
     const query = router.query;
     const params = new URLSearchParams();
-    if (query.success) params.set('success', query.success);
-    if (query.cancelled) params.set('cancelled', query.cancelled);
+    if (query.billing) params.set('billing', query.billing);
+    if (query.success === 'true') params.set('billing', 'success');
+    if (query.cancelled === 'true') params.set('billing', 'cancelled');
     const qs = params.toString();
     router.replace('/settings' + (qs ? '?' + qs : ''));
   }, [router.query]);

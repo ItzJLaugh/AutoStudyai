@@ -14,7 +14,8 @@ export default function SettingsPage() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
+  const [managing, setManaging] = useState(false);
+  const [billingInterval, setBillingInterval] = useState('monthly');
   const [message, setMessage] = useState('');
 
   // Theme state
@@ -29,28 +30,29 @@ export default function SettingsPage() {
     const saved = localStorage.getItem('theme') || 'dark';
     setTheme(saved);
 
-    if (router.query.success === 'true') {
+    if (router.query.billing === 'success') {
       setActiveSection('subscription');
-      setMessage('Welcome to Pro! Activating your subscription...');
-      pollForPro();
+      setMessage('Payment received. Activating CordiaClassroom Plus...');
+      pollForPlus();
     } else {
-      if (router.query.cancelled === 'true') setMessage('Checkout cancelled — you are still on the free plan.');
+      if (router.query.billing === 'cancelled') setMessage('Checkout cancelled. Your plan did not change.');
       loadStatus();
     }
   }, [ready, router.query]);
 
-  async function pollForPro(attempts = 0) {
+  async function pollForPlus(attempts = 0) {
     setLoading(true);
     const data = await apiFetch('/billing/status');
-    if (data?.plan === 'pro') {
+    if (data?.plan === 'classroom_plus') {
       setStatus(data);
-      setMessage('Welcome to Pro! Your subscription is now active.');
+      if (data.billing_interval) setBillingInterval(data.billing_interval);
+      setMessage('CordiaClassroom Plus is active.');
       setLoading(false);
     } else if (attempts < 6) {
-      setTimeout(() => pollForPro(attempts + 1), 2000);
+      setTimeout(() => pollForPlus(attempts + 1), 2000);
     } else {
       if (data) setStatus(data);
-      setMessage('Payment received! Your plan will update shortly — refresh if needed.');
+      setMessage('Payment is processing. Refresh this page in a moment.');
       setLoading(false);
     }
   }
@@ -58,13 +60,19 @@ export default function SettingsPage() {
   async function loadStatus() {
     setLoading(true);
     const data = await apiFetch('/billing/status');
-    if (data) setStatus(data);
+    if (data) {
+      setStatus(data);
+      if (data.billing_interval) setBillingInterval(data.billing_interval);
+    }
     setLoading(false);
   }
 
   async function handleUpgrade() {
     setUpgrading(true);
-    const data = await apiFetch('/billing/create-checkout-session', { method: 'POST' });
+    const data = await apiFetch('/billing/create-checkout-session', {
+      method: 'POST',
+      body: JSON.stringify({ interval: billingInterval }),
+    });
     if (data?.url) {
       window.location.href = data.url;
     } else {
@@ -73,29 +81,15 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleStartTrial() {
-    setUpgrading(true);
-    const data = await apiFetch('/billing/start-trial', { method: 'POST' });
-    if (data?.started) {
-      setMessage('Your 30-day free trial has started! Enjoy unlimited access.');
-      loadStatus();
+  async function handleManageBilling() {
+    setManaging(true);
+    const data = await apiFetch('/billing/create-portal-session', { method: 'POST' });
+    if (data?.url) {
+      window.location.href = data.url;
     } else {
-      setMessage('Failed to start trial. Please try again.');
+      setMessage('Could not open billing management. Please try again.');
+      setManaging(false);
     }
-    setUpgrading(false);
-  }
-
-  async function handleCancel() {
-    if (!confirm('Cancel your Pro subscription? You will keep access until the end of the billing period.')) return;
-    setCancelling(true);
-    const data = await apiFetch('/billing/cancel', { method: 'POST' });
-    if (data?.cancelled) {
-      setMessage('Subscription cancelled. You will retain Pro access until the end of your billing period.');
-      loadStatus();
-    } else {
-      setMessage('Failed to cancel. Please try again or contact support.');
-    }
-    setCancelling(false);
   }
 
   function toggleTheme() {
@@ -107,12 +101,13 @@ export default function SettingsPage() {
 
   if (!ready) return null;
 
-  const isPro = status?.plan === 'pro';
-  const isTrial = status?.plan === 'trial';
-  const isProOrTrial = isPro || isTrial;
-  const guidesUsed = status?.guides_used ?? 0;
-  const guidesLimit = status?.guides_limit ?? 2;
-  const usagePct = isProOrTrial ? 100 : Math.min(100, (guidesUsed / guidesLimit) * 100);
+  const isPlus = status?.plan === 'classroom_plus';
+  const buildsUsed = status?.builds_used ?? 0;
+  const buildsLimit = status?.builds_limit ?? 3;
+  const actionsUsed = status?.lightweight_actions_used ?? 0;
+  const actionsLimit = status?.lightweight_actions_limit ?? 30;
+  const buildsPct = Math.min(100, (buildsUsed / buildsLimit) * 100);
+  const actionsPct = Math.min(100, (actionsUsed / actionsLimit) * 100);
 
   const sections = [
     { key: 'subscription', label: 'Subscription' },
@@ -147,80 +142,69 @@ export default function SettingsPage() {
             ) : (
               <>
                 <div className="billing-current-plan">
-                  <div className="plan-badge" data-plan={isProOrTrial ? 'pro' : 'free'}>
-                    {isPro ? 'Pro' : isTrial ? 'Trial' : 'Free'}
+                  <div className="plan-badge" data-plan={isPlus ? 'plus' : 'free'}>
+                    {isPlus ? 'CordiaClassroom Plus' : 'Free'}
                   </div>
                   <div className="plan-usage">
-                    {isProOrTrial ? (
-                      <span>Unlimited guide generations</span>
-                    ) : (
-                      <>
-                        <span>{guidesUsed} / {guidesLimit} guides used this month</span>
-                        <div className="usage-bar">
-                          <div className="usage-bar-fill" style={{ width: usagePct + '%', background: usagePct >= 100 ? 'var(--error)' : 'var(--accent)' }} />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  {isTrial && status?.period_end && (
-                    <div className="plan-renews">
-                      Trial ends {new Date(status.period_end).toLocaleDateString()}
+                    <span>{buildsUsed} of {buildsLimit} complete study builds used</span>
+                    <div className="usage-bar">
+                      <div className="usage-bar-fill" style={{ width: buildsPct + '%', background: buildsPct >= 100 ? 'var(--error)' : 'var(--accent)' }} />
                     </div>
-                  )}
-                  {isPro && status?.period_end && (
+                    <span>{actionsUsed} of {actionsLimit} lightweight AI actions used</span>
+                    <div className="usage-bar">
+                      <div className="usage-bar-fill" style={{ width: actionsPct + '%', background: actionsPct >= 100 ? 'var(--error)' : 'var(--accent)' }} />
+                    </div>
+                  </div>
+                  {isPlus && status?.period_end && (
                     <div className="plan-renews">
-                      Renews {new Date(status.period_end).toLocaleDateString()}
+                      {status.cancel_at_period_end ? 'Access ends' : 'Renews'} {new Date(status.period_end).toLocaleDateString()}
                     </div>
                   )}
                 </div>
 
                 <div className="billing-plans">
-                  <div className={'plan-card' + (!isPro ? ' plan-card-current' : '')}>
+                  <div className={'plan-card' + (!isPlus ? ' plan-card-current' : '')}>
                     <div className="plan-name">Free</div>
                     <div className="plan-price">$0 <span>/month</span></div>
                     <ul className="plan-features">
-                      <li>2 AI study guide generations per month</li>
+                      <li>3 complete study builds each month</li>
+                      <li>30 lightweight AI actions each month</li>
                       <li>Notes, study guides &amp; flashcards</li>
                       <li>Save guides to dashboard</li>
-                      <li>Chat with content</li>
                     </ul>
-                    {!isPro && <div className="plan-current-label">Current plan</div>}
+                    {!isPlus && <div className="plan-current-label">Current plan</div>}
                   </div>
 
-                  <div className={'plan-card plan-card-pro' + (isProOrTrial ? ' plan-card-current' : '')}>
-                    <div className="plan-name">Pro</div>
-                    <div className="plan-price">$6.99 <span>/month</span></div>
+                  <div className={'plan-card plan-card-pro' + (isPlus ? ' plan-card-current' : '')}>
+                    <div className="plan-name">CordiaClassroom Plus</div>
+                    {!isPlus && (
+                      <div className="billing-toggle" aria-label="Billing interval">
+                        <button className={billingInterval === 'monthly' ? 'active' : ''} onClick={() => setBillingInterval('monthly')}>Monthly</button>
+                        <button className={billingInterval === 'yearly' ? 'active' : ''} onClick={() => setBillingInterval('yearly')}>Yearly · save $23.89</button>
+                      </div>
+                    )}
+                    <div className="plan-price">
+                      {billingInterval === 'monthly' ? '$6.99' : '$59.99'}
+                      <span>/{billingInterval === 'monthly' ? 'month' : 'year'}</span>
+                    </div>
                     <ul className="plan-features">
-                      <li><strong>Unlimited</strong> guide generations</li>
+                      <li>25 complete study builds each month</li>
+                      <li>250 lightweight AI actions each month</li>
                       <li>Everything in Free</li>
-                      <li>Priority AI processing</li>
+                      <li>Secure billing management through Stripe</li>
                       <li>Cancel anytime</li>
                     </ul>
-                    {isPro ? (
+                    {isPlus ? (
                       <div className="plan-actions">
                         <div className="plan-current-label">Current plan</div>
-                        <button className="btn-cancel" onClick={handleCancel} disabled={cancelling}>
-                          {cancelling ? 'Cancelling...' : 'Cancel subscription'}
+                        <button className="btn-manage" onClick={handleManageBilling} disabled={managing}>
+                          {managing ? 'Opening...' : 'Manage billing'}
                         </button>
                       </div>
-                    ) : isTrial ? (
-                      <div className="plan-actions">
-                        <div className="plan-current-label">Free trial active</div>
-                        <button className="btn-upgrade" onClick={handleUpgrade} disabled={upgrading}>
-                          {upgrading ? 'Redirecting...' : 'Subscribe — $6.99/mo'}
-                        </button>
-                      </div>
-                    ) : status?.trial_used ? (
-                      <button className="btn-upgrade" onClick={handleUpgrade} disabled={upgrading}>
-                        {upgrading ? 'Redirecting...' : 'Upgrade to Pro'}
-                      </button>
                     ) : (
-                      <div className="plan-actions">
-                        <button className="btn-upgrade" onClick={handleStartTrial} disabled={upgrading}>
-                          {upgrading ? 'Starting...' : 'Start Free Trial — 30 days'}
-                        </button>
-                        <div className="plan-trial-note">No credit card required. Won&apos;t auto-charge.</div>
-                      </div>
+                      <button className="btn-upgrade" onClick={handleUpgrade} disabled={upgrading}>
+                        {upgrading ? 'Opening secure checkout...' : 'Choose Plus · ' + (billingInterval === 'monthly' ? '$6.99/month' : '$59.99/year')}
+                      </button>
                     )}
                   </div>
                 </div>
@@ -297,8 +281,9 @@ export default function SettingsPage() {
         /* Billing styles (from billing page) */
         .billing-current-plan { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 20px 24px; margin-bottom: 32px; }
         .plan-badge { display: inline-block; padding: 4px 14px; border-radius: 20px; font-weight: 700; font-size: 0.9rem; background: var(--bg-tertiary); color: var(--text-muted); margin-bottom: 12px; }
-        .plan-badge[data-plan="pro"] { background: var(--accent); color: #fff; }
+        .plan-badge[data-plan="plus"] { background: var(--accent); color: #fff; }
         .plan-usage { font-size: 0.95rem; color: var(--text-secondary); }
+        .plan-usage span { display: block; margin-top: 8px; }
         .usage-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; margin-top: 8px; overflow: hidden; }
         .usage-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
         .plan-renews { font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; }
@@ -309,6 +294,9 @@ export default function SettingsPage() {
         .plan-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; color: var(--text-primary); }
         .plan-price { font-size: 2rem; font-weight: 800; margin-bottom: 16px; color: var(--text-primary); }
         .plan-price span { font-size: 1rem; font-weight: 400; color: var(--text-muted); }
+        .billing-toggle { display: flex; gap: 6px; padding: 4px; margin: 12px 0; background: var(--bg-tertiary); border-radius: 10px; }
+        .billing-toggle button { flex: 1; border: 0; border-radius: 7px; padding: 8px 10px; background: transparent; color: var(--text-muted); cursor: pointer; }
+        .billing-toggle button.active { background: var(--bg-primary); color: var(--text-primary); box-shadow: 0 2px 8px rgba(0, 0, 0, .12); }
         .plan-features { list-style: none !important; list-style-type: none !important; padding: 0 !important; margin: 0 0 20px; }
         .plan-features li { list-style: none; list-style-type: none; padding: 6px 0; font-size: 0.9rem; color: var(--text-secondary); display: flex; align-items: baseline; gap: 6px; }
         .plan-features li::before { content: "✓"; color: var(--accent); font-weight: 700; flex-shrink: 0; }
@@ -316,9 +304,8 @@ export default function SettingsPage() {
         .btn-upgrade { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
         .btn-upgrade:hover { background: var(--accent-secondary); }
         .btn-upgrade:disabled { opacity: 0.6; cursor: default; }
-        .btn-cancel { background: none; border: none; color: var(--error); font-size: 0.85rem; cursor: pointer; text-decoration: underline; padding: 0; }
-        .btn-cancel:disabled { opacity: 0.6; cursor: default; }
-        .plan-trial-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 8px; text-align: center; }
+        .btn-manage { padding: 10px 16px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--bg-tertiary); color: var(--text-primary); cursor: pointer; }
+        .btn-manage:disabled { opacity: 0.6; cursor: default; }
         @media (max-width: 600px) { .billing-plans { flex-direction: column; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>

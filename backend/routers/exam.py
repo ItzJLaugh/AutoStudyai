@@ -12,6 +12,7 @@ from typing import List
 from database import get_supabase
 from services.llm import generate_exam_questions
 from auth_utils import get_user_id
+from routers.billing import check_usage, record_usage
 
 _UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 
@@ -78,11 +79,13 @@ def generate_exam(
 
         combined = "\n\n".join(filter(None, [notes, study_guide]))
 
+        usage = check_usage(user_id, "build")
         questions = generate_exam_questions(combined, domain, mode)
 
         if not questions:
             raise HTTPException(status_code=500, detail="Failed to generate exam questions. Please try again.")
 
+        record_usage(user_id, "build", usage)
         return {"questions": questions}
 
     except HTTPException:

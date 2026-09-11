@@ -13,6 +13,7 @@ from typing import List
 from database import get_supabase
 from services.llm import get_openai_client
 from auth_utils import get_user_id
+from routers.billing import check_usage, record_usage
 
 _UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 
@@ -86,6 +87,7 @@ def generate_quiz(guide_id: str, authorization: str = Header(default="")):
 
         qa_pairs = qa_pairs[:50]
 
+        usage = check_usage(user_id, "lightweight")
         client = get_openai_client()
         if not client:
             raise HTTPException(status_code=500, detail="AI service unavailable")
@@ -148,6 +150,7 @@ Return ONLY a JSON array, no other text:"""
         except Exception as cache_err:
             logger.warning(f"Failed to cache quiz questions for guide {guide_id}: {cache_err}")
 
+        record_usage(user_id, "lightweight", usage)
         return {"questions": questions}
 
     except HTTPException:

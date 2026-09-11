@@ -1,317 +1,256 @@
-"""
-Billing router for AutoStudyAI.
-Handles Stripe subscription management and usage tracking.
-Free tier: 3 study guide generations
-Pro tier: $6.99/mo, unlimited.
-"""
+"""Stripe subscriptions and monthly AI limits for CordiaClassroom."""
 
 import os
-import logging
-from datetime import datetime
-from fastapi import APIRouter, HTTPException, Header, Request
-from fastapi.responses import JSONResponse
+from datetime import datetime, timezone
+from typing import Literal
+
 import stripe
-from database import get_supabase
+from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
 from auth_utils import get_user_id
+from database import get_supabase
 
-logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/billing", tags=["billing"])
+PLAN_LIMITS = {
+    "free": {"builds": 3, "lightweight_actions": 30},
+    "classroom_plus": {"builds": 25, "lightweight_actions": 250},
+}
+PRICE_ENV = {
+    "monthly": "STRIPE_CLASSROOM_PLUS_MONTHLY_PRICE_ID",
+    "yearly": "STRIPE_CLASSROOM_PLUS_YEARLY_PRICE_ID",
+}
+ACTIVE_STATUSES = {"active", "trialing"}
 
-FREE_TIER_LIMIT = 3  # guides per month
+
+class CheckoutRequest(BaseModel):
+    interval: Literal["monthly", "yearly"] = "monthly"
 
 
-def _get_stripe():
-    key = os.getenv("STRIPE_SECRET_KEY", "")
+def _stripe():
+    key = os.getenv("STRIPE_SECRET_KEY")
     if not key:
         raise HTTPException(status_code=503, detail="Billing not configured")
     stripe.api_key = key
     return stripe
 
 
-def get_current_month() -> str:
-    return datetime.utcnow().strftime("%Y-%m")
+def _month() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def _plan(subscription: dict | None) -> str:
+    if (
+        subscription
+        and subscription.get("plan") in {"pro", "classroom_plus"}
+        and subscription.get("status") in ACTIVE_STATUSES
+    ):
+        return "classroom_plus"
+    return "free"
 
 
 def get_user_plan(user_id: str) -> dict:
-    """Return the user's plan and usage for the current month."""
-    supabase = get_supabase()
-    month = get_current_month()
-
-    # Check subscription
-    sub = supabase.table("user_subscriptions").select("*").eq("user_id", user_id).execute()
-    plan = "free"
-    period_end = None
-    is_trial = False
-    trial_ends_at = None
-    trial_used = False
-
-    if sub.data:
-        row = sub.data[0]
-        trial_used = row.get("trial_used", False)
-        trial_ends_at = row.get("trial_ends_at")
-
-        # Active Stripe subscription takes precedence
-        if row.get("plan") == "pro" and row.get("status") == "active":
-            plan = "pro"
-            period_end = row.get("current_period_end")
-        # Otherwise check if trial is active
-        elif trial_ends_at:
-            from datetime import timezone
-            from dateutil.parser import parse as parse_dt
-            now = datetime.now(timezone.utc)
-            trial_end_dt = parse_dt(trial_ends_at)
-            if now < trial_end_dt:
-                plan = "trial"
-                is_trial = True
-                period_end = trial_ends_at
-
-    # Get usage
-    usage = supabase.table("monthly_usage") \
-        .select("guides_generated") \
-        .eq("user_id", user_id) \
-        .eq("month", month) \
+    db = get_supabase()
+    subscriptions = (
+        db.table("user_subscriptions")
+        .select("plan,status,current_period_end,billing_interval,cancel_at_period_end,stripe_customer_id")
+        .eq("user_id", user_id)
         .execute()
-    guides_used = usage.data[0]["guides_generated"] if usage.data else 0
-
+    )
+    subscription = subscriptions.data[0] if subscriptions.data else None
+    plan = _plan(subscription)
+    limits = PLAN_LIMITS[plan]
+    usage_rows = (
+        db.table("monthly_usage")
+        .select("guides_generated,lightweight_actions")
+        .eq("user_id", user_id)
+        .eq("month", _month())
+        .execute()
+    )
+    usage = usage_rows.data[0] if usage_rows.data else {}
+    builds = int(usage.get("guides_generated") or 0)
+    actions = int(usage.get("lightweight_actions") or 0)
     return {
         "plan": plan,
-        "is_trial": is_trial,
-        "trial_used": trial_used,
-        "trial_ends_at": trial_ends_at,
-        "guides_used": guides_used,
-        "guides_limit": None if plan in ("pro", "trial") else FREE_TIER_LIMIT,
-        "period_end": period_end,
+        "billing_interval": subscription.get("billing_interval") if subscription else None,
+        "period_end": subscription.get("current_period_end") if subscription else None,
+        "cancel_at_period_end": bool(subscription and subscription.get("cancel_at_period_end")),
+        "builds_used": builds,
+        "builds_limit": limits["builds"],
+        "builds_remaining": max(0, limits["builds"] - builds),
+        "lightweight_actions_used": actions,
+        "lightweight_actions_limit": limits["lightweight_actions"],
+        "lightweight_actions_remaining": max(0, limits["lightweight_actions"] - actions),
     }
 
 
-def check_and_increment_usage(user_id: str):
-    """
-    Check if user is within their limit, then increment count.
-    Raises 402 if free tier is exceeded.
-    """
-    supabase = get_supabase()
-    month = get_current_month()
+def _usage_fields(action: str) -> tuple[str, str]:
+    if action == "build":
+        return "builds_used", "builds_limit"
+    if action == "lightweight":
+        return "lightweight_actions_used", "lightweight_actions_limit"
+    raise ValueError(f"Unknown usage action: {action}")
 
-    info = get_user_plan(user_id)
-    if info["plan"] == "free" and info["guides_used"] >= FREE_TIER_LIMIT:
+
+def check_usage(user_id: str, action: str) -> dict:
+    usage = get_user_plan(user_id)
+    used, limit = _usage_fields(action)
+    if usage[used] >= usage[limit]:
         raise HTTPException(
             status_code=402,
-            detail={
-                "message": f"Free tier limit reached ({FREE_TIER_LIMIT} guides/month). Upgrade to Pro for unlimited access.",
-                "upgrade_url": "/billing"
-            }
+            detail={"message": "Monthly limit reached.", "upgrade_url": "/settings?section=subscription"},
         )
+    return usage
 
-    # Upsert usage count
-    supabase.table("monthly_usage").upsert(
+
+def record_usage(user_id: str, action: str, usage: dict) -> None:
+    _usage_fields(action)
+    get_supabase().table("monthly_usage").upsert(
         {
             "user_id": user_id,
-            "month": month,
-            "guides_generated": info["guides_used"] + 1
+            "month": _month(),
+            "guides_generated": usage["builds_used"] + (action == "build"),
+            "lightweight_actions": usage["lightweight_actions_used"] + (action == "lightweight"),
         },
-        on_conflict="user_id,month"
+        on_conflict="user_id,month",
     ).execute()
 
 
 @router.get("/status")
 def billing_status(authorization: str = Header(default="")):
-    """Get current user's plan and usage."""
-    try:
-        user_id = get_user_id(authorization)
-        return get_user_plan(user_id)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting billing status: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get billing status")
-
-
-@router.post("/start-trial")
-def start_trial(authorization: str = Header(default="")):
-    """Start a 30-day free trial for a user who has never had one."""
-    try:
-        user_id = get_user_id(authorization)
-        supabase = get_supabase()
-
-        # Check if trial already used
-        existing = supabase.table("user_subscriptions").select("trial_used, plan, status").eq("user_id", user_id).execute()
-        if existing.data:
-            row = existing.data[0]
-            if row.get("trial_used"):
-                raise HTTPException(status_code=409, detail="Free trial already used")
-            # Active paid subscription — no need for trial
-            if row.get("plan") == "pro" and row.get("status") == "active":
-                raise HTTPException(status_code=409, detail="Already on Pro plan")
-            # Update existing row — only touch trial columns
-            from datetime import timezone, timedelta
-            trial_ends = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
-            supabase.table("user_subscriptions").update({
-                "trial_ends_at": trial_ends,
-                "trial_used": True,
-            }).eq("user_id", user_id).execute()
-        else:
-            from datetime import timezone, timedelta
-            trial_ends = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
-            supabase.table("user_subscriptions").insert({
-                "user_id": user_id,
-                "trial_ends_at": trial_ends,
-                "trial_used": True,
-                "plan": "free",
-                "status": "inactive",
-            }).execute()
-
-        logger.info(f"Trial started for user={user_id[:8]}")
-        return {"started": True, "trial_ends_at": trial_ends}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error starting trial: {e}")
-        raise HTTPException(status_code=500, detail="Failed to start trial")
+    return get_user_plan(get_user_id(authorization))
 
 
 @router.post("/create-checkout-session")
-def create_checkout_session(authorization: str = Header(default="")):
-    """Create a Stripe Checkout session for Pro subscription."""
-    try:
-        user_id = get_user_id(authorization)
-        st = _get_stripe()
+def create_checkout_session(body: CheckoutRequest, authorization: str = Header(default="")):
+    user_id = get_user_id(authorization)
+    if get_user_plan(user_id)["plan"] == "classroom_plus":
+        raise HTTPException(status_code=409, detail="Plus is already active")
 
-        price_id = os.getenv("STRIPE_PRICE_ID", "")
-        if not price_id:
-            raise HTTPException(status_code=503, detail="Billing not configured")
-
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-
-        # Check for existing Stripe customer
-        supabase = get_supabase()
-        sub = supabase.table("user_subscriptions").select("stripe_customer_id").eq("user_id", user_id).execute()
-        customer_id = sub.data[0]["stripe_customer_id"] if sub.data and sub.data[0].get("stripe_customer_id") else None
-
-        session_params = {
-            "mode": "subscription",
-            "line_items": [{"price": price_id, "quantity": 1}],
-            "success_url": frontend_url + "/billing?success=true",
-            "cancel_url": frontend_url + "/billing?cancelled=true",
-            "metadata": {"user_id": user_id},
-            "allow_promotion_codes": True,
-        }
-        if customer_id:
-            session_params["customer"] = customer_id
-
-        session = st.checkout.Session.create(**session_params)
-        return {"url": session.url}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating checkout session: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create checkout session")
+    price_id = os.getenv(PRICE_ENV[body.interval])
+    if not price_id:
+        raise HTTPException(status_code=503, detail="Billing not configured")
+    rows = (
+        get_supabase().table("user_subscriptions")
+        .select("stripe_customer_id")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    customer_id = rows.data[0].get("stripe_customer_id") if rows.data else None
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    metadata = {"user_id": user_id, "product": "classroom_plus", "interval": body.interval}
+    params = {
+        "mode": "subscription",
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "success_url": f"{frontend_url}/settings?billing=success",
+        "cancel_url": f"{frontend_url}/settings?billing=cancelled",
+        "metadata": metadata,
+        "subscription_data": {"metadata": metadata},
+        "allow_promotion_codes": True,
+    }
+    if customer_id:
+        params["customer"] = customer_id
+    return {"url": _stripe().checkout.Session.create(**params).url}
 
 
-@router.post("/cancel")
-def cancel_subscription(authorization: str = Header(default="")):
-    """Cancel the user's subscription at period end."""
-    try:
-        user_id = get_user_id(authorization)
-        st = _get_stripe()
-        supabase = get_supabase()
+@router.post("/create-portal-session")
+def create_portal_session(authorization: str = Header(default="")):
+    user_id = get_user_id(authorization)
+    rows = (
+        get_supabase().table("user_subscriptions")
+        .select("stripe_customer_id")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    customer_id = rows.data[0].get("stripe_customer_id") if rows.data else None
+    if not customer_id:
+        raise HTTPException(status_code=404, detail="No billing account found")
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    session = _stripe().billing_portal.Session.create(
+        customer=customer_id,
+        return_url=f"{frontend_url}/settings?section=subscription",
+    )
+    return {"url": session.url}
 
-        sub = supabase.table("user_subscriptions").select("stripe_subscription_id").eq("user_id", user_id).execute()
-        if not sub.data or not sub.data[0].get("stripe_subscription_id"):
-            raise HTTPException(status_code=404, detail="No active subscription")
 
-        st.Subscription.modify(
-            sub.data[0]["stripe_subscription_id"],
-            cancel_at_period_end=True
+def _plain(value) -> dict:
+    return value.to_dict_recursive() if hasattr(value, "to_dict_recursive") else dict(value)
+
+
+def _subscription_row(subscription: dict) -> dict:
+    items = subscription.get("items", {}).get("data", [])
+    item = items[0] if items else {}
+    price = item.get("price", {})
+    price_id = price.get("id")
+    interval = next(
+        (name for name, env in PRICE_ENV.items() if price_id and price_id == os.getenv(env)),
+        None,
+    )
+    if not interval:
+        interval = {"month": "monthly", "year": "yearly"}.get(
+            price.get("recurring", {}).get("interval")
         )
-        return {"cancelled": True, "message": "Subscription will cancel at end of billing period"}
+    period_end = subscription.get("current_period_end") or item.get("current_period_end")
+    return {
+        "stripe_customer_id": subscription.get("customer"),
+        "stripe_subscription_id": subscription.get("id"),
+        "plan": "classroom_plus",
+        "status": subscription.get("status"),
+        "billing_interval": interval,
+        "current_period_end": datetime.fromtimestamp(period_end, timezone.utc).isoformat() if period_end else None,
+        "cancel_at_period_end": bool(subscription.get("cancel_at_period_end")),
+    }
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error cancelling subscription: {e}")
-        raise HTTPException(status_code=500, detail="Failed to cancel subscription")
+
+def process_stripe_event(event) -> None:
+    event_type = event["type"]
+    data = _plain(event["data"]["object"])
+    db = get_supabase()
+
+    if event_type == "checkout.session.completed":
+        subscription_id = data.get("subscription")
+        user_id = data.get("metadata", {}).get("user_id")
+        if not subscription_id or not user_id:
+            raise ValueError("Checkout event is missing subscription metadata")
+        row = _subscription_row(_plain(_stripe().Subscription.retrieve(subscription_id)))
+        row["user_id"] = user_id
+        db.table("user_subscriptions").upsert(row, on_conflict="user_id").execute()
+    elif event_type == "customer.subscription.updated":
+        row = _subscription_row(data)
+        user_id = data.get("metadata", {}).get("user_id")
+        if user_id:
+            row["user_id"] = user_id
+            db.table("user_subscriptions").upsert(row, on_conflict="user_id").execute()
+        elif row["stripe_customer_id"]:
+            db.table("user_subscriptions").update(row).eq(
+                "stripe_customer_id", row["stripe_customer_id"]
+            ).execute()
+    elif event_type == "customer.subscription.deleted":
+        db.table("user_subscriptions").update(
+            {
+                "plan": "free",
+                "status": "cancelled",
+                "stripe_subscription_id": None,
+                "cancel_at_period_end": False,
+            }
+        ).eq("stripe_customer_id", data.get("customer")).eq(
+            "stripe_subscription_id", data.get("id")
+        ).execute()
 
 
 @router.post("/webhook")
 async def stripe_webhook(request: Request):
-    """
-    Stripe webhook — updates user_subscriptions on payment events.
-    Must be registered at: https://dashboard.stripe.com/webhooks
-    Endpoint URL: https://your-backend.onrender.com/billing/webhook
-    Events to enable: checkout.session.completed, customer.subscription.updated,
-                      customer.subscription.deleted
-    """
-    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-    payload = await request.body()
-    sig_header = request.headers.get("stripe-signature", "")
-
+    secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+    signature = request.headers.get("stripe-signature", "")
+    if not secret:
+        raise HTTPException(status_code=503, detail="Billing webhook not configured")
+    if not signature:
+        raise HTTPException(status_code=400, detail="Missing Stripe signature")
     try:
-        st = _get_stripe()
-        if webhook_secret:
-            event = st.Webhook.construct_event(payload, sig_header, webhook_secret)
-        else:
-            import json
-            event = json.loads(payload)
-            logger.warning("Stripe webhook signature verification skipped — set STRIPE_WEBHOOK_SECRET")
-    except Exception as e:
-        logger.error(f"Webhook signature error: {e}")
-        return JSONResponse(status_code=400, content={"error": "Invalid signature"})
-
-    supabase = get_supabase()
-    event_type = event["type"]
-    data = event["data"]["object"]
-
-    try:
-        if event_type == "checkout.session.completed":
-            user_id = data.get("metadata", {}).get("user_id")
-            if user_id and data.get("subscription"):
-                period_end = None
-                try:
-                    sub = stripe.Subscription.retrieve(data["subscription"])
-                    period_end = datetime.utcfromtimestamp(sub["current_period_end"]).isoformat()
-                except Exception as sub_err:
-                    logger.warning(f"Could not retrieve subscription details: {sub_err}")
-                supabase.table("user_subscriptions").upsert({
-                    "user_id": user_id,
-                    "stripe_customer_id": data.get("customer"),
-                    "stripe_subscription_id": data["subscription"],
-                    "plan": "pro",
-                    "status": "active",
-                    "current_period_end": period_end,
-                }, on_conflict="user_id").execute()
-                logger.info(f"Pro subscription activated for user={user_id[:8]}")
-
-        elif event_type == "customer.subscription.updated":
-            customer_id = data.get("customer")
-            status = data.get("status")
-            plan = "pro" if status == "active" else "free"
-            period_end = datetime.utcfromtimestamp(data["current_period_end"]).isoformat() if data.get("current_period_end") else None
-
-            supabase.table("user_subscriptions") \
-                .update({"plan": plan, "status": status, "current_period_end": period_end}) \
-                .eq("stripe_customer_id", customer_id) \
-                .execute()
-
-        elif event_type == "customer.subscription.deleted":
-            customer_id = data.get("customer")
-            subscription_id = data.get("id")
-            # Only downgrade if the deleted subscription matches the one on record
-            existing = supabase.table("user_subscriptions") \
-                .select("stripe_subscription_id") \
-                .eq("stripe_customer_id", customer_id) \
-                .execute()
-            if existing.data and existing.data[0].get("stripe_subscription_id") == subscription_id:
-                supabase.table("user_subscriptions") \
-                    .update({"plan": "free", "status": "cancelled", "stripe_subscription_id": None}) \
-                    .eq("stripe_customer_id", customer_id) \
-                    .execute()
-                logger.info(f"Subscription cancelled for customer={customer_id}")
-            else:
-                logger.info(f"Ignoring deletion of old subscription {subscription_id} for customer={customer_id}")
-
-    except Exception as e:
-        logger.error(f"Error processing webhook {event_type}: {e}")
-
+        event = _stripe().Webhook.construct_event(await request.body(), signature, secret)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid Stripe signature") from exc
+    process_stripe_event(event)
     return JSONResponse(content={"received": True})

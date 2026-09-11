@@ -38,7 +38,7 @@ from services.llm import (
 )
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes
 from auth_utils import get_user_id
-from routers.billing import check_and_increment_usage
+from routers.billing import check_usage, record_usage
 from services.pptx_rendering import (
     PptxRenderError,
     PptxRenderTimeout,
@@ -198,7 +198,7 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
     """Extract plain text from uploaded PDF, DOCX, PPTX, or TXT file."""
     import io
     try:
-        get_user_id(authorization)
+        user_id = get_user_id(authorization)
         if file is None:
             raise HTTPException(status_code=400, detail="No file uploaded")
 
@@ -300,6 +300,7 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
                 }
                 mime = mime_map.get(ext, "image/jpeg")
                 b64 = _b64.b64encode(content_bytes).decode()
+                usage = check_usage(user_id, "lightweight")
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[{
@@ -321,6 +322,7 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
                 text = (response.choices[0].message.content or "").strip()
                 if "NO_EDUCATIONAL_CONTENT" in text:
                     raise HTTPException(status_code=422, detail="No educational content found in this image.")
+                record_usage(user_id, "lightweight", usage)
             except HTTPException:
                 raise
             except Exception as e:
@@ -411,9 +413,11 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
         # Screenshot-only capture has no DOM text. Transcribe visual material before
         # selection so it reaches the same student review step as page text.
         if images_data and content.strip() == "[Screenshot fallback]":
+            usage = check_usage(user_id, "lightweight")
             image_descriptions = analyze_images_for_slides(images_data)
             visual_text = "\n\n".join(image_descriptions.values()) if image_descriptions else ""
             if visual_text:
+                record_usage(user_id, "lightweight", usage)
                 content = visual_text
                 # The transcription is now the reviewable source. Do not retain
                 # the screenshot for a second vision pass during generation.
@@ -487,8 +491,8 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         else:
             raw_text = content_obj["content"]
 
-        # Enforce usage only after an explicit valid generation request.
-        check_and_increment_usage(user_id)
+        # Validate allowance after the source and selected sections are valid.
+        usage = check_usage(user_id, "build")
 
         # Check if this is slideshow content
         slide_count = 0
@@ -578,6 +582,7 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
             else:
                 flashcards = generate_flashcards(chunks)
 
+        record_usage(user_id, "build", usage)
         return GenerateResponse(
             notes=notes_str,
             study_guide=study_guide,
@@ -620,7 +625,9 @@ async def create_flashcards(body: FlashcardRequest, request: Request, authorizat
         if not chunks:
             return FlashcardResponse(flashcards=[], count=0)
 
+        usage = check_usage(user_id, "lightweight")
         flashcards = generate_flashcards(chunks, max_cards=max_cards)
+        record_usage(user_id, "lightweight", usage)
 
         return FlashcardResponse(
             flashcards=[{"front": fc["front"], "back": fc["back"]} for fc in flashcards],
@@ -658,12 +665,14 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
         if body.mode not in ("short", "detailed", "example"):
             raise HTTPException(status_code=400, detail="Invalid mode")
 
+        usage = check_usage(user_id, "lightweight")
         answer = answer_question(
             question=question,
             context=content,
             mode=body.mode
         )
 
+        record_usage(user_id, "lightweight", usage)
         return ChatResponse(answer=answer)
 
     except HTTPException:

@@ -547,10 +547,10 @@ function sendToBackend(content, url, subjectName = 'content', images = []) {
       renderCaptureReview(response);
     } else if (response && response.status === 402) {
       showProgress('Free guide limit reached', false);
-      statusDiv.innerText = 'Free limit reached — upgrade to Pro';
+      statusDiv.innerText = 'Free limit reached — upgrade to Plus';
       if (platformBanner) {
         platformBanner.style.display = 'block';
-        platformBanner.innerHTML = '&#9888; Free guide limit reached. <a href="https://classroom.cordiacode.com/billing" target="_blank">Upgrade to Pro</a> for unlimited guides.';
+        platformBanner.innerHTML = '&#9888; Free limit reached. <a href="https://classroom.cordiacode.com/settings?section=subscription" target="_blank">Upgrade to Plus</a> for 25 monthly builds and 250 AI actions.';
       }
       if (saveBtn) saveBtn.style.display = 'none';
     } else {
