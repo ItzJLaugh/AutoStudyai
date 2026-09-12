@@ -1039,7 +1039,12 @@ BACK: [Answer]
         return []
 
 
-def answer_question(question: str, context: str, mode: str = "short") -> str:
+def answer_question(
+    question: str,
+    context: str,
+    mode: str = "short",
+    learning_guidance: str = "",
+) -> str:
     """
     Answer a question using the provided context.
     Modes: short, detailed, example
@@ -1070,6 +1075,12 @@ def answer_question(question: str, context: str, mode: str = "short") -> str:
             "Do not paraphrase or substitute synonyms. Keep it to 1-2 sentences drawn directly from the context."
         )
         max_tokens = 200
+
+    if learning_guidance:
+        system_prompt += (
+            "\nAdapt how you organize the explanation using this observed learning guidance: "
+            f"{learning_guidance} The guidance may change presentation, never the source facts."
+        )
 
     prompt = f"""Context:
 {context[:25000]}

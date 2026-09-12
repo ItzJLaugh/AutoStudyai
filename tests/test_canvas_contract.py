@@ -39,6 +39,14 @@ class CanvasContractTests(unittest.TestCase):
         self.assertEqual(canvas._plannable_text(item["plannable"]), "Review cell division before class.")
         self.assertTrue(canvas._normalize_planner_item(item)["has_study_material"])
 
+    def test_assignment_without_planner_description_still_offers_guide_creation(self):
+        item = {
+            "plannable_id": 7,
+            "plannable_type": "assignment",
+            "plannable": {"title": "Chapter 2"},
+        }
+        self.assertTrue(canvas._normalize_planner_item(item)["has_study_material"])
+
     def test_calendar_item_with_false_submission_does_not_crash(self):
         result = canvas._normalize_planner_item({"plannable_id": 8, "submissions": False})
         self.assertFalse(result["completed"])
@@ -82,6 +90,26 @@ class CanvasContractTests(unittest.TestCase):
         self.assertEqual(result["title"], "Mitosis review")
         self.assertIn("chromosomes", result["content"])
         self.assertEqual(result["source_url"], item["html_url"])
+
+    def test_study_source_fetches_full_assignment_details(self):
+        planner_item = {
+            "course_id": 4,
+            "plannable_id": 7,
+            "plannable_type": "assignment",
+            "plannable": {"title": "Chapter 2"},
+        }
+        assignment = {
+            "name": "Chapter 2 review",
+            "description": "Explain cell division, chromosome replication, and each phase of mitosis in detail.",
+            "html_url": "https://school.instructure.com/courses/4/assignments/7",
+        }
+        with patch.object(canvas, "get_user_id", return_value="student-1"), \
+             patch.object(canvas, "_config", return_value={"project_id": "proj_test"}), \
+             patch.object(canvas, "_canvas_account", return_value={"id": "apn_canvas"}), \
+             patch.object(canvas, "_proxy_get", side_effect=[[planner_item], assignment]):
+            result = canvas.canvas_study_source("4", "7", "Bearer token")
+        self.assertEqual(result["title"], "Chapter 2 review")
+        self.assertIn("chromosome replication", result["content"])
 
     @patch.dict(os.environ, {}, clear=True)
     def test_missing_provider_configuration_is_truthful(self):

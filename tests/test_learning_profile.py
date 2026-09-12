@@ -1,10 +1,12 @@
 import os
 import sys
 import unittest
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "backend"))
 
 from routers.stats import _build_learning_profile
+from services.llm import answer_question
 
 
 class LearningProfileTests(unittest.TestCase):
@@ -32,6 +34,20 @@ class LearningProfileTests(unittest.TestCase):
         ]
         profile = _build_learning_profile(attempts, sessions)
         self.assertEqual(profile["strongest_observed_format"], "recall cards")
+
+    def test_tutor_prompt_uses_observed_learning_guidance(self):
+        client = MagicMock()
+        client.chat.completions.create.return_value.choices = [
+            MagicMock(message=MagicMock(content="Cell division creates new cells."))
+        ]
+        with patch("services.llm.get_openai_client", return_value=client):
+            answer_question(
+                "What is cell division?",
+                "Cell division creates new cells.",
+                learning_guidance="Start with foundational recall.",
+            )
+        messages = client.chat.completions.create.call_args.kwargs["messages"]
+        self.assertIn("Start with foundational recall.", messages[0]["content"])
 
 
 if __name__ == "__main__":

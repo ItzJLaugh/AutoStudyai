@@ -128,6 +128,14 @@ app.include_router(canvas.router)
 storage = InMemoryStorage()
 
 
+def _learning_guidance(user_id: str) -> str:
+    try:
+        from routers.stats import learning_profile_for_user
+        return learning_profile_for_user(user_id)["generation_guidance"]
+    except Exception:
+        return ""
+
+
 def selected_section_text(selection, section_ids):
     """Return approved sections in source order, or an empty string if invalid."""
     if not isinstance(selection, dict) or not section_ids:
@@ -562,16 +570,11 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
             logger.info("Generating study guide...")
             # Use domain from request body, or fall back to what was stored at ingest
             domain = body.domain or metadata.get("domain")
-            try:
-                from routers.stats import learning_profile_for_user
-                learning_guidance = learning_profile_for_user(user_id)["generation_guidance"]
-            except Exception:
-                learning_guidance = ""
             study_guide = generate_study_guide(
                 chunks,
                 has_images=has_images,
                 domain=domain,
-                learning_guidance=learning_guidance,
+                learning_guidance=_learning_guidance(user_id),
             )
 
         if body.flashcards:
@@ -680,7 +683,8 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
         answer = answer_question(
             question=question,
             context=content,
-            mode=body.mode
+            mode=body.mode,
+            learning_guidance=_learning_guidance(user_id),
         )
 
         record_usage(user_id, "lightweight", usage)

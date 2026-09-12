@@ -127,15 +127,18 @@ def _normalize_planner_item(item: dict) -> dict:
     plannable = item.get("plannable") or {}
     submissions = item.get("submissions") if isinstance(item.get("submissions"), dict) else {}
     override = item.get("planner_override") if isinstance(item.get("planner_override"), dict) else {}
+    item_type = item.get("plannable_type") or "event"
     return {
         "id": item.get("plannable_id") or item.get("id"),
         "course_id": item.get("course_id") or item.get("context_id"),
-        "title": plannable.get("title") or item.get("plannable_type") or "Course item",
-        "type": item.get("plannable_type") or "event",
+        "title": plannable.get("title") or item_type or "Course item",
+        "type": item_type,
         "due_at": plannable.get("due_at") or item.get("plannable_date"),
         "url": _public_url(item.get("html_url") or plannable.get("html_url")),
         "completed": bool(submissions.get("submitted") or override.get("marked_complete")),
-        "has_study_material": bool(_plannable_text(plannable)),
+        # Planner responses often omit the assignment description. The detail
+        # endpoint can still supply it when the student asks Cordia to study it.
+        "has_study_material": item_type == "assignment" or bool(_plannable_text(plannable)),
     }
 
 
@@ -231,12 +234,22 @@ def canvas_study_source(course_id: str, item_id: str, authorization: str = Heade
     )
     if not item:
         raise HTTPException(status_code=404, detail="Canvas item not found")
-    content = _plannable_text(item.get("plannable") or {})
+    plannable = item.get("plannable") or {}
+    details = plannable
+    if item.get("plannable_type") == "assignment" and course_id.isdigit() and item_id.isdigit():
+        assignment = _proxy_get(
+            f"/api/v1/courses/{course_id}/assignments/{item_id}",
+            user_id,
+            account["id"],
+            config,
+        )
+        if isinstance(assignment, dict):
+            details = assignment
+    content = _plannable_text(details) or _plannable_text(plannable)
     if len(content) < 50:
         raise HTTPException(status_code=422, detail="This Canvas item has no usable study material")
-    plannable = item.get("plannable") or {}
     return {
-        "title": plannable.get("title") or plannable.get("name") or "Canvas study guide",
+        "title": details.get("title") or details.get("name") or plannable.get("title") or "Canvas study guide",
         "content": content,
-        "source_url": _public_url(item.get("html_url") or plannable.get("html_url")),
+        "source_url": _public_url(details.get("html_url") or item.get("html_url") or plannable.get("html_url")),
     }
