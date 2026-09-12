@@ -20,7 +20,7 @@ export default function Layout({ children, timerState, setTimerState }) {
           </section>
         )}
       </main>
-      {!pageOwnsTools && <AIChatWidget />}
+      {!pageOwnsTools && <AIChatWidget floating />}
     </div>
   );
 }

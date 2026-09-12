@@ -350,7 +350,7 @@ export default function Dashboard({ timerState, setTimerState }) {
   if (view === 'guides') {
     const filteredGuides = getFilteredGuides();
     return (
-      <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="guides" timerState={timerState} setTimerState={setTimerState}>
+      <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="guides" timerState={timerState} setTimerState={setTimerState} guides={guides}>
         <div className="fade-in study-library">
           <div className="study-library-header">
             <div>
@@ -523,7 +523,7 @@ export default function Dashboard({ timerState, setTimerState }) {
 
   // ============== DEFAULT DASHBOARD VIEW ==============
   return (
-    <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="dashboard" timerState={timerState} setTimerState={setTimerState}>
+    <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="dashboard" timerState={timerState} setTimerState={setTimerState} guides={guides}>
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
       <div>
         <div className="dashboard-desktop-header">

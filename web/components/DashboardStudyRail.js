@@ -4,7 +4,7 @@ import StudyTimer from './StudyTimer';
 import AIChatWidget from './AIChatWidget';
 import { apiFetch } from '../lib/api';
 
-export default function DashboardStudyRail({ timerState, setTimerState }) {
+export default function DashboardStudyRail({ timerState, setTimerState, guides }) {
   const [profile, setProfile] = useState(null);
   useEffect(() => { apiFetch('/stats/learning-profile').then(setProfile); }, []);
 
@@ -27,11 +27,11 @@ export default function DashboardStudyRail({ timerState, setTimerState }) {
         <div className="study-rail-chat-heading">
           <div>
             <span className="dashboard-rail-kicker">AI STUDY ROOM</span>
-            <h2>Chats</h2>
+            <h2>Your tutor</h2>
           </div>
-          <span>Up to 5</span>
+          <span>Adaptive</span>
         </div>
-        <AIChatWidget />
+        <AIChatWidget guides={guides} />
       </section>
     </aside>
   );

@@ -12,6 +12,7 @@ const login = read('web', 'pages', 'index.js');
 const api = read('web', 'lib', 'api.js');
 const styles = read('web', 'styles', 'globals.css');
 const canvasDashboard = read('web', 'components', 'CanvasDashboard.js');
+const tutor = read('web', 'components', 'AIChatWidget.js');
 
 assert.match(navigation, /className="top-navigation"/);
 assert.match(navigation, /className="account-menu-panel"/);
@@ -26,5 +27,8 @@ assert.match(styles, /\.editorial-page-title/);
 assert.match(canvasDashboard, /apiFetch\('\/canvas\/auto-guides', \{ method: 'POST', timeoutMs: 120000 \}\)/);
 assert.match(dashboard, /<CanvasDashboard onGuidesCreated=\{refreshGeneratedGuides\} \/>/);
 assert.match(styles, /\.canvas-auto-status/);
+assert.match(tutor, /Cordia Tutor/);
+assert.match(tutor, /guide\.study_guide \|\| guide\.notes/);
+assert.doesNotMatch(tutor, /requestAnimationFrame|MAX_BUBBLES|stepPhysics/);
 
 console.log('Production frontend contract passed');
