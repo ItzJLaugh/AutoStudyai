@@ -11,6 +11,7 @@ const dashboard = read('web', 'pages', 'dashboard.js');
 const login = read('web', 'pages', 'index.js');
 const api = read('web', 'lib', 'api.js');
 const styles = read('web', 'styles', 'globals.css');
+const canvasDashboard = read('web', 'components', 'CanvasDashboard.js');
 
 assert.match(navigation, /className="top-navigation"/);
 assert.match(navigation, /className="account-menu-panel"/);
@@ -22,5 +23,8 @@ assert.match(api, /REQUEST_TIMEOUT_MS/);
 assert.match(login, /login-mode-tabs/);
 assert.match(login, /login-learning-backdrop\.webp/);
 assert.match(styles, /\.editorial-page-title/);
+assert.match(canvasDashboard, /apiFetch\('\/canvas\/auto-guides', \{ method: 'POST', timeoutMs: 120000 \}\)/);
+assert.match(dashboard, /<CanvasDashboard onGuidesCreated=\{refreshGeneratedGuides\} \/>/);
+assert.match(styles, /\.canvas-auto-status/);
 
 console.log('Production frontend contract passed');

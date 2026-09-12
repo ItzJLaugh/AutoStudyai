@@ -1,7 +1,7 @@
 import os
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "backend"))
 
@@ -110,6 +110,74 @@ class CanvasContractTests(unittest.TestCase):
             result = canvas.canvas_study_source("4", "7", "Bearer token")
         self.assertEqual(result["title"], "Chapter 2 review")
         self.assertIn("chromosome replication", result["content"])
+
+    def test_auto_guides_creates_one_missing_assignment_guide(self):
+        item = {
+            "course_id": 4,
+            "plannable_id": 7,
+            "plannable_type": "assignment",
+            "plannable": {"title": "Mitosis", "due_at": "2026-09-15T17:00:00Z"},
+        }
+        assignment = {
+            "name": "Mitosis",
+            "description": "Explain chromosome replication and every phase of mitosis in enough detail for an exam.",
+        }
+        table = MagicMock()
+        table.select.return_value = table
+        table.eq.return_value = table
+        table.limit.return_value = table
+        table.upsert.return_value = table
+        table.execute.side_effect = [MagicMock(data=[]), MagicMock(data=[{"id": "guide-1", "title": "Mitosis"}])]
+        db = MagicMock()
+        db.table.return_value = table
+        usage = {"builds_used": 0, "builds_limit": 3, "lightweight_actions_used": 0}
+
+        with patch.object(canvas, "get_user_id", return_value="student-1"), \
+             patch.object(canvas, "_config", return_value={"project_id": "proj_test"}), \
+             patch.object(canvas, "_canvas_account", return_value={"id": "apn_canvas"}), \
+             patch.object(canvas, "_proxy_get", side_effect=[[item], assignment]), \
+             patch.object(canvas, "get_supabase", return_value=db), \
+             patch.object(canvas, "check_usage", return_value=usage), \
+             patch.object(canvas, "select_educational_sections", return_value={
+                 "is_educational": True,
+                 "sections": [{"heading": "Lesson", "text": assignment["description"]}],
+             }), \
+             patch.object(canvas, "generate_study_guide", return_value="Q1: What is mitosis?\nA1: Cell division."), \
+             patch.object(canvas, "learning_profile_for_user", return_value={"generation_guidance": "Use concise explanations."}), \
+             patch.object(canvas, "record_usage") as record_usage:
+            result = canvas.canvas_auto_guides("Bearer token")
+
+        self.assertEqual(result, {"created": [{"id": "guide-1", "title": "Mitosis"}], "count": 1})
+        payload = table.upsert.call_args.args[0]
+        self.assertEqual(payload["external_source_id"], "canvas:apn_canvas:4:assignment:7")
+        record_usage.assert_called_once_with("student-1", "build", usage)
+
+    def test_auto_guides_skips_an_existing_canvas_source(self):
+        item = {
+            "course_id": 4,
+            "plannable_id": 7,
+            "plannable_type": "assignment",
+            "plannable": {"title": "Mitosis"},
+        }
+        table = MagicMock()
+        table.select.return_value = table
+        table.eq.return_value = table
+        table.limit.return_value = table
+        table.execute.return_value = MagicMock(data=[{"id": "guide-1"}])
+        db = MagicMock()
+        db.table.return_value = table
+
+        with patch.object(canvas, "get_user_id", return_value="student-1"), \
+             patch.object(canvas, "_config", return_value={"project_id": "proj_test"}), \
+             patch.object(canvas, "_canvas_account", return_value={"id": "apn_canvas"}), \
+             patch.object(canvas, "_proxy_get", return_value=[item]), \
+             patch.object(canvas, "get_supabase", return_value=db), \
+             patch.object(canvas, "check_usage", return_value={"builds_used": 0, "builds_limit": 3}), \
+             patch.object(canvas, "generate_study_guide") as generate:
+            result = canvas.canvas_auto_guides("Bearer token")
+
+        self.assertEqual(result, {"created": [], "count": 0})
+        generate.assert_not_called()
 
     @patch.dict(os.environ, {}, clear=True)
     def test_missing_provider_configuration_is_truthful(self):

@@ -2,11 +2,12 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 export const REQUEST_TIMEOUT_MS = 15000;
 
 async function fetchWithTimeout(url, options = {}) {
+  const { timeoutMs = REQUEST_TIMEOUT_MS, ...fetchOptions } = options;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   if (options.signal) options.signal.addEventListener('abort', () => controller.abort(), { once: true });
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await fetch(url, { ...fetchOptions, signal: controller.signal });
   } finally {
     clearTimeout(timeout);
   }

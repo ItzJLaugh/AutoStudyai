@@ -12,6 +12,11 @@ import requests
 from fastapi import APIRouter, Header, HTTPException
 
 from auth_utils import get_user_id
+from database import get_supabase
+from routers.billing import check_usage, record_usage
+from routers.stats import learning_profile_for_user
+from services.llm import generate_study_guide, select_educational_sections
+from services.text_processing import chunk_text, clean_text
 
 router = APIRouter(prefix="/canvas", tags=["canvas"])
 
@@ -23,6 +28,7 @@ REQUIRED_CONFIG = (
 )
 _access_token = None
 _access_token_expires_at = 0
+AUTO_GUIDE_LIMIT = 3
 
 
 def _external_user_id(user_id: str) -> str:
@@ -160,6 +166,40 @@ def _planner_path(now=None) -> str:
     })
 
 
+def _study_source(item: dict, user_id: str, account_id: str, config: dict) -> dict:
+    course_id = str(item.get("course_id") or "")
+    item_id = str(item.get("plannable_id") or item.get("id") or "")
+    plannable = item.get("plannable") or {}
+    details = plannable
+    if item.get("plannable_type") == "assignment" and course_id.isdigit() and item_id.isdigit():
+        assignment = _proxy_get(
+            f"/api/v1/courses/{course_id}/assignments/{item_id}",
+            user_id,
+            account_id,
+            config,
+        )
+        if isinstance(assignment, dict):
+            details = assignment
+    content = _plannable_text(details) or _plannable_text(plannable)
+    if len(content) < 50:
+        raise HTTPException(status_code=422, detail="This Canvas item has no usable study material")
+    return {
+        "title": details.get("title") or details.get("name") or plannable.get("title") or "Canvas study guide",
+        "content": content,
+        "source_url": _public_url(details.get("html_url") or item.get("html_url") or plannable.get("html_url")),
+    }
+
+
+def _source_id(account_id: str, item: dict) -> str:
+    return ":".join((
+        "canvas",
+        account_id,
+        str(item.get("course_id") or ""),
+        str(item.get("plannable_type") or "item"),
+        str(item.get("plannable_id") or item.get("id") or ""),
+    ))
+
+
 @router.get("/status")
 def canvas_status(authorization: str = Header(default="")):
     user_id = get_user_id(authorization)
@@ -234,22 +274,78 @@ def canvas_study_source(course_id: str, item_id: str, authorization: str = Heade
     )
     if not item:
         raise HTTPException(status_code=404, detail="Canvas item not found")
-    plannable = item.get("plannable") or {}
-    details = plannable
-    if item.get("plannable_type") == "assignment" and course_id.isdigit() and item_id.isdigit():
-        assignment = _proxy_get(
-            f"/api/v1/courses/{course_id}/assignments/{item_id}",
-            user_id,
-            account["id"],
-            config,
+    return _study_source(item, user_id, account["id"], config)
+
+
+@router.post("/auto-guides")
+def canvas_auto_guides(authorization: str = Header(default="")):
+    """Create up to three missing guides from the next useful Canvas assignments."""
+    user_id = get_user_id(authorization)
+    config = _config()
+    account = _canvas_account(user_id, config)
+    if not account:
+        raise HTTPException(status_code=409, detail="Connect Canvas first")
+
+    usage = check_usage(user_id, "build")
+    remaining = min(AUTO_GUIDE_LIMIT, usage["builds_limit"] - usage["builds_used"])
+    items = _proxy_get(_planner_path(), user_id, account["id"], config)
+    candidates = sorted(
+        (item for item in items if isinstance(item, dict)),
+        key=lambda item: _normalize_planner_item(item).get("due_at") or "9999",
+    )
+    db = get_supabase()
+    created = []
+
+    for item in candidates:
+        normalized = _normalize_planner_item(item)
+        if normalized["completed"] or normalized["type"] != "assignment":
+            continue
+        external_source_id = _source_id(account["id"], item)
+        existing = (
+            db.table("study_guides")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("external_source_id", external_source_id)
+            .limit(1)
+            .execute()
         )
-        if isinstance(assignment, dict):
-            details = assignment
-    content = _plannable_text(details) or _plannable_text(plannable)
-    if len(content) < 50:
-        raise HTTPException(status_code=422, detail="This Canvas item has no usable study material")
-    return {
-        "title": details.get("title") or details.get("name") or plannable.get("title") or "Canvas study guide",
-        "content": content,
-        "source_url": _public_url(details.get("html_url") or item.get("html_url") or plannable.get("html_url")),
-    }
+        if existing.data:
+            continue
+        try:
+            source = _study_source(item, user_id, account["id"], config)
+        except HTTPException as error:
+            if error.status_code == 422:
+                continue
+            raise
+        selection = select_educational_sections(source["content"])
+        selected = "\n\n".join(
+            f"{section['heading']}\n{section['text']}"
+            for section in selection.get("sections", [])
+        )
+        chunks = chunk_text(clean_text(selected))
+        if not selection.get("is_educational") or not chunks:
+            continue
+        guide = generate_study_guide(
+            chunks,
+            learning_guidance=learning_profile_for_user(user_id)["generation_guidance"],
+        )
+        if not guide or guide.startswith("[Error"):
+            raise HTTPException(status_code=502, detail="Automatic guide generation failed")
+        saved = db.table("study_guides").upsert(
+            {
+                "user_id": user_id,
+                "title": source["title"],
+                "study_guide": guide,
+                "source_url": source["source_url"],
+                "external_source_id": external_source_id,
+            },
+            on_conflict="user_id,external_source_id",
+        ).execute()
+        if saved.data:
+            created.append({"id": saved.data[0]["id"], "title": saved.data[0]["title"]})
+            record_usage(user_id, "build", usage)
+            usage["builds_used"] += 1
+        if len(created) >= remaining:
+            break
+
+    return {"created": created, "count": len(created)}

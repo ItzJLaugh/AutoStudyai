@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { apiFetch } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
@@ -81,6 +81,12 @@ export default function Dashboard({ timerState, setTimerState }) {
       setLoading(false);
     }
   }
+
+  const refreshGeneratedGuides = useCallback(async () => {
+    const [guidesData, statsData] = await Promise.all([apiFetch('/guides'), apiFetch('/stats/overview')]);
+    setGuides(guidesData?.guides || []);
+    if (statsData) setStats(statsData);
+  }, []);
 
   async function deleteSmartNote(id, e) {
     e?.stopPropagation();
@@ -538,7 +544,7 @@ export default function Dashboard({ timerState, setTimerState }) {
           </div>
         )}
 
-        <CanvasDashboard />
+        <CanvasDashboard onGuidesCreated={refreshGeneratedGuides} />
 
         <button type="button" className="dashboard-extension-banner" onClick={() => router.push('/install-extension')}>
           <span className="extension-banner-badge">CHROME</span>

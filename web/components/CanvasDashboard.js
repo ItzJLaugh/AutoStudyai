@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../lib/api';
 
 function dueLabel(value) {
@@ -12,9 +12,11 @@ function dueLabel(value) {
     : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-export default function CanvasDashboard() {
+export default function CanvasDashboard({ onGuidesCreated }) {
   const [state, setState] = useState({ loading: true, connected: false, courses: [], items: [] });
   const [connecting, setConnecting] = useState(false);
+  const [autoMessage, setAutoMessage] = useState('');
+  const autoBuildStarted = useRef(false);
 
   const load = useCallback(async () => {
     const data = await apiFetch('/canvas/dashboard');
@@ -23,7 +25,21 @@ export default function CanvasDashboard() {
       return;
     }
     setState({ loading: false, ...data });
-  }, []);
+    if (data.connected && !autoBuildStarted.current) {
+      autoBuildStarted.current = true;
+      setAutoMessage('Checking Canvas for study material…');
+      apiFetch('/canvas/auto-guides', { method: 'POST', timeoutMs: 120000 }).then(result => {
+        if (result?.count) {
+          setAutoMessage(`${result.count} new study guide${result.count === 1 ? '' : 's'} ready.`);
+          onGuidesCreated?.();
+        } else if (!result || result.detail) {
+          setAutoMessage(result?.detail?.message || result?.detail || 'Automatic guide creation is unavailable.');
+        } else {
+          setAutoMessage('Canvas study guides are up to date.');
+        }
+      });
+    }
+  }, [onGuidesCreated]);
 
   useEffect(() => {
     load();
@@ -86,6 +102,7 @@ export default function CanvasDashboard() {
         </div>
         <span className="canvas-connected">Connected</span>
       </header>
+      {autoMessage && <p className="canvas-auto-status">{autoMessage}</p>}
       {state.error && <div className="canvas-inline-error">{state.error}</div>}
       <div className="canvas-dashboard-grid">
         <div className="canvas-agenda">
