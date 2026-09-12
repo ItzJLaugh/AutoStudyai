@@ -63,9 +63,10 @@ export default function LoginPage() {
       } else if (response.ok && isSignup) {
         setConfirmationSent(true);
       } else {
+        const detail = (Array.isArray(data.detail) ? data.detail[0]?.msg : data.detail)?.replace(/^Value error,\s*/, '');
         setError(response.status === 401
           ? 'That email and password did not match. Try again or reset your password.'
-          : data.detail || 'Authentication failed.');
+          : detail || 'Authentication failed.');
       }
     } catch {
       setError('Service unavailable. Try again in a moment.');
@@ -138,7 +139,7 @@ export default function LoginPage() {
                     <input name="email" type="email" className="login-underline-input" placeholder="Email" autoComplete="email" required />
                   </div>
                   <div className="login-input-row">
-                    <input name="password" type="password" className="login-underline-input" placeholder="Password" autoComplete={isSignup ? 'new-password' : 'current-password'} minLength={6} required />
+                    <input name="password" type="password" className="login-underline-input" placeholder="Password" autoComplete={isSignup ? 'new-password' : 'current-password'} minLength={8} required />
                   </div>
 
                   {!isSignup && <div className="login-forgot"><a href="#" onClick={(event) => { event.preventDefault(); setForgotMode(true); setError(''); }}>Forgot password?</a></div>}

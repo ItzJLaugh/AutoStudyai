@@ -18,6 +18,72 @@ _UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stats", tags=["stats"])
 
+FORMAT_NAMES = {
+    "flashcard": "recall cards",
+    "quiz": "practice questions",
+    "read": "concise explanations",
+}
+
+
+def _build_learning_profile(attempts: list, sessions: list) -> dict:
+    scores = [row.get("score") for row in attempts if isinstance(row.get("score"), (int, float))]
+    average = round(sum(scores) / len(scores)) if scores else None
+    guidance = "Use a balanced mix of direct recall and application questions."
+    if average is not None and average < 70:
+        guidance = "Start with short foundational recall questions before application questions."
+    elif average is not None and average >= 85:
+        guidance = "Favor application and comparison questions while preserving source wording."
+
+    formats_by_guide = {}
+    for session in sessions:
+        guide_id = session.get("guide_id")
+        mode = session.get("session_type")
+        if guide_id and mode in FORMAT_NAMES:
+            formats_by_guide.setdefault(guide_id, set()).add(mode)
+
+    format_scores = {mode: [] for mode in FORMAT_NAMES}
+    for attempt in attempts:
+        for mode in formats_by_guide.get(attempt.get("guide_id"), set()):
+            if isinstance(attempt.get("score"), (int, float)):
+                format_scores[mode].append(attempt["score"])
+    observed = [
+        (sum(values) / len(values), len(values), mode)
+        for mode, values in format_scores.items() if len(values) >= 2
+    ]
+    strongest = max(observed, default=None)
+    ready = len(scores) >= 3
+    return {
+        "status": "active" if ready else "collecting",
+        "quiz_average": average,
+        "evidence_count": len(scores),
+        "strongest_observed_format": FORMAT_NAMES[strongest[2]] if strongest and ready else None,
+        "generation_guidance": guidance,
+        "message": (
+            f"Your strongest observed format is {FORMAT_NAMES[strongest[2]]}."
+            if strongest and ready
+            else "Keep using different study modes so Cordia can compare what works."
+            if ready
+            else f"Complete {3 - len(scores)} more quiz{'zes' if 3 - len(scores) != 1 else ''} so Cordia can adapt."
+        ),
+    }
+
+
+def learning_profile_for_user(user_id: str) -> dict:
+    supabase = get_supabase()
+    attempts = supabase.table("quiz_attempts") \
+        .select("guide_id, score, completed_at") \
+        .eq("user_id", user_id) \
+        .order("completed_at", desc=True) \
+        .limit(50) \
+        .execute()
+    sessions = supabase.table("study_sessions") \
+        .select("guide_id, session_type, started_at") \
+        .eq("user_id", user_id) \
+        .order("started_at", desc=True) \
+        .limit(200) \
+        .execute()
+    return _build_learning_profile(attempts.data or [], sessions.data or [])
+
 
 class LogSessionRequest(BaseModel):
     guide_id: Optional[str] = None
@@ -240,6 +306,17 @@ def get_overview(authorization: str = Header(default="")):
     except Exception as e:
         logger.error(f"Error getting overview: {e}")
         raise HTTPException(status_code=500, detail="Failed to get overview")
+
+
+@router.get("/learning-profile")
+def get_learning_profile(authorization: str = Header(default="")):
+    try:
+        return learning_profile_for_user(get_user_id(authorization))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error building learning profile: {e}")
+        raise HTTPException(status_code=500, detail="Failed to build learning profile")
 
 
 @router.post("/log-session")

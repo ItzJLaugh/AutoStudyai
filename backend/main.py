@@ -36,7 +36,7 @@ from services.llm import (
     generate_flashcards, answer_question,
     analyze_images_for_slides, select_educational_sections
 )
-from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes
+from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes, canvas
 from auth_utils import get_user_id
 from routers.billing import check_usage, record_usage
 from services.pptx_rendering import (
@@ -122,6 +122,7 @@ app.include_router(exam.router)
 app.include_router(billing.router)
 app.include_router(feedback.router)
 app.include_router(smart_notes.router)
+app.include_router(canvas.router)
 
 # Initialize storage with limits
 storage = InMemoryStorage()
@@ -561,7 +562,17 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
             logger.info("Generating study guide...")
             # Use domain from request body, or fall back to what was stored at ingest
             domain = body.domain or metadata.get("domain")
-            study_guide = generate_study_guide(chunks, has_images=has_images, domain=domain)
+            try:
+                from routers.stats import learning_profile_for_user
+                learning_guidance = learning_profile_for_user(user_id)["generation_guidance"]
+            except Exception:
+                learning_guidance = ""
+            study_guide = generate_study_guide(
+                chunks,
+                has_images=has_images,
+                domain=domain,
+                learning_guidance=learning_guidance,
+            )
 
         if body.flashcards:
             logger.info("Generating flashcards...")

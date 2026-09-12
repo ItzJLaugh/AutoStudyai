@@ -153,14 +153,15 @@ def _generate_notes_fallback(content: str) -> List[str]:
                 notes.append(line)
     return notes[:15]
 
-def _build_study_guide_prompt(context: str, domain_context: str = "") -> str:
+def _build_study_guide_prompt(context: str, domain_context: str = "", learning_guidance: str = "") -> str:
     """Build the study guide generation prompt for a chunk of content."""
     domain_block = ""
     if domain_context:
         domain_block = f"\n[DOMAIN CONTEXT]\n{domain_context}\n\n"
+    learning_block = f"\n[QUESTION STYLE]\n{learning_guidance}\n" if learning_guidance else ""
 
     return f"""Create a study guide Q&A from the text below.
-{domain_block}
+{domain_block}{learning_block}
 
 CRITICAL RULES:
 • ONLY use information that is explicitly stated in the text below.
@@ -471,7 +472,7 @@ def generate_study_guide_from_notes(html_content: str) -> str:
         return "[Error generating study guide]"
 
 
-def generate_study_guide(chunks: List[str], has_images: bool = False, domain: Optional[str] = None) -> str:
+def generate_study_guide(chunks: List[str], has_images: bool = False, domain: Optional[str] = None, learning_guidance: str = "") -> str:
     """
     Generate a comprehensive study guide with AI-generated questions and answers.
     Uses chunked generation: splits content into ~8000-char batches and makes
@@ -528,7 +529,11 @@ def generate_study_guide(chunks: List[str], has_images: bool = False, domain: Op
 
     all_results = []
     for i, batch_text in enumerate(batches):
-        prompt = _build_study_guide_prompt(batch_text[:30000], domain_context=domain_context)
+        prompt = _build_study_guide_prompt(
+            batch_text[:30000],
+            domain_context=domain_context,
+            learning_guidance=learning_guidance,
+        )
         try:
             # Use gpt-4o when images present or when input is small enough
             # that the cost difference is negligible — gpt-4o is more thorough

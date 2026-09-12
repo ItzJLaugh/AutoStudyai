@@ -513,7 +513,7 @@ captureBtn.addEventListener('click', async () => {
 
     // Ensure content script is loaded before starting detection
     ensureContentScript(tabId, () => {
-      fallbackToPageContent(tabId, tabUrl, lastPageTitle);
+      runCaptureFlow(tabId, tabUrl, lastPageTitle);
     });
   });
 });

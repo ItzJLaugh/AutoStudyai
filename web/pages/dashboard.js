@@ -7,6 +7,7 @@ import useSessionTracker from '../lib/useSessionTracker';
 import SearchModal from '../components/SearchModal';
 import AILoadingSphere from '../components/AILoadingSphere';
 import StudyWorkspaceFrame from '../components/StudyWorkspaceFrame';
+import CanvasDashboard from '../components/CanvasDashboard';
 import { organizeDashboardGuides } from '../lib/dashboardOrganization';
 
 export default function Dashboard({ timerState, setTimerState }) {
@@ -537,11 +538,13 @@ export default function Dashboard({ timerState, setTimerState }) {
           </div>
         )}
 
+        <CanvasDashboard />
+
         <button type="button" className="dashboard-extension-banner" onClick={() => router.push('/install-extension')}>
           <span className="extension-banner-badge">CHROME</span>
           <span className="dashboard-extension-copy">
-            <strong>Install the Chrome extension</strong>
-            <small>Capture educational material from any page.</small>
+            <strong>Study something outside Canvas</strong>
+            <small>Use the Chrome extension to capture any educational page, PDF, or slideshow.</small>
           </span>
           <span className="dashboard-extension-action">Install free</span>
         </button>

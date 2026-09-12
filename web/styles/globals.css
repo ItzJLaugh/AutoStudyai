@@ -2695,6 +2695,42 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .dashboard-metrics-strip strong { font-family: "Cormorant Garamond", Georgia, serif; font-size: 1.65rem; font-weight: 650; line-height: 1; }
 .dashboard-metrics-strip span { color: var(--muted-ink); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 
+.canvas-dashboard {
+  margin-bottom: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.canvas-loading { padding: 30px; color: var(--muted-ink); font-size: 0.8rem; }
+.canvas-connect-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 24px; }
+.canvas-mark { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 15px; background: #e43b2f; color: white; font: 700 1.35rem/1 Inter, sans-serif; }
+.canvas-connect-card h2,
+.canvas-dashboard-header h2 { margin: 2px 0 5px; font-family: "Cormorant Garamond", Georgia, serif; font-size: 1.65rem; line-height: 1.05; }
+.canvas-connect-card p:not(.editorial-kicker) { max-width: 560px; color: var(--muted-ink); font-size: 0.76rem; line-height: 1.5; }
+.canvas-error { display: block; margin-top: 7px; color: #9a3329; font-size: 0.7rem; }
+.canvas-inline-error { padding: 9px 20px; border-bottom: 1px solid #e7c7bf; background: #fff4f0; color: #8d3329; font-size: 0.7rem; }
+.canvas-dashboard-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px 18px; border-bottom: 1px solid var(--line); }
+.canvas-connected { padding: 6px 10px; border-radius: 999px; background: #edf2e9; color: var(--olive); font-size: 0.62rem; font-weight: 750; }
+.canvas-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 0.34fr); }
+.canvas-agenda { min-width: 0; }
+.canvas-agenda-row { display: grid; grid-template-columns: 82px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.canvas-agenda-row:last-child { border-bottom: 0; }
+.canvas-agenda-row:hover { background: var(--sand); }
+.canvas-agenda-row > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.canvas-agenda-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; }
+.canvas-agenda-row small,
+.canvas-due { color: var(--muted-ink); font-size: 0.66rem; }
+.canvas-agenda-row button,
+.canvas-agenda-row > a { padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--olive); font: 700 0.63rem/1 Inter, sans-serif; text-decoration: none; cursor: pointer; }
+.canvas-agenda-row button:hover,
+.canvas-agenda-row > a:hover { transform: translateY(-1px); box-shadow: var(--shadow-card); }
+.canvas-courses { display: flex; flex-direction: column; gap: 9px; padding: 19px 20px; border-left: 1px solid var(--line); background: #faf9f5; }
+.canvas-courses a { overflow: hidden; color: var(--ink); font-size: 0.74rem; font-weight: 650; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-courses a:hover { color: var(--olive); }
+.canvas-empty { padding: 22px; color: var(--muted-ink); font-size: 0.74rem; }
+
 .dashboard-extension-banner {
   width: 100%;
   display: flex;
@@ -2731,6 +2767,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .study-rail-card .streak-widget,
 .study-rail-card .timer-widget { padding: 8px 0 2px; border: 0; background: transparent; }
 .study-rail-card .streak-number { color: var(--olive); }
+.learning-profile-card { display: flex; flex-direction: column; gap: 7px; }
+.learning-profile-card strong { font-family: "Cormorant Garamond", Georgia, serif; font-size: 1.2rem; }
+.learning-profile-card p { color: var(--muted-ink); font-size: 0.7rem; line-height: 1.45; }
 .study-rail-chat { min-height: 318px; display: flex; flex-direction: column; }
 .study-rail-chat-heading { align-items: center; }
 .study-rail-chat-heading > span { color: var(--muted-ink); font-size: 0.65rem; }
@@ -2768,6 +2807,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
   .dashboard-metrics-strip > *:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
   .dashboard-extension-action { display: none; }
   .dashboard-guides-heading { align-items: flex-start; flex-direction: column; }
+  .canvas-connect-card { grid-template-columns: auto 1fr; }
+  .canvas-connect-card .btn { grid-column: 1 / -1; width: 100%; }
+  .canvas-dashboard-grid { grid-template-columns: 1fr; }
+  .canvas-courses { border-top: 1px solid var(--line); border-left: 0; }
 }
 
 /* === Unified study workspace ========================================== */

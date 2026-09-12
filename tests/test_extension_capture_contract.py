@@ -5,6 +5,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ExtensionCaptureContractTests(unittest.TestCase):
+    def test_capture_button_runs_the_existing_type_detection_pipeline(self):
+        source = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+        handler = source[source.index("captureBtn.addEventListener"):source.index("function fallbackToPageContent")]
+        self.assertIn("runCaptureFlow(tabId, tabUrl, lastPageTitle)", handler)
+
     def test_default_capture_uses_universal_extractor(self):
         source = (ROOT / "extension" / "content.js").read_text(encoding="utf-8")
         handler = source[source.index("case 'extractContent':"):source.index("case 'detectSlideshow':")]
