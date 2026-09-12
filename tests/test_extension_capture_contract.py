@@ -10,6 +10,13 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         handler = source[source.index("captureBtn.addEventListener"):source.index("function fallbackToPageContent")]
         self.assertIn("runCaptureFlow(tabId, tabUrl, lastPageTitle)", handler)
 
+    def test_page_reader_is_injected_only_after_the_user_clicks_capture(self):
+        manifest = (ROOT / "extension" / "manifest.json").read_text(encoding="utf-8")
+        popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+        self.assertNotIn('"<all_urls>"', manifest)
+        self.assertIn("files: ['content.js']", popup)
+        self.assertIn("ensureContentScript(tabId", popup)
+
     def test_default_capture_uses_universal_extractor(self):
         source = (ROOT / "extension" / "content.js").read_text(encoding="utf-8")
         handler = source[source.index("case 'extractContent':"):source.index("case 'detectSlideshow':")]
