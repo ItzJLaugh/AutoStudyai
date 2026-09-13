@@ -514,6 +514,11 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
                 domain=body.domain,
                 learning_guidance=_learning_guidance(user_id),
             )
+            if not study_guide or study_guide.startswith("[Error"):
+                raise HTTPException(
+                    status_code=422,
+                    detail="CordiaClassroom could not build a guide from this material.",
+                )
 
         if body.flashcards:
             logger.info("Generating flashcards...")

@@ -173,6 +173,9 @@ export default function CreateGuidePage() {
         body: JSON.stringify({ content: source, notes: generateNotes, study_guide: true, flashcards: generateFlashcards }),
       });
       if (!generated) throw new Error('Failed to generate study materials. You may have reached your usage limit.');
+      if (!generated.study_guide || generated.study_guide.startsWith('[Error')) {
+        throw new Error('CordiaClassroom could not build a guide from this material.');
+      }
 
       setStatus('saving');
       const saved = await apiFetch('/guides', {
