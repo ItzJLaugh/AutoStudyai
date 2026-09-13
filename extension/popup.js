@@ -328,14 +328,38 @@ function documentFilename(source, fetched) {
   return name + extension;
 }
 
+function canvasFileId(url) {
+  try { return new URL(url).pathname.match(/\/files\/(\d+)/)?.[1] || ''; }
+  catch (_) { return ''; }
+}
+
 async function captureDocument(tabId, source) {
   showProgress('Reading the attached document...');
-  const fetched = await sendTabMessage(tabId, { action: 'fetchFile', url: source.url }, 60000);
-  if (!fetched?.success || !fetched.data) throw new Error(fetched?.error || 'The document could not be opened');
-
   const token = await getValidToken();
   if (!token) throw new Error('Sign in to CordiaClassroom first');
-  const file = new File([decodeFile(fetched.data, fetched.contentType)], documentFilename(source, fetched), {
+  const fileId = canvasFileId(source.url);
+  let blob;
+  let fetched;
+  if (fileId) {
+    const download = await fetch(API + '/canvas/file/' + fileId, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!download.ok) {
+      const error = await download.json().catch(() => ({}));
+      throw new Error(error.detail || 'Canvas could not download this file');
+    }
+    blob = await download.blob();
+    fetched = { contentType: blob.type, finalUrl: source.url };
+  } else {
+    fetched = await sendTabMessage(tabId, { action: 'fetchFile', url: source.url }, 60000);
+    if (!fetched?.success || !fetched.data) {
+      throw new Error(fetched?.error || 'The document could not be opened');
+    }
+    blob = decodeFile(fetched.data, fetched.contentType);
+  }
+  const filename = documentFilename(source, fetched);
+  lastPageTitle = filename;
+  const file = new File([blob], filename, {
     type: fetched.contentType || 'application/octet-stream',
   });
   const form = new FormData();
@@ -365,12 +389,7 @@ async function runCaptureFlow(tabId) {
     return;
   }
   if (source.kind === 'file') {
-    try {
-      await captureDocument(tabId, source);
-    } catch (error) {
-      showProgress(error.message, false);
-      await screenshotFallback();
-    }
+    await captureDocument(tabId, source);
     return;
   }
   if (source.content?.trim() && (source.selected || source.content.trim().length > 50)) {

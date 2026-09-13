@@ -42,6 +42,29 @@ class CanvasContractTests(unittest.TestCase):
         self.assertEqual(canvas._public_url("/courses/4/assignments/7"), "")
         self.assertEqual(canvas._public_url("https://school.instructure.com/courses/4"), "https://school.instructure.com/courses/4")
 
+    def test_canvas_file_download_uses_connected_account(self):
+        upstream = MagicMock(
+            content=b"PDF content",
+            headers={"content-type": "application/pdf"},
+        )
+        with patch.object(canvas, "get_user_id", return_value="student-1"), \
+             patch.object(canvas, "_config", return_value={"project_id": "proj_test"}), \
+             patch.object(canvas, "_canvas_account", return_value={"id": "apn_canvas"}), \
+             patch.object(canvas, "_proxy_get", return_value={
+                 "url": "https://school.instructure.com/files/99/download?download_frd=1",
+                 "content-type": "application/pdf",
+             }), \
+             patch.object(canvas, "_proxy", return_value=upstream) as proxy:
+            result = canvas.canvas_file("99", "Bearer token")
+        self.assertEqual(result.body, b"PDF content")
+        proxy.assert_called_once_with(
+            "/files/99/download?download_frd=1",
+            "student-1",
+            "apn_canvas",
+            unittest.mock.ANY,
+            raw=True,
+        )
+
     def test_planner_item_uses_canvas_due_date_and_completion(self):
         result = canvas._normalize_planner_item({
             "plannable_id": 7,

@@ -36,8 +36,8 @@ function filenameFrom(url, element) {
 function normalizeCanvasDownload(url) {
   try {
     const parsed = new URL(url);
-    if (!/\/files\/\d+(?:\/preview)?\/?$/i.test(parsed.pathname)) return url;
-    parsed.pathname = parsed.pathname.replace(/\/preview\/?$/i, '').replace(/\/$/, '') + '/download';
+    if (!/\/files\/\d+(?:\/(?:preview|file_preview))?\/?$/i.test(parsed.pathname)) return url;
+    parsed.pathname = parsed.pathname.replace(/\/(?:preview|file_preview)\/?$/i, '').replace(/\/$/, '') + '/download';
     if (!parsed.searchParams.has('download_frd')) parsed.searchParams.set('download_frd', '1');
     return parsed.href;
   } catch (_) {
