@@ -14,6 +14,7 @@ export default function CreateGuidePage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
+  const [externalSourceId, setExternalSourceId] = useState('');
   const [uploadFile, setUploadFile] = useState(null);
   const [manualPairs, setManualPairs] = useState([{ term: '', definition: '' }, { term: '', definition: '' }]);
   const [cardCount, setCardCount] = useState('');
@@ -40,6 +41,7 @@ export default function CreateGuidePage() {
         setTitle(sourceDraft.title || '');
         setContent(sourceDraft.content || '');
         setSourceUrl(sourceDraft.source_url || '');
+        setExternalSourceId(sourceDraft.external_source_id || '');
       }
     } catch {}
   }, []);
@@ -51,8 +53,8 @@ export default function CreateGuidePage() {
       }
       return;
     }
-    if (title.trim() || content.trim()) localStorage.setItem(SOURCE_DRAFT_KEY, JSON.stringify({ title, content, source_url: sourceUrl }));
-  }, [content, inputMode, manualPairs, sourceUrl, title]);
+    if (title.trim() || content.trim()) localStorage.setItem(SOURCE_DRAFT_KEY, JSON.stringify({ title, content, source_url: sourceUrl, external_source_id: externalSourceId }));
+  }, [content, externalSourceId, inputMode, manualPairs, sourceUrl, title]);
 
   useEffect(() => {
     const editId = router.query.editGuideId;
@@ -186,6 +188,7 @@ export default function CreateGuidePage() {
           study_guide: generated.study_guide || null,
           flashcards: generated.flashcards || null,
           source_url: sourceUrl || null,
+          external_source_id: externalSourceId || null,
           ...(selectedFolder ? { folder_id: selectedFolder } : {}),
         }),
       });

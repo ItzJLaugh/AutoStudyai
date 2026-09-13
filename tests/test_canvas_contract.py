@@ -5,12 +5,32 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "backend"))
 
-from routers import canvas
+from routers import canvas, guides
 
 
 class CanvasContractTests(unittest.TestCase):
     def test_external_user_ids_are_namespaced(self):
         self.assertEqual(canvas._external_user_id("student-1"), "cordia-classroom:student-1")
+
+    def test_canvas_guide_save_is_idempotent(self):
+        table = MagicMock()
+        table.upsert.return_value = table
+        table.execute.return_value = MagicMock(data=[{"id": "guide-1"}])
+        db = MagicMock()
+        db.table.return_value = table
+        request = guides.SaveGuideRequest(
+            title="Mitosis",
+            study_guide="Q1: What is mitosis?\nA1: Cell division.",
+            external_source_id="canvas:account:4:assignment:7",
+        )
+        with patch.object(guides, "get_user_id", return_value="student-1"), \
+             patch.object(guides, "get_supabase", return_value=db):
+            result = guides.save_guide(request, "Bearer token")
+        self.assertEqual(result["guide"]["id"], "guide-1")
+        table.upsert.assert_called_once_with(
+            unittest.mock.ANY,
+            on_conflict="user_id,external_source_id",
+        )
 
     def test_course_response_is_small_and_human_readable(self):
         self.assertEqual(
@@ -90,6 +110,7 @@ class CanvasContractTests(unittest.TestCase):
         self.assertEqual(result["title"], "Mitosis review")
         self.assertIn("chromosomes", result["content"])
         self.assertEqual(result["source_url"], item["html_url"])
+        self.assertEqual(result["external_source_id"], "canvas:apn_canvas:4:item:7")
 
     def test_study_source_fetches_full_assignment_details(self):
         planner_item = {
