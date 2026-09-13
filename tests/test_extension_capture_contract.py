@@ -61,6 +61,19 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         worker = (ROOT / "extension" / "background.js").read_text(encoding="utf-8")
         self.assertNotIn("message.action === 'sendContent'", worker)
 
+    def test_extension_reuses_classroom_session_without_password_form(self):
+        popup = (ROOT / "extension" / "popup.html").read_text(encoding="utf-8")
+        popup_script = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+        bridge = (ROOT / "extension" / "asai-bridge.js").read_text(encoding="utf-8")
+        manifest = (ROOT / "extension" / "manifest.json").read_text(encoding="utf-8")
+
+        self.assertNotIn('type="password"', popup)
+        self.assertNotIn("'/auth/login'", popup_script)
+        self.assertIn("localStorage.getItem('authToken')", bridge)
+        self.assertIn("chrome.storage.local.set", bridge)
+        self.assertIn("CORDIA_AUTH_UPDATED", bridge)
+        self.assertIn('"run_at": "document_idle"', manifest)
+
 
 if __name__ == "__main__":
     unittest.main()

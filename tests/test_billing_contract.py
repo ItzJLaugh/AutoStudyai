@@ -2,10 +2,12 @@ import asyncio
 import os
 import sys
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "backend"))
+ROOT = Path(__file__).resolve().parents[1]
 
 from fastapi import HTTPException
 from routers import billing
@@ -29,6 +31,12 @@ class BillingContractTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as error:
                 billing.check_usage("user-1", "build")
         self.assertEqual(error.exception.status_code, 402)
+
+    def test_create_page_surfaces_billing_message_and_upgrade_action(self):
+        source = (ROOT / "web" / "pages" / "create.js").read_text(encoding="utf-8")
+        self.assertIn("generated.detail.message", source)
+        self.assertIn("generated.detail.upgrade_url", source)
+        self.assertIn(">View plans</button>", source)
 
     def test_record_usage_increments_only_requested_counter(self):
         query = MagicMock()

@@ -1461,11 +1461,13 @@ input::placeholder { color: var(--text-muted); }
 
 /* Banners */
 .create-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
   border-radius: 10px; padding: 13px 18px;
   font-size: 0.88em; margin-bottom: 20px; font-weight: 500;
 }
 .create-banner-info { background: var(--bg-secondary); border: 1px solid var(--border-default); color: var(--accent); }
 .create-banner-error { background: var(--error-bg, #2d0a0a); border: 1px solid var(--error); color: var(--error); }
+.create-banner-error button { flex: 0 0 auto; border: 0; border-radius: 999px; padding: 7px 12px; background: var(--error); color: white; font-weight: 700; cursor: pointer; }
 
 /* Fields */
 .create-field { margin-bottom: 20px; }

@@ -29,12 +29,8 @@ const captureSource = document.getElementById('capture-source');
 const authLoginDiv = document.getElementById('auth-login');
 const authLoggedInDiv = document.getElementById('auth-logged-in');
 const authStatusDiv = document.getElementById('auth-status');
-const authEmailInput = document.getElementById('auth-email');
-const authPasswordInput = document.getElementById('auth-password');
-const authLoginBtn = document.getElementById('auth-login-btn');
 const authLogoutBtn = document.getElementById('auth-logout-btn');
 const authUserEmail = document.getElementById('auth-user-email');
-const authErrorDiv = document.getElementById('auth-error');
 
 // =====================
 // Auth functions
@@ -55,7 +51,7 @@ async function initAuth() {
 function showLoginForm() {
   authLoginDiv.style.display = 'block';
   authLoggedInDiv.style.display = 'none';
-  authStatusDiv.textContent = 'Login to save guides to your platform';
+  authStatusDiv.textContent = 'Connect your CordiaClassroom account';
 }
 
 function showLoggedIn(email) {
@@ -65,50 +61,9 @@ function showLoggedIn(email) {
   authStatusDiv.textContent = '';
 }
 
-authLoginBtn.addEventListener('click', async () => {
-  const email = authEmailInput.value.trim();
-  const password = authPasswordInput.value;
-  authErrorDiv.textContent = '';
-
-  if (!email || !password) {
-    authErrorDiv.textContent = 'Enter email and password';
-    return;
-  }
-
-  authLoginBtn.disabled = true;
-  authLoginBtn.textContent = 'Logging in...';
-
-  try {
-    const resp = await fetch(API + '/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await resp.json();
-
-    if (resp.ok && data.access_token) {
-      chrome.storage.local.set({
-        authToken: data.access_token,
-        refreshToken: data.refresh_token || '',
-        userEmail: data.email || email
-      });
-      showLoggedIn(data.email || email);
-    } else {
-      authErrorDiv.textContent = data.detail || 'Login failed';
-    }
-  } catch (e) {
-    authErrorDiv.textContent = 'Cannot connect to server';
-  }
-
-  authLoginBtn.disabled = false;
-  authLoginBtn.textContent = 'Login';
-});
-
 authLogoutBtn.addEventListener('click', () => {
   chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
   showLoginForm();
-  authEmailInput.value = '';
-  authPasswordInput.value = '';
 });
 
 // Init auth on popup open

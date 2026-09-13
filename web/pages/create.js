@@ -24,6 +24,7 @@ export default function CreateGuidePage() {
   const [generateFlashcards, setGenerateFlashcards] = useState(true);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [upgradeUrl, setUpgradeUrl] = useState('');
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -162,6 +163,7 @@ export default function CreateGuidePage() {
   async function handleCreate(event) {
     event.preventDefault();
     setError('');
+    setUpgradeUrl('');
     try {
       if (inputMode === 'manual') return await saveManualGuide();
       const source = inputMode === 'pdf' ? await extractFile() : content.trim();
@@ -175,6 +177,11 @@ export default function CreateGuidePage() {
         body: JSON.stringify({ content: source, notes: generateNotes, study_guide: true, flashcards: generateFlashcards }),
       });
       if (!generated) throw new Error('Failed to generate study materials. You may have reached your usage limit.');
+      if (generated.detail) {
+        const detail = typeof generated.detail === 'string' ? generated.detail : generated.detail.message;
+        setUpgradeUrl(generated.detail.upgrade_url || '');
+        throw new Error(detail || 'Study guide generation failed.');
+      }
       if (!generated.study_guide || generated.study_guide.startsWith('[Error')) {
         throw new Error('CordiaClassroom could not build a guide from this material.');
       }
@@ -222,7 +229,10 @@ export default function CreateGuidePage() {
       </header>
 
       {isLoading && <div className="create-banner create-banner-info">{statusMessages[status]}</div>}
-      {error && <div className="create-banner create-banner-error" role="alert">{error}</div>}
+      {error && <div className="create-banner create-banner-error" role="alert">
+        <span>{error}</span>
+        {upgradeUrl && <button type="button" onClick={() => router.push(upgradeUrl)}>View plans</button>}
+      </div>}
 
       <form className="create-flow-card" onSubmit={handleCreate}>
         {inputMode !== 'manual' ? (
