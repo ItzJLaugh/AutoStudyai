@@ -2616,6 +2616,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .canvas-inline-error { padding: 9px 20px; border-bottom: 1px solid #e7c7bf; background: #fff4f0; color: #8d3329; font-size: 0.7rem; }
 .canvas-dashboard-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px 18px; border-bottom: 1px solid var(--line); }
 .canvas-connected { padding: 6px 10px; border-radius: 999px; background: #edf2e9; color: var(--olive); font-size: 0.62rem; font-weight: 750; }
+.canvas-reminder { margin: 0; padding: 9px 20px; border-bottom: 1px solid #ead5ac; background: #fff8e9; color: #72561f; font-size: 0.68rem; font-weight: 700; }
 .canvas-auto-status { margin: 0; padding: 9px 20px; border-bottom: 1px solid var(--line); background: #f6f3e8; color: var(--olive); font-size: 0.68rem; }
 .canvas-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 0.34fr); }
 .canvas-agenda { min-width: 0; }

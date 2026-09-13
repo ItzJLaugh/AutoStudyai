@@ -12,6 +12,11 @@ function dueLabel(value) {
     : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+function dueTime(item) {
+  const value = new Date(item.due_at || '').getTime();
+  return Number.isNaN(value) ? Number.MAX_SAFE_INTEGER : value;
+}
+
 export default function CanvasDashboard({ onGuidesCreated }) {
   const [state, setState] = useState({ loading: true, connected: false, courses: [], items: [] });
   const [connecting, setConnecting] = useState(false);
@@ -90,7 +95,20 @@ export default function CanvasDashboard({ onGuidesCreated }) {
     );
   }
 
-  const activeItems = state.items.filter(item => !item.completed).slice(0, 6);
+  const activeItems = state.items
+    .filter(item => !item.completed)
+    .sort((a, b) => dueTime(a) - dueTime(b))
+    .slice(0, 6);
+  const now = Date.now();
+  const overdueCount = activeItems.filter(item => dueTime(item) < now).length;
+  const dueSoonCount = activeItems.filter(item => {
+    const due = dueTime(item);
+    return due >= now && due <= now + 48 * 60 * 60 * 1000;
+  }).length;
+  const reminder = [
+    overdueCount && `${overdueCount} overdue`,
+    dueSoonCount && `${dueSoonCount} due within 48 hours`,
+  ].filter(Boolean).join(' · ');
   const courseNames = Object.fromEntries(state.courses.map(course => [String(course.id), course.name]));
 
   return (
@@ -102,6 +120,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
         </div>
         <span className="canvas-connected">Connected</span>
       </header>
+      {reminder && <p className="canvas-reminder">{reminder}</p>}
       {autoMessage && <p className="canvas-auto-status">{autoMessage}</p>}
       {state.error && <div className="canvas-inline-error">{state.error}</div>}
       <div className="canvas-dashboard-grid">
