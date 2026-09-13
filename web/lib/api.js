@@ -17,16 +17,22 @@ export function getToken() {
   return typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
 }
 
+function notifyAuthChanged() {
+  window.postMessage({ type: 'CORDIA_AUTH_UPDATED' }, window.location.origin);
+}
+
 export function setToken(token, email, refreshToken) {
   localStorage.setItem('authToken', token);
   localStorage.setItem('userEmail', email);
   if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+  notifyAuthChanged();
 }
 
 export function clearAuth() {
   localStorage.removeItem('authToken');
   localStorage.removeItem('userEmail');
   localStorage.removeItem('refreshToken');
+  notifyAuthChanged();
 }
 
 export function getUserEmail() {
@@ -95,6 +101,7 @@ async function _doRefresh() {
     if (resp.ok && data.access_token) {
       localStorage.setItem('authToken', data.access_token);
       if (data.refresh_token) localStorage.setItem('refreshToken', data.refresh_token);
+      notifyAuthChanged();
       return true;
     }
   } catch (e) { /* refresh failed */ }

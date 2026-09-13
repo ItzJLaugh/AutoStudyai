@@ -44,8 +44,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid rgba(82, 96, 73, 
 #auth-status { color: var(--muted); font-size: 12px; }
 #auth-login { display: grid; gap: 8px; }
 #auth-login p { margin: 1px 0 0; color: var(--muted); font-size: 11px; text-align: center; }
-#auth-login a, #platform-banner a { color: var(--olive); font-weight: 700; text-decoration: none; }
-#auth-error { color: #9a3329; font-size: 11px; }
+#auth-login a, #platform-banner a { font-weight: 700; text-decoration: none; }
+#auth-login a.primary { display: flex; align-items: center; justify-content: center; color: white; }
 #auth-logged-in { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #auth-user-email { overflow: hidden; color: var(--olive); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 
