@@ -32,15 +32,18 @@ export default function CanvasDashboard({ onGuidesCreated }) {
     setState({ loading: false, ...data });
     if (data.connected && !autoBuildStarted.current) {
       autoBuildStarted.current = true;
+      const today = new Date().toISOString().slice(0, 10);
+      if (localStorage.getItem('canvasAutoBuildDate') === today) return;
+      localStorage.setItem('canvasAutoBuildDate', today);
       setAutoMessage('Checking Canvas for study material…');
       apiFetch('/canvas/auto-guides', { method: 'POST', timeoutMs: 120000 }).then(result => {
         if (result?.count) {
-          setAutoMessage(`${result.count} new study guide${result.count === 1 ? '' : 's'} ready.`);
+          setAutoMessage('Your next Canvas study guide is ready.');
           onGuidesCreated?.();
         } else if (!result || result.detail) {
           setAutoMessage(result?.detail?.message || result?.detail || 'Automatic guide creation is unavailable.');
         } else {
-          setAutoMessage('Canvas study guides are up to date.');
+          setAutoMessage('No new Canvas study material was ready.');
         }
       });
     }
@@ -118,7 +121,10 @@ export default function CanvasDashboard({ onGuidesCreated }) {
           <p className="editorial-kicker">CANVAS · {state.institution}</p>
           <h2>What needs your attention</h2>
         </div>
-        <span className="canvas-connected">Connected</span>
+        <div className="canvas-window-status">
+          <span className="canvas-connected">Connected</span>
+          <span className="window-resize-hint" title="Drag the corner to resize">↘</span>
+        </div>
       </header>
       {reminder && <p className="canvas-reminder">{reminder}</p>}
       {autoMessage && <p className="canvas-auto-status">{autoMessage}</p>}

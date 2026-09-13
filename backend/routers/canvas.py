@@ -28,7 +28,8 @@ REQUIRED_CONFIG = (
 )
 _access_token = None
 _access_token_expires_at = 0
-AUTO_GUIDE_LIMIT = 3
+AUTO_GUIDE_LIMIT = 1
+AUTO_GUIDE_SCAN_LIMIT = 6
 
 
 def _external_user_id(user_id: str) -> str:
@@ -288,6 +289,8 @@ def canvas_auto_guides(authorization: str = Header(default="")):
 
     usage = check_usage(user_id, "build")
     remaining = min(AUTO_GUIDE_LIMIT, usage["builds_limit"] - usage["builds_used"])
+    if remaining <= 0:
+        return {"created": [], "count": 0}
     items = _proxy_get(_planner_path(), user_id, account["id"], config)
     candidates = sorted(
         (item for item in items if isinstance(item, dict)),
@@ -296,7 +299,9 @@ def canvas_auto_guides(authorization: str = Header(default="")):
     db = get_supabase()
     created = []
 
-    for item in candidates:
+    # Canvas can return an entire semester of assignments. Keep the automatic
+    # pass fast and inexpensive; students can explicitly build older items.
+    for item in candidates[:AUTO_GUIDE_SCAN_LIMIT]:
         normalized = _normalize_planner_item(item)
         if normalized["completed"] or normalized["type"] != "assignment":
             continue
