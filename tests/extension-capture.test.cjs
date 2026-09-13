@@ -103,7 +103,6 @@ async function main() {
     window.postMessage({ type: 'CORDIA_AUTH_UPDATED' }, window.location.origin);
   });
   await page.waitForFunction(() => Object.keys(window.__extensionAuth).length === 0);
-
   await browser.close();
   console.log('extension capture contract passed');
 }
