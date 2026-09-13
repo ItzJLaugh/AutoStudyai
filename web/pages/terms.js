@@ -19,7 +19,7 @@ export default function TermsOfService() {
           Terms of Service
         </h1>
         <p style={{ color: 'var(--text-muted)', marginBottom: '40px', fontSize: '0.9rem' }}>
-          Effective Date: March 23, 2026 &nbsp;|&nbsp; Last Updated: March 23, 2026
+          Effective Date: March 23, 2026 &nbsp;|&nbsp; Last Updated: September 11, 2026
         </p>
 
         <p style={{ marginBottom: '32px' }}>
@@ -58,8 +58,8 @@ export default function TermsOfService() {
         </Section>
 
         <Section title="6. Subscription and Billing">
-          <p>CordiaClassroom offers a free tier and a paid Pro subscription. The free tier includes a limited number of guide generations per month. The Pro subscription provides unlimited generations and is billed monthly via Stripe.</p>
-          <p style={{ marginTop: '12px' }}>You may cancel your subscription at any time. Upon cancellation, you will retain Pro access until the end of your current billing period. Refunds are not provided for partial billing periods.</p>
+          <p>CordiaClassroom offers a free plan with 3 complete study builds and 30 lightweight AI actions per month. CordiaClassroom Plus includes 25 complete study builds and 250 lightweight AI actions per month and costs $6.99 per month or $59.99 per year.</p>
+          <p style={{ marginTop: '12px' }}>Payments are processed by Stripe. You may manage or cancel your subscription at any time. After cancellation, Plus access continues through the current paid period. Refunds are not provided for partial billing periods.</p>
         </Section>
 
         <Section title="7. Termination">

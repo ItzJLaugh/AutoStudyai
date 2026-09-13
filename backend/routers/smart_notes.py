@@ -5,6 +5,7 @@ from pydantic import BaseModel, field_validator
 from typing import Optional
 from database import get_supabase
 from auth_utils import get_user_id
+from routers.billing import check_usage, record_usage
 
 _UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 
@@ -212,6 +213,7 @@ def generate_study_guide_from_note(note_id: str, authorization: str = Header(def
             raise HTTPException(status_code=400, detail="Note is empty — add some content first")
 
         from services.llm import generate_study_guide_from_notes
+        usage = check_usage(user_id, "build")
         study_guide = generate_study_guide_from_notes(html_content)
 
         if not study_guide:
@@ -238,6 +240,7 @@ def generate_study_guide_from_note(note_id: str, authorization: str = Header(def
         title = (note.get("title") or "Untitled Notes").strip()
         suggested_title = title if title.lower().endswith("study guide") else f"{title} — Study Guide"
 
+        record_usage(user_id, "build", usage)
         return {
             "title": suggested_title,
             "study_guide": study_guide,
@@ -255,13 +258,14 @@ def generate_study_guide_from_note(note_id: str, authorization: str = Header(def
 @router.post("/diagram")
 def generate_diagram(request: DiagramRequest, authorization: str = Header(default="")):
     try:
-        get_user_id(authorization)
+        user_id = get_user_id(authorization)
         import os
         from openai import OpenAI
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             return {"mermaid": None}
 
+        usage = check_usage(user_id, "lightweight")
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -291,6 +295,7 @@ def generate_diagram(request: DiagramRequest, authorization: str = Header(defaul
         text = re.sub(r'\s*```$', '', text).strip()
         if not text or 'NO_DIAGRAM' in text:
             return {"mermaid": None}
+        record_usage(user_id, "lightweight", usage)
         return {"mermaid": text}
 
     except HTTPException:

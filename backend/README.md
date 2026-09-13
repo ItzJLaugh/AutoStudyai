@@ -23,8 +23,8 @@ Server runs at `http://localhost:8000`
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Health check - returns `{"status": "ok"}` |
-| `/ingest` | POST | Store content, returns `content_id` |
-| `/generate` | POST | Generate notes and study guide |
+| `/ingest` | POST | Find reviewable educational sections |
+| `/generate` | POST | Generate materials from reviewed text |
 | `/chat` | POST | Q&A with 3 modes: short, detailed, example |
 
 ## Environment Variables
@@ -39,7 +39,6 @@ OPENAI_API_KEY=your_key_here
 
 - `main.py` - API endpoints and request handling
 - `schemas.py` - Pydantic models for request/response validation
-- `storage.py` - In-memory content storage
 - `services/text_processing.py` - Content cleaning and chunking
 - `services/llm.py` - OpenAI integration for Q&A generation
 

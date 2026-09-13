@@ -24,7 +24,7 @@ export default function MissionPage() {
     },
     {
       title: 'The Cost',
-      description: 'First off, a one month free trial\u2026 that DOES NOT automatically start the subscription. Nobody wants to do a free trial and forget to cancel it! Don\'t worry, I\'m a college student too and have too much to think about just like you. Not only is there a benefit there, but we beat other platforms by offering many features just for $6.99 a month.',
+      description: 'Start free with 3 complete study builds and 30 lightweight AI actions each month. CordiaClassroom Plus includes 25 builds and 250 actions for $6.99 monthly or $59.99 yearly. There is no automatic trial conversion.',
     },
     {
       title: 'Users Are "Cofounders"',

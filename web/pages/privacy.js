@@ -40,7 +40,7 @@ export default function PrivacyPolicy() {
           <p>Study guides, notes, and flashcards you generate are stored in our database associated with your account so you can access them through the platform.</p>
 
           <p style={{ marginTop: '16px' }}><strong style={{ color: 'var(--text-primary)' }}>d. Usage Data</strong></p>
-          <p>We track the number of study guides generated per month per account to enforce plan limits. We do not collect detailed analytics, browsing history, or behavioral tracking data.</p>
+          <p>We track monthly complete study builds and lightweight AI actions per account to enforce plan limits. We do not collect detailed analytics, browsing history, or behavioral tracking data.</p>
 
           <p style={{ marginTop: '16px' }}><strong style={{ color: 'var(--text-primary)' }}>e. Payment Information</strong></p>
           <p>Payments are processed by Stripe. We do not collect or store your full credit card number, card verification code, or bank account details. Stripe provides us with a customer identifier and subscription status. Stripe's privacy policy governs their handling of your payment data and can be found at stripe.com/privacy.</p>

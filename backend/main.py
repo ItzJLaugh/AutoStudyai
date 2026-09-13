@@ -7,7 +7,6 @@ import os
 import re
 import logging
 import traceback
-from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Header, UploadFile
@@ -18,11 +17,9 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.concurrency import run_in_threadpool
 
-from storage import InMemoryStorage
 from schemas import (
     IngestRequest, IngestResponse,
     GenerateRequest, GenerateResponse,
-    FlashcardRequest, FlashcardResponse,
     ChatRequest, ChatResponse
 )
 from services.text_processing import (
@@ -36,9 +33,9 @@ from services.llm import (
     generate_flashcards, answer_question,
     analyze_images_for_slides, select_educational_sections
 )
-from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes
+from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes, canvas
 from auth_utils import get_user_id
-from routers.billing import check_and_increment_usage
+from routers.billing import check_usage, record_usage
 from services.pptx_rendering import (
     PptxRenderError,
     PptxRenderTimeout,
@@ -122,24 +119,19 @@ app.include_router(exam.router)
 app.include_router(billing.router)
 app.include_router(feedback.router)
 app.include_router(smart_notes.router)
+app.include_router(canvas.router)
 
-# Initialize storage with limits
-storage = InMemoryStorage()
-
-
-def selected_section_text(selection, section_ids):
-    """Return approved sections in source order, or an empty string if invalid."""
-    if not isinstance(selection, dict) or not section_ids:
+def _learning_guidance(user_id: str) -> str:
+    try:
+        from routers.stats import learning_profile_for_user
+        return learning_profile_for_user(user_id)["generation_guidance"]
+    except Exception:
         return ""
-    wanted = set(section_ids)
-    sections = selection.get("sections", [])
-    picked = [section.get("text", "") for section in sections if section.get("id") in wanted]
-    return "\n\n".join(text for text in picked if text.strip()) if len(picked) == len(wanted) else ""
+
 
 # === Input sanitization helpers ===
 MAX_CONTENT_LENGTH = 500_000  # 500KB max content
 MAX_QUESTION_LENGTH = 2_000
-MAX_URL_LENGTH = 2_048
 
 
 def _sanitize_text(text: str, max_length: int = MAX_CONTENT_LENGTH) -> str:
@@ -147,16 +139,6 @@ def _sanitize_text(text: str, max_length: int = MAX_CONTENT_LENGTH) -> str:
     if not text:
         return ""
     return text[:max_length]
-
-
-def _validate_url(url: str) -> str:
-    """Validate and sanitize URL."""
-    if not url:
-        return ""
-    url = url[:MAX_URL_LENGTH]
-    if not re.match(r'^https?://', url):
-        raise HTTPException(status_code=400, detail="Invalid URL")
-    return url
 
 
 @app.post("/render-pptx")
@@ -198,7 +180,7 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
     """Extract plain text from uploaded PDF, DOCX, PPTX, or TXT file."""
     import io
     try:
-        get_user_id(authorization)
+        user_id = get_user_id(authorization)
         if file is None:
             raise HTTPException(status_code=400, detail="No file uploaded")
 
@@ -300,6 +282,7 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
                 }
                 mime = mime_map.get(ext, "image/jpeg")
                 b64 = _b64.b64encode(content_bytes).decode()
+                usage = check_usage(user_id, "lightweight")
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[{
@@ -321,6 +304,7 @@ async def extract_file_text(request: Request, file: UploadFile = None, authoriza
                 text = (response.choices[0].message.content or "").strip()
                 if "NO_EDUCATIONAL_CONTENT" in text:
                     raise HTTPException(status_code=422, detail="No educational content found in this image.")
+                record_usage(user_id, "lightweight", usage)
             except HTTPException:
                 raise
             except Exception as e:
@@ -385,19 +369,15 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
 
         # Sanitize inputs
         content = _sanitize_text(body.content, MAX_CONTENT_LENGTH)
-        page_url = _validate_url(body.page_url)
-
         if not content:
             raise HTTPException(status_code=400, detail="Content too short")
 
         logger.info(f"Content length: {len(content)} chars")
 
-        content_id = str(uuid4())
-
         # Detect if content is from a slideshow
-        is_slideshow, slideshow_type = is_slideshow_content(content)
+        is_slideshow, _ = is_slideshow_content(content)
 
-        # Convert image models to dicts for storage
+        # Convert image models to plain dictionaries for vision processing.
         images_data = []
         if body.images:
             for img in body.images[:10]:  # Max 10 images
@@ -411,9 +391,11 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
         # Screenshot-only capture has no DOM text. Transcribe visual material before
         # selection so it reaches the same student review step as page text.
         if images_data and content.strip() == "[Screenshot fallback]":
+            usage = check_usage(user_id, "lightweight")
             image_descriptions = analyze_images_for_slides(images_data)
             visual_text = "\n\n".join(image_descriptions.values()) if image_descriptions else ""
             if visual_text:
+                record_usage(user_id, "lightweight", usage)
                 content = visual_text
                 # The transcription is now the reviewable source. Do not retain
                 # the screenshot for a second vision pass during generation.
@@ -423,31 +405,15 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
 
         selection = select_educational_sections(content)
 
-        # Store content with metadata (keyed by user to prevent cross-user access)
-        storage.save_content(
-            content_id,
-            content,
-            page_url,
-            metadata={
-                "content_type": body.content_type,
-                "is_slideshow": is_slideshow,
-                "slideshow_type": slideshow_type,
-                "user_id": user_id,
-                "domain": body.domain,
-                "selection": selection,
-            },
-            images=images_data
-        )
-
-        logger.info(f"Ingested content_id={content_id}, slideshow={is_slideshow}, images={len(images_data)}")
+        logger.info(f"Reviewed capture slideshow={is_slideshow}, images={len(images_data)}")
 
         return IngestResponse(
-            content_id=content_id,
             content_type=body.content_type,
             detected_slideshow=is_slideshow,
             is_educational=selection["is_educational"],
             sections=selection["sections"],
             excluded_summary=selection["excluded_summary"],
+            use_images=bool(images_data),
         )
 
     except HTTPException:
@@ -468,39 +434,24 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         user_id = get_user_id(authorization)
         logger.info(f"Generating materials for user={user_id[:8]}...")
 
-        content_obj = storage.get_content(body.content_id)
-        if not content_obj:
-            raise HTTPException(status_code=404, detail="Content not found")
+        raw_text = _sanitize_text(body.content, MAX_CONTENT_LENGTH)
+        if not raw_text:
+            raise HTTPException(status_code=422, detail="Select at least one study section")
 
-        # Verify content belongs to requesting user
-        if content_obj.get("metadata", {}).get("user_id") != user_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+        # Validate allowance after the reviewed source text is valid.
+        usage = check_usage(user_id, "build")
 
-        metadata = content_obj.get("metadata", {})
-        selection = metadata.get("selection")
-        if selection is not None:
-            if body.section_ids is None:
-                raise HTTPException(status_code=422, detail="Select at least one study section")
-            raw_text = selected_section_text(selection, body.section_ids)
-            if not raw_text:
-                raise HTTPException(status_code=422, detail="Selected sections are invalid or empty")
-        else:
-            raw_text = content_obj["content"]
-
-        # Enforce usage only after an explicit valid generation request.
-        check_and_increment_usage(user_id)
-
-        # Check if this is slideshow content
-        slide_count = 0
+        # Preserve structured slideshow handling for direct API clients that send
+        # the original slide markup. Reviewed browser captures use plain text.
         slides = None
-        if selection is None and metadata.get("is_slideshow"):
+        is_slideshow, _ = is_slideshow_content(raw_text)
+        if is_slideshow:
             slides = extract_slideshow_content(raw_text)
             if slides:
                 # Format all slides as structured XML text — no AI compression
                 # so every slide's content reaches generate_study_guide intact
                 cleaned = format_slideshow_text(slides)
-                slide_count = len(slides)
-                logger.info(f"Extracted {slide_count} slides")
+                logger.info(f"Extracted {len(slides)} slides")
             else:
                 cleaned = clean_text(raw_text)
         else:
@@ -512,16 +463,16 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         chunks = chunk_text(cleaned, slides=slides)
 
         # Analyze images via GPT-4o vision if present, then inject descriptions
-        stored_images = content_obj.get("images", [])
+        captured_images = [image.model_dump() for image in body.images]
         has_images = False
-        if stored_images:
-            logger.info(f"Analyzing {len(stored_images)} images via vision API...")
+        if captured_images:
+            logger.info(f"Analyzing {len(captured_images)} images via vision API...")
             # Build slide text context for vision prompts
             slide_text_map = {}
             if slides:
                 for i, s in enumerate(slides):
                     slide_text_map[i] = s.get("content", [])
-            image_descs = analyze_images_for_slides(stored_images, slide_text_map)
+            image_descs = analyze_images_for_slides(captured_images, slide_text_map)
             if image_descs:
                 has_images = True
                 logger.info(f"Got {len(image_descs)} image descriptions")
@@ -532,9 +483,6 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
                 else:
                     cleaned = inject_page_image_descriptions(cleaned, image_descs)
                     chunks = chunk_text(cleaned)
-            # Free image data from memory after analysis
-            content_obj["images"] = []
-
         if not chunks:
             logger.warning("No content chunks after cleaning")
             return GenerateResponse(
@@ -555,9 +503,12 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
 
         if body.study_guide:
             logger.info("Generating study guide...")
-            # Use domain from request body, or fall back to what was stored at ingest
-            domain = body.domain or metadata.get("domain")
-            study_guide = generate_study_guide(chunks, has_images=has_images, domain=domain)
+            study_guide = generate_study_guide(
+                chunks,
+                has_images=has_images,
+                domain=body.domain,
+                learning_guidance=_learning_guidance(user_id),
+            )
 
         if body.flashcards:
             logger.info("Generating flashcards...")
@@ -578,6 +529,7 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
             else:
                 flashcards = generate_flashcards(chunks)
 
+        record_usage(user_id, "build", usage)
         return GenerateResponse(
             notes=notes_str,
             study_guide=study_guide,
@@ -589,49 +541,6 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
     except Exception as e:
         logger.error(f"Error in /generate: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Failed to generate materials")
-
-
-@app.post("/flashcards", response_model=FlashcardResponse)
-@limiter.limit("15/minute")
-async def create_flashcards(body: FlashcardRequest, request: Request, authorization: str = Header(default="")):
-    """
-    Generate flashcards from ingested content.
-    Requires authentication. Rate limited.
-    """
-    try:
-        user_id = get_user_id(authorization)
-        logger.info(f"Generating flashcards for user={user_id[:8]}...")
-
-        # Enforce max_cards limit
-        max_cards = min(body.max_cards, 30)
-
-        content_obj = storage.get_content(body.content_id)
-        if not content_obj:
-            raise HTTPException(status_code=404, detail="Content not found")
-
-        # Verify content belongs to requesting user
-        if content_obj.get("metadata", {}).get("user_id") != user_id:
-            raise HTTPException(status_code=403, detail="Access denied")
-
-        raw_text = content_obj["content"]
-        cleaned = clean_text(raw_text)
-        chunks = chunk_text(cleaned)
-
-        if not chunks:
-            return FlashcardResponse(flashcards=[], count=0)
-
-        flashcards = generate_flashcards(chunks, max_cards=max_cards)
-
-        return FlashcardResponse(
-            flashcards=[{"front": fc["front"], "back": fc["back"]} for fc in flashcards],
-            count=len(flashcards)
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in /flashcards: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail="Failed to generate flashcards")
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -658,12 +567,15 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
         if body.mode not in ("short", "detailed", "example"):
             raise HTTPException(status_code=400, detail="Invalid mode")
 
+        usage = check_usage(user_id, "lightweight")
         answer = answer_question(
             question=question,
             context=content,
-            mode=body.mode
+            mode=body.mode,
+            learning_guidance=_learning_guidance(user_id),
         )
 
+        record_usage(user_id, "lightweight", usage)
         return ChatResponse(answer=answer)
 
     except HTTPException:

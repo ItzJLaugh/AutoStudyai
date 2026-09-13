@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { apiFetch } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
@@ -7,6 +7,7 @@ import useSessionTracker from '../lib/useSessionTracker';
 import SearchModal from '../components/SearchModal';
 import AILoadingSphere from '../components/AILoadingSphere';
 import StudyWorkspaceFrame from '../components/StudyWorkspaceFrame';
+import CanvasDashboard from '../components/CanvasDashboard';
 import { organizeDashboardGuides } from '../lib/dashboardOrganization';
 
 export default function Dashboard({ timerState, setTimerState }) {
@@ -80,6 +81,12 @@ export default function Dashboard({ timerState, setTimerState }) {
       setLoading(false);
     }
   }
+
+  const refreshGeneratedGuides = useCallback(async () => {
+    const [guidesData, statsData] = await Promise.all([apiFetch('/guides'), apiFetch('/stats/overview')]);
+    setGuides(guidesData?.guides || []);
+    if (statsData) setStats(statsData);
+  }, []);
 
   async function deleteSmartNote(id, e) {
     e?.stopPropagation();
@@ -343,7 +350,7 @@ export default function Dashboard({ timerState, setTimerState }) {
   if (view === 'guides') {
     const filteredGuides = getFilteredGuides();
     return (
-      <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="guides" timerState={timerState} setTimerState={setTimerState}>
+      <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="guides" timerState={timerState} setTimerState={setTimerState} guides={guides}>
         <div className="fade-in study-library">
           <div className="study-library-header">
             <div>
@@ -516,7 +523,7 @@ export default function Dashboard({ timerState, setTimerState }) {
 
   // ============== DEFAULT DASHBOARD VIEW ==============
   return (
-    <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="dashboard" timerState={timerState} setTimerState={setTimerState}>
+    <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="dashboard" timerState={timerState} setTimerState={setTimerState} guides={guides}>
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
       <div>
         <div className="dashboard-desktop-header">
@@ -537,11 +544,13 @@ export default function Dashboard({ timerState, setTimerState }) {
           </div>
         )}
 
+        <CanvasDashboard onGuidesCreated={refreshGeneratedGuides} />
+
         <button type="button" className="dashboard-extension-banner" onClick={() => router.push('/install-extension')}>
           <span className="extension-banner-badge">CHROME</span>
           <span className="dashboard-extension-copy">
-            <strong>Install the Chrome extension</strong>
-            <small>Capture educational material from any page.</small>
+            <strong>Study something outside Canvas</strong>
+            <small>Use the Chrome extension to capture any educational page, PDF, or slideshow.</small>
           </span>
           <span className="dashboard-extension-action">Install free</span>
         </button>

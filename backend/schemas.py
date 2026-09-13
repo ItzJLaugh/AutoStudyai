@@ -18,9 +18,8 @@ class ImageData(BaseModel):
 class IngestRequest(BaseModel):
     """Request to ingest page content."""
     content: str = Field(..., min_length=1, max_length=500_000)
-    page_url: str = Field(..., max_length=2_048)
     content_type: str = Field(default="webpage", max_length=20)
-    images: Optional[List[ImageData]] = Field(default=[])
+    images: List[ImageData] = Field(default_factory=list, max_length=10)
     domain: Optional[str] = Field(default=None, max_length=30)
 
     @field_validator("content_type")
@@ -31,22 +30,14 @@ class IngestRequest(BaseModel):
             raise ValueError(f"content_type must be one of: {allowed}")
         return v
 
-    @field_validator("page_url")
-    @classmethod
-    def validate_url(cls, v):
-        if v and not v.startswith(("http://", "https://")):
-            raise ValueError("URL must start with http:// or https://")
-        return v
-
-
 class IngestResponse(BaseModel):
     """Response from content ingestion."""
-    content_id: str
     content_type: str = "webpage"
     detected_slideshow: bool = False
     is_educational: bool = False
     sections: List["EducationalSection"] = Field(default_factory=list)
     excluded_summary: str = ""
+    use_images: bool = False
 
 
 class EducationalSection(BaseModel):
@@ -58,11 +49,11 @@ class EducationalSection(BaseModel):
 
 class GenerateRequest(BaseModel):
     """Request to generate study materials."""
-    content_id: str = Field(..., min_length=1, max_length=100)
+    content: str = Field(..., min_length=1, max_length=500_000)
+    images: List[ImageData] = Field(default_factory=list, max_length=10)
     notes: bool = True
     study_guide: bool = True
     flashcards: bool = False
-    section_ids: Optional[List[str]] = Field(default=None, max_length=100)
     domain: Optional[str] = Field(default=None, max_length=30)
 
 
@@ -71,24 +62,6 @@ class GenerateResponse(BaseModel):
     notes: Optional[str] = None
     study_guide: Optional[str] = None
     flashcards: Optional[List[dict]] = None
-
-
-class FlashcardRequest(BaseModel):
-    """Request to generate flashcards only."""
-    content_id: str = Field(..., min_length=1, max_length=100)
-    max_cards: int = Field(default=15, ge=1, le=30)
-
-
-class Flashcard(BaseModel):
-    """Single flashcard."""
-    front: str = Field(..., max_length=2_000)
-    back: str = Field(..., max_length=5_000)
-
-
-class FlashcardResponse(BaseModel):
-    """Response with flashcards."""
-    flashcards: List[Flashcard]
-    count: int = Field(..., ge=0)
 
 
 class ChatRequest(BaseModel):

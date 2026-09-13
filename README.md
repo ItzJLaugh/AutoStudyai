@@ -54,14 +54,14 @@ AutoStudyAI automatically detects and extracts content from slideshows:
 ┌─────────────────────────────────────────────────────────────────┐
 │                      FastAPI Backend                             │
 ├─────────────────────────────────────────────────────────────────┤
-│  /ingest             │  /generate           │  /flashcards      │
-│  - Store content     │  - AI notes          │  - Generate cards │
-│  - Detect slideshow  │  - AI study guide    │  - Q&A pairs      │
-│  - Return metadata   │  - AI flashcards     │                   │
+│  /ingest             │  /generate                               │
+│  - Review sections   │  - AI notes and study guides             │
+│  - Detect slideshow  │  - AI flashcards                         │
+│  - Return metadata   │                                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  /chat               │  Text Processing     │  Storage          │
-│  - Q&A modes         │  - LMS filtering     │  - In-memory      │
-│  - Context-aware     │  - Smart chunking    │  - Metadata       │
+│  /chat               │  Text Processing     │  Stateless flow   │
+│  - Q&A modes         │  - LMS filtering     │  - No temp IDs    │
+│  - Context-aware     │  - Smart chunking    │  - Restart-safe   │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
