@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CordiaClassroom",
-  "version": "1.2.0",
-  "description": "Instantly generate notes, study guides, and flashcards from any lecture, textbook, or course page with AI.",
+  "version": "1.3.0",
+  "description": "Create notes, study guides, and flashcards from selected text, course pages, and common study files.",
   "homepage_url": "https://classroom.cordiacode.com",
   "minimum_chrome_version": "114",
   "permissions": ["scripting", "activeTab", "storage"],

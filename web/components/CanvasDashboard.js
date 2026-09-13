@@ -34,15 +34,17 @@ export default function CanvasDashboard({ onGuidesCreated }) {
       autoBuildStarted.current = true;
       const today = new Date().toISOString().slice(0, 10);
       if (localStorage.getItem('canvasAutoBuildDate') === today) return;
-      localStorage.setItem('canvasAutoBuildDate', today);
       setAutoMessage('Checking Canvas for study material…');
       apiFetch('/canvas/auto-guides', { method: 'POST', timeoutMs: 120000 }).then(result => {
         if (result?.count) {
+          localStorage.setItem('canvasAutoBuildDate', today);
           setAutoMessage('Your next Canvas study guide is ready.');
           onGuidesCreated?.();
         } else if (!result || result.detail) {
+          autoBuildStarted.current = false;
           setAutoMessage(result?.detail?.message || result?.detail || 'Automatic guide creation is unavailable.');
         } else {
+          localStorage.setItem('canvasAutoBuildDate', today);
           setAutoMessage('No new Canvas study material was ready.');
         }
       });

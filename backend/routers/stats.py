@@ -241,48 +241,53 @@ def get_streak(authorization: str = Header(default=""), tz_offset: int = 0):
 @router.get("/overview")
 def get_overview(authorization: str = Header(default="")):
     """Get dashboard overview stats."""
+    user_id = get_user_id(authorization)
+    overview = {
+        "total_guides": 0,
+        "total_folders": 0,
+        "total_flashcards": 0,
+        "cards_studied": 0,
+        "avg_quiz_score": 0,
+        "current_streak": 0,
+        "minutes_today": 0,
+    }
     try:
-        user_id = get_user_id(authorization)
         supabase = get_supabase()
 
         guides = supabase.table("study_guides").select("id, flashcards").eq("user_id", user_id).execute()
-        total_guides = len(guides.data or [])
+        overview["total_guides"] = len(guides.data or [])
 
-        total_flashcards = 0
         for g in (guides.data or []):
             fc = g.get("flashcards")
             if isinstance(fc, list):
-                total_flashcards += len(fc)
+                overview["total_flashcards"] += len(fc)
 
         folders = supabase.table("folders").select("id").eq("user_id", user_id).execute()
-        total_folders = len(folders.data or [])
+        overview["total_folders"] = len(folders.data or [])
 
         fc_sessions = supabase.table("study_sessions") \
             .select("metadata") \
             .eq("user_id", user_id) \
             .eq("session_type", "flashcard") \
             .execute()
-        cards_studied = 0
         for s in (fc_sessions.data or []):
             meta = s.get("metadata", {})
             if isinstance(meta, dict):
-                cards_studied += meta.get("cards_studied", 0)
+                overview["cards_studied"] += meta.get("cards_studied", 0)
 
         quizzes = supabase.table("quiz_attempts") \
             .select("score") \
             .eq("user_id", user_id) \
             .execute()
-        avg_quiz = 0
         if quizzes.data:
-            avg_quiz = round(sum(q["score"] for q in quizzes.data) / len(quizzes.data))
+            overview["avg_quiz_score"] = round(sum(q["score"] for q in quizzes.data) / len(quizzes.data))
 
         streak_result = supabase.table("user_streaks").select("current_streak, longest_streak, last_study_date").eq("user_id", user_id).execute()
-        current_streak = 0
         if streak_result.data:
             s = streak_result.data[0]
             last = date.fromisoformat(s["last_study_date"]) if s["last_study_date"] else None
             if last and last >= date.today() - timedelta(days=1):
-                current_streak = s["current_streak"]
+                overview["current_streak"] = s["current_streak"]
 
         today_start = str(date.today()) + "T00:00:00"
         today_sessions = supabase.table("study_sessions") \
@@ -290,22 +295,12 @@ def get_overview(authorization: str = Header(default="")):
             .eq("user_id", user_id) \
             .gte("started_at", today_start) \
             .execute()
-        minutes_today = sum(s.get("duration_seconds", 0) for s in (today_sessions.data or [])) // 60
-
-        return {
-            "total_guides": total_guides,
-            "total_folders": total_folders,
-            "total_flashcards": total_flashcards,
-            "cards_studied": cards_studied,
-            "avg_quiz_score": avg_quiz,
-            "current_streak": current_streak,
-            "minutes_today": minutes_today
-        }
-    except HTTPException:
-        raise
+        overview["minutes_today"] = sum(
+            s.get("duration_seconds", 0) for s in (today_sessions.data or [])
+        ) // 60
     except Exception as e:
-        logger.error(f"Error getting overview: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get overview")
+        logger.warning("Returning partial overview after database error: %s", e)
+    return overview
 
 
 @router.get("/learning-profile")

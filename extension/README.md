@@ -12,8 +12,8 @@ Browser extension that captures educational content and sends it to the backend 
 ## Usage
 
 1. Navigate to any educational webpage (LMS, article, documentation)
-2. Click the AutoStudyAI extension icon
-3. Click **Capture Page Content**
+2. Click the CordiaClassroom extension icon
+3. Click **Capture study material**
 4. Switch between tabs: **Notes**, **Study Guide**, **Flashcards**, **Chat**
 
 ## Features
@@ -29,23 +29,23 @@ Browser extension that captures educational content and sends it to the backend 
 
 The extension can extract from:
 - Standard webpage text
-- Embedded PDFs (visible text layer)
-- PowerPoint links (.pptx files)
-- Image alt-text
+- Selected text or the main content of an LMS page
+- Linked or embedded PDF, DOCX, PPTX, text, and common image files
+- A screenshot fallback when a protected viewer does not expose its source
 
 ## Files
 
 - `manifest.json` - Extension configuration (Manifest V3)
 - `popup.html/js/css` - Extension popup UI
-- `content.js` - Page content extraction scripts
+- `content.js` - Small source resolver for selections, documents, and LMS pages
 - `background.js` - Service worker for backend API calls
-- `pptx-parser.js` - PowerPoint text extraction
+- The backend is the single document extractor; the extension does not duplicate PDF or PowerPoint parsing
 
 ## Configuration
 
-Backend URL is configured in `background.js`:
+The production backend URL is configured in `background.js` and `popup.js`:
 ```javascript
-fetch('http://localhost:8000/ingest', ...)
+const API_URL = 'https://autostudy-ai.fly.dev';
 ```
 
 See main [README](../README.md) for full documentation.

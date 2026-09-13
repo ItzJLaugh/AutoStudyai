@@ -15,7 +15,7 @@ from auth_utils import get_user_id
 from database import get_supabase
 from routers.billing import check_usage, record_usage
 from routers.stats import learning_profile_for_user
-from services.llm import generate_study_guide, select_educational_sections
+from services.llm import generate_study_guide
 from services.text_processing import chunk_text, clean_text
 
 router = APIRouter(prefix="/canvas", tags=["canvas"])
@@ -280,7 +280,7 @@ def canvas_study_source(course_id: str, item_id: str, authorization: str = Heade
 
 @router.post("/auto-guides")
 def canvas_auto_guides(authorization: str = Header(default="")):
-    """Create up to three missing guides from the next useful Canvas assignments."""
+    """Create one missing guide from the next useful Canvas assignment."""
     user_id = get_user_id(authorization)
     config = _config()
     account = _canvas_account(user_id, config)
@@ -322,13 +322,8 @@ def canvas_auto_guides(authorization: str = Header(default="")):
             if error.status_code == 422:
                 continue
             raise
-        selection = select_educational_sections(source["content"])
-        selected = "\n\n".join(
-            f"{section['heading']}\n{section['text']}"
-            for section in selection.get("sections", [])
-        )
-        chunks = chunk_text(clean_text(selected))
-        if not selection.get("is_educational") or not chunks:
+        chunks = chunk_text(clean_text(source["content"]))
+        if not chunks:
             continue
         guide = generate_study_guide(
             chunks,

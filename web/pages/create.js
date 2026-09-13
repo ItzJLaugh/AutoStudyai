@@ -167,18 +167,10 @@ export default function CreateGuidePage() {
         setError('Add a little more study material before creating your guide.');
         return;
       }
-      setStatus('ingesting');
-      const ingested = await apiFetch('/ingest', {
-        method: 'POST',
-        body: JSON.stringify({ content: source, content_type: 'webpage' }),
-      });
-      const reviewedContent = (ingested?.sections || []).map(section => section.text).join('\n\n');
-      if (!reviewedContent) throw new Error('No study material was found in this source.');
-
       setStatus('generating');
       const generated = await apiFetch('/generate', {
         method: 'POST',
-        body: JSON.stringify({ content: reviewedContent, notes: generateNotes, study_guide: true, flashcards: generateFlashcards }),
+        body: JSON.stringify({ content: source, notes: generateNotes, study_guide: true, flashcards: generateFlashcards }),
       });
       if (!generated) throw new Error('Failed to generate study materials. You may have reached your usage limit.');
 
@@ -205,12 +197,11 @@ export default function CreateGuidePage() {
 
   if (!ready) return null;
 
-  const isLoading = ['extracting', 'ingesting', 'generating', 'saving'].includes(status);
+  const isLoading = ['extracting', 'generating', 'saving'].includes(status);
   const validManualPair = manualPairs.some(pair => pair.term.trim() && pair.definition.trim());
   const canSubmit = !isLoading && (inputMode === 'manual' ? validManualPair : inputMode === 'pdf' ? !!uploadFile : content.trim().length >= 10);
   const statusMessages = {
     extracting: 'Reading your file…',
-    ingesting: 'Organizing your material…',
     generating: 'Building your study guide…',
     saving: 'Saving your guide…',
   };

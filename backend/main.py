@@ -26,12 +26,12 @@ from services.text_processing import (
     clean_text, chunk_text,
     is_slideshow_content, extract_slideshow_content,
     format_slideshow_text, inject_image_descriptions,
-    inject_page_image_descriptions
+    inject_page_image_descriptions, build_review_sections
 )
 from services.llm import (
     generate_notes_ai, generate_study_guide,
     generate_flashcards, answer_question,
-    analyze_images_for_slides, select_educational_sections
+    analyze_images_for_slides
 )
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes, canvas
 from auth_utils import get_user_id
@@ -403,16 +403,21 @@ async def ingest(body: IngestRequest, request: Request, authorization: str = Hea
             else:
                 logger.warning("Screenshot fallback produced no readable educational text")
 
-        selection = select_educational_sections(content)
+        sections = build_review_sections(content)
 
-        logger.info(f"Reviewed capture slideshow={is_slideshow}, images={len(images_data)}")
+        logger.info(
+            "Prepared capture slideshow=%s, images=%s, sections=%s",
+            is_slideshow,
+            len(images_data),
+            len(sections),
+        )
 
         return IngestResponse(
             content_type=body.content_type,
             detected_slideshow=is_slideshow,
-            is_educational=selection["is_educational"],
-            sections=selection["sections"],
-            excluded_summary=selection["excluded_summary"],
+            is_educational=bool(sections),
+            sections=sections,
+            excluded_summary="",
             use_images=bool(images_data),
         )
 

@@ -322,23 +322,6 @@ function takeScreenshot() {
   });
 }
 
-// Single-message slideshow capture — content.js handles the entire loop
-// and takes screenshots inline via background.js (no per-slide popup round-trip)
-async function captureSlideshowWithImages(tabId) {
-  showProgress('Capturing slideshow (text + images)...');
-  const result = await sendTabMessage(tabId, { action: 'captureSlideshowWithImages' }, 120000);
-  if (!result || !result.success) {
-    return { success: false, content: '', images: [] };
-  }
-  showProgress('Captured ' + result.totalSlides + ' slides' +
-    (result.images && result.images.length > 0 ? ' + ' + result.images.length + ' screenshots' : ''), true);
-  return {
-    success: true,
-    content: result.content,
-    images: result.images || []
-  };
-}
-
 // =====================
 // Content script injection + capture flow
 // =====================
@@ -366,109 +349,81 @@ function ensureContentScript(tabId, callback) {
   });
 }
 
-// Full capture flow: PDF → slideshow → PPTX → page content
-function runCaptureFlow(tabId) {
-  console.log('[CAPTURE-FLOW] Starting. URL:', lastPageUrl);
-  chrome.tabs.sendMessage(tabId, { action: 'extractPdfText' }, (pdfResp) => {
-    if (chrome.runtime.lastError) {
-      console.log('[CAPTURE-FLOW] extractPdfText lastError:', chrome.runtime.lastError.message);
-      showProgress('Content script unavailable, using page text...');
-      rawPageFallback(tabId);
-      return;
-    }
-
-    console.log('[CAPTURE-FLOW] PDF check result:', pdfResp);
-    if (pdfResp && pdfResp.content && pdfResp.content.trim().length > 100) {
-      console.log('[CAPTURE-FLOW] → PDF path (content length:', pdfResp.content.length, ')');
-      showProgress('PDF detected - extracting text...', true);
-      showProgress('Processing PDF content...');
-      sendToBackend(pdfResp.content);
-    } else {
-      showProgress('Checking for slideshows...');
-      chrome.tabs.sendMessage(tabId, { action: 'detectSlideshow' }, (slideInfo) => {
-        console.log('[CAPTURE-FLOW] Slideshow check:', JSON.stringify(slideInfo));
-        if (slideInfo && slideInfo.hasSlideshow && slideInfo.hasNavigation) {
-          console.log('[CAPTURE-FLOW] → Slideshow path');
-          showProgress('Slideshow detected — capturing slides...');
-          captureSlideshowWithImages(tabId).then((result) => {
-            if (result.success && result.content) {
-              showProgress('Processing slideshow content...');
-              sendToBackend(result.content, result.images || []);
-            } else {
-              showProgress('Slideshow capture failed, trying page content...');
-              fallbackToPageContent(tabId);
-            }
-          });
-        } else {
-          console.log('[CAPTURE-FLOW] → Checking PPTX...');
-          chrome.tabs.sendMessage(tabId, { action: 'downloadPptx' }, (pptxResp) => {
-            console.log('[CAPTURE-FLOW] PPTX check:', JSON.stringify(pptxResp));
-            if (pptxResp && pptxResp.success && pptxResp.url) {
-              console.log('[CAPTURE-FLOW] → PPTX path. URL:', pptxResp.url);
-              showProgress('PowerPoint file detected - downloading...', true);
-              capturePptx(pptxResp.url, tabId);
-            } else {
-              console.log('[CAPTURE-FLOW] → Page content fallback');
-              showProgress('Grabbing page content...');
-              fallbackToPageContent(tabId);
-            }
-          });
-        }
-      });
-    }
-  });
+function decodeFile(data, type) {
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: type || 'application/octet-stream' });
 }
 
-// Download and parse a PPTX file
-function capturePptx(pptxUrl, tabId) {
-  console.log('[PPTX-CAPTURE] Starting. PPTX URL:', pptxUrl);
-  // Use content script to fetch (has session cookies for Canvas auth)
-  sendTabMessage(tabId, { action: 'fetchBlob', url: pptxUrl }).then((blobResp) => {
-    console.log('[PPTX-CAPTURE] fetchBlob response:', blobResp ? ('data length: ' + (blobResp.data ? blobResp.data.length : 'null')) : 'null');
-    if (blobResp && blobResp.data) {
-      showProgress('Extracting slideshow content...');
-      // blobResp.data is base64 — convert to ArrayBuffer for pptxParser
-      const binary = atob(blobResp.data);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
-      console.log('[PPTX-CAPTURE] Blob created. size:', blob.size, 'type:', blob.type);
-      console.log('[PPTX-CAPTURE] window.extractPptxText exists?', typeof window.extractPptxText);
-      console.log('[PPTX-CAPTURE] window["pptx-parser"] exists?', typeof window["pptx-parser"]);
+function documentFilename(source, fetched) {
+  const finalName = decodeURIComponent((fetched.finalUrl || '').split(/[/?#]/).filter(Boolean).pop() || '');
+  let name = /\.(pdf|pptx|docx|txt|md|csv|png|jpe?g|webp)$/i.test(finalName)
+    ? finalName
+    : (source.filename || 'study-material');
+  if (/\.[a-z0-9]{2,5}$/i.test(name)) return name;
+  const extension = {
+    'application/pdf': '.pdf',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/webp': '.webp',
+  }[(fetched.contentType || '').split(';')[0]] || '';
+  return name + extension;
+}
 
-      const pptxParser = window.extractPptxText || (() => Promise.resolve(''));
-      console.log('[PPTX-CAPTURE] Calling extractPptxText...');
-      pptxParser(blob).then((slideText) => {
-        console.log('[PPTX-CAPTURE] extractPptxText result length:', slideText ? slideText.length : 0);
-        console.log('[PPTX-CAPTURE] extractPptxText result (first 500):', slideText ? slideText.substring(0, 500) : '(empty)');
-        if (slideText && slideText.length > 50) {
-          console.log('[PPTX-CAPTURE] → Sending to backend');
-          sendToBackend(slideText);
-        } else {
-          console.log('[PPTX-CAPTURE] → slideText too short, falling back to page content');
-          fallbackToPageContent(tabId);
-        }
-      });
-    } else {
-      console.log('[PPTX-CAPTURE] fetchBlob failed, trying direct fetch...');
-      // Direct fetch fallback (won't have cookies for cross-origin)
-      fetch(pptxUrl)
-        .then(r => r.blob())
-        .then(async (blob) => {
-          console.log('[PPTX-CAPTURE] Direct fetch blob size:', blob.size);
-          showProgress('Extracting slideshow content...');
-          const pptxParser = window.extractPptxText || (() => Promise.resolve(''));
-          const slideText = await pptxParser(blob);
-          console.log('[PPTX-CAPTURE] Direct fetch parse result length:', slideText ? slideText.length : 0);
-          sendToBackend(slideText);
-        })
-        .catch((err) => {
-          console.error('[PPTX-CAPTURE] Direct fetch failed:', err);
-          showProgress('Falling back to page content...');
-          fallbackToPageContent(tabId);
-        });
-    }
+async function captureDocument(tabId, source) {
+  showProgress('Reading the attached document...');
+  const fetched = await sendTabMessage(tabId, { action: 'fetchFile', url: source.url }, 60000);
+  if (!fetched?.success || !fetched.data) throw new Error(fetched?.error || 'The document could not be opened');
+
+  const token = await getValidToken();
+  if (!token) throw new Error('Sign in to CordiaClassroom first');
+  const file = new File([decodeFile(fetched.data, fetched.contentType)], documentFilename(source, fetched), {
+    type: fetched.contentType || 'application/octet-stream',
   });
+  const form = new FormData();
+  form.append('file', file);
+  const response = await fetch(API + '/extract-file-text', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token },
+    body: form,
+  });
+  const data = await response.json();
+  if (!response.ok || !data.text?.trim()) throw new Error(data.detail || 'No readable study material was found');
+  showProgress('Document ready', true);
+  sendToBackend(data.text);
+}
+
+async function screenshotFallback() {
+  showProgress('The embedded viewer is protected; capturing the visible page instead...');
+  const screenshot = await takeScreenshot();
+  if (!screenshot) throw new Error('The page could not be captured');
+  sendToBackend('[Visible study material]', [{ data: screenshot }]);
+}
+
+async function runCaptureFlow(tabId) {
+  const source = await sendTabMessage(tabId, { action: 'extractSource' });
+  if (!source) {
+    rawPageFallback(tabId);
+    return;
+  }
+  if (source.kind === 'file') {
+    try {
+      await captureDocument(tabId, source);
+    } catch (error) {
+      showProgress(error.message, false);
+      await screenshotFallback();
+    }
+    return;
+  }
+  if (source.content?.trim() && (source.selected || source.content.trim().length > 50)) {
+    showProgress(source.selected ? 'Selection captured' : 'Page content captured', true);
+    sendToBackend(source.content);
+    return;
+  }
+  await screenshotFallback();
 }
 
 // Last resort: raw body.innerText via executeScript (no content script needed)
@@ -514,29 +469,13 @@ captureBtn.addEventListener('click', async () => {
 
     // Ensure content script is loaded before starting detection
     ensureContentScript(tabId, () => {
-      runCaptureFlow(tabId);
+      runCaptureFlow(tabId).catch((error) => {
+        statusDiv.innerText = error.message || 'Failed to capture content.';
+        showProgress(statusDiv.innerText, false);
+      });
     });
   });
 });
-
-function fallbackToPageContent(tabId) {
-  statusDiv.innerText = 'Capturing page content...';
-
-  // First capture the user's selection, otherwise readable page content.
-  sendTabMessage(tabId, { action: 'extractContent' }).then((resp) => {
-    const hasContent = resp && resp.content && resp.content.trim();
-    if (hasContent && (resp.selected || resp.content.trim().length > 50)) {
-      showProgress('Page content captured!', true);
-      sendToBackend(resp.content, resp.images || []);
-    } else {
-      showProgress('No readable text found — capturing a screenshot...');
-      takeScreenshot().then(screenshot => {
-        if (screenshot) sendToBackend('[Screenshot fallback]', [{ data: screenshot }]);
-        else { statusDiv.innerText = 'Failed to capture content.'; showProgress('Failed to capture content', false); }
-      });
-    }
-  });
-}
 
 function sendToBackend(content, images = []) {
   statusDiv.innerText = 'Processing...';
