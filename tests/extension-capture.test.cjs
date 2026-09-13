@@ -63,6 +63,9 @@ async function main() {
   assert.equal(fetched.success, true);
   assert.equal(fetched.contentType, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
   assert.equal(Buffer.from(fetched.data, 'base64').toString(), 'PK\u0003\u0004presentation');
+  await load('<main><iframe title="File Preview" src="https://school.instructure.com/courses/4/files/99/file_preview"></iframe></main>');
+  const canvasViewer = await message({ action: 'extractSource' });
+  assert.match(canvasViewer.url, /\/files\/99\/download\?download_frd=1$/);
 
   await load('<nav>Course menu</nav><main><p id="lesson">Mitosis separates replicated chromosomes into two nuclei.</p><a href="https://school.instructure.com/files/review.pdf">Review</a></main>');
   await page.evaluate(() => {

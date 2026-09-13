@@ -6,10 +6,10 @@ import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import requests
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Response
 
 from auth_utils import get_user_id
 from database import get_supabase
@@ -48,13 +48,13 @@ def _config():
     }
 
 
-def _request(method: str, url: str, *, headers=None, params=None, json=None):
+def _request(method: str, url: str, *, headers=None, params=None, json=None, raw=False):
     try:
         response = requests.request(
             method, url, headers=headers, params=params, json=json, timeout=30
         )
         response.raise_for_status()
-        return response.json() if response.content else {}
+        return response if raw else (response.json() if response.content else {})
     except (requests.RequestException, ValueError) as exc:
         status = getattr(getattr(exc, "response", None), "status_code", "unavailable")
         raise HTTPException(status_code=502, detail=f"Canvas provider request failed ({status})") from exc
@@ -106,14 +106,19 @@ def _canvas_account(user_id: str, config: dict):
     )
 
 
-def _proxy_get(path: str, user_id: str, account_id: str, config: dict):
+def _proxy(path: str, user_id: str, account_id: str, config: dict, *, raw=False):
     encoded_path = base64.urlsafe_b64encode(path.encode()).decode().rstrip("=")
     return _request(
         "GET",
         f"{API_BASE}/connect/{config['project_id']}/proxy/{encoded_path}",
         headers=_headers(config),
         params={"external_user_id": _external_user_id(user_id), "account_id": account_id},
+        raw=raw,
     )
+
+
+def _proxy_get(path: str, user_id: str, account_id: str, config: dict):
+    return _proxy(path, user_id, account_id, config)
 
 
 def _normalize_course(course: dict) -> dict:
@@ -256,6 +261,30 @@ def canvas_dashboard(authorization: str = Header(default="")):
         "courses": [_normalize_course(course) for course in courses if isinstance(course, dict)],
         "items": [_normalize_planner_item(item) for item in items if isinstance(item, dict)],
     }
+
+
+@router.get("/file/{file_id}")
+def canvas_file(file_id: str, authorization: str = Header(default="")):
+    if not file_id.isdigit():
+        raise HTTPException(status_code=400, detail="Invalid Canvas file")
+    user_id = get_user_id(authorization)
+    config = _config()
+    account = _canvas_account(user_id, config)
+    if not account:
+        raise HTTPException(status_code=409, detail="Connect Canvas first")
+
+    details = _proxy_get(f"/api/v1/files/{file_id}", user_id, account["id"], config)
+    download = urlsplit(str(details.get("url") or ""))
+    if download.scheme != "https" or not download.netloc:
+        raise HTTPException(status_code=502, detail="Canvas returned no download")
+    path = download.path + (f"?{download.query}" if download.query else "")
+    upstream = _proxy(path, user_id, account["id"], config, raw=True)
+    if not upstream.content or len(upstream.content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=422, detail="Canvas file is empty or larger than 20 MB")
+    return Response(
+        content=upstream.content,
+        media_type=details.get("content-type") or upstream.headers.get("content-type"),
+    )
 
 
 @router.get("/study-source")
