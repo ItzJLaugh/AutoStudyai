@@ -121,6 +121,7 @@ def _build_study_guide_prompt(context: str, domain_context: str = "", learning_g
 CRITICAL RULES:
 • ONLY use information that is explicitly stated in the text below.
 • NEVER invent, assume, or hallucinate any facts, terms, or answers.
+• Academic assignments, rubrics, learning objectives, exam topics, and required deliverables ARE educational content. Turn them into questions about what the student must understand or complete.
 • If the text contains no educational content (e.g., only navigation menus, UI elements, or unrelated text), respond with exactly: "NO_EDUCATIONAL_CONTENT"
 • Every answer MUST be directly supported by the text provided.
 • NEVER generate a question where the answer is "no additional information is provided" or similar — if the text doesn't explain a term, skip it.
@@ -129,7 +130,7 @@ CRITICAL RULES:
   - "See also", "Further reading", "External links" sections
   - Author names, publication dates, journal names, and book titles that are citations (not the subject being taught)
   - Navigation elements, categories, tags, sidebar links
-  - Lists of names, terms, or entities without substantive explanation — only ask about a named item if the text provides meaningful detail (definition, role, contribution, context, or relationship)
+  - Lists of names, terms, or entities without substantive explanation, unless the list is an academic requirement or required deliverable
 
 Step 1 — Identify every single testable item in the text. Testable items include:
 • Named terms and their definitions
@@ -140,6 +141,7 @@ Step 1 — Identify every single testable item in the text. Testable items inclu
 • Comparisons or contrasts between related items
 • Significance — why something matters, its impact or implications
 • Key facts a student would need to know for an exam on this subject
+• Assignment requirements, rubric criteria, and deliverables a student must complete
 
 Step 2 — Write questions following these rules:
 
@@ -497,7 +499,7 @@ def generate_study_guide(chunks: List[str], has_images: bool = False, domain: Op
             response = client.chat.completions.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": "You are an exhaustive study guide generator. You MUST cover every single named entity, concept, and key term in the text — no exceptions. After generating questions, re-read the source text and add questions for anything you missed. Stopping early or skipping items is a failure."},
+                    {"role": "system", "content": "You are an exhaustive study guide generator. Academic assignments, rubrics, exam topics, and deliverables are valid study material. Cover every stated concept and requirement without inventing facts. Return NO_EDUCATIONAL_CONTENT only for empty, unrelated, or interface-only text."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=12000,
