@@ -91,5 +91,20 @@ class UniversalCaptureContractTests(unittest.TestCase):
         self.assertEqual(response.json()["detail"], "CordiaClassroom could not build a guide from this material.")
         record.assert_not_called()
 
+    @patch("main._learning_guidance", return_value="")
+    @patch("main.record_usage")
+    @patch("main.check_usage", return_value={"used": 0})
+    @patch("main.generate_study_guide", return_value="Q1: What is required?\nA1: A deployment diagram.")
+    @patch("main.generate_notes_ai", return_value=[])
+    @patch("main.get_user_id", return_value="student-1")
+    def test_empty_notes_are_not_saved_as_an_error_message(self, _auth, _notes, _guide, _usage, _record, _guidance):
+        response = self.client.post(
+            "/generate",
+            headers={"Authorization": "Bearer test"},
+            json={"content": "Submit a deployment diagram.", "flashcards": False},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["notes"])
+
 if __name__ == "__main__":
     unittest.main()
