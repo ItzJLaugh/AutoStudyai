@@ -179,6 +179,47 @@ class CanvasContractTests(unittest.TestCase):
         self.assertEqual(result, {"created": [], "count": 0})
         generate.assert_not_called()
 
+    def test_auto_guides_stops_when_build_limit_is_reached(self):
+        with patch.object(canvas, "get_user_id", return_value="student-1"), \
+             patch.object(canvas, "_config", return_value={"project_id": "proj_test"}), \
+             patch.object(canvas, "_canvas_account", return_value={"id": "apn_canvas"}), \
+             patch.object(canvas, "check_usage", return_value={"builds_used": 3, "builds_limit": 3}), \
+             patch.object(canvas, "_proxy_get") as proxy:
+            result = canvas.canvas_auto_guides("Bearer token")
+
+        self.assertEqual(result, {"created": [], "count": 0})
+        proxy.assert_not_called()
+
+    def test_auto_guides_bounds_the_automatic_scan(self):
+        items = [
+            {
+                "course_id": 4,
+                "plannable_id": item_id,
+                "plannable_type": "assignment",
+                "plannable": {"title": f"Assignment {item_id}"},
+            }
+            for item_id in range(7)
+        ]
+        table = MagicMock()
+        table.select.return_value = table
+        table.eq.return_value = table
+        table.limit.return_value = table
+        table.execute.return_value = MagicMock(data=[])
+        db = MagicMock()
+        db.table.return_value = table
+
+        with patch.object(canvas, "get_user_id", return_value="student-1"), \
+             patch.object(canvas, "_config", return_value={"project_id": "proj_test"}), \
+             patch.object(canvas, "_canvas_account", return_value={"id": "apn_canvas"}), \
+             patch.object(canvas, "check_usage", return_value={"builds_used": 0, "builds_limit": 3}), \
+             patch.object(canvas, "_proxy_get", return_value=items), \
+             patch.object(canvas, "get_supabase", return_value=db), \
+             patch.object(canvas, "_study_source", side_effect=canvas.HTTPException(status_code=422)) as study_source:
+            result = canvas.canvas_auto_guides("Bearer token")
+
+        self.assertEqual(result, {"created": [], "count": 0})
+        self.assertEqual(study_source.call_count, canvas.AUTO_GUIDE_SCAN_LIMIT)
+
     @patch.dict(os.environ, {}, clear=True)
     def test_missing_provider_configuration_is_truthful(self):
         with self.assertRaisesRegex(Exception, "Canvas connections are not configured"):

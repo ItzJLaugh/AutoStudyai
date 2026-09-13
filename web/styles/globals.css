@@ -2604,8 +2604,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
   border: 1px solid var(--line);
   border-radius: 22px;
   background: var(--surface);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 1px 2px rgba(25, 29, 22, 0.04), 0 18px 46px rgba(43, 49, 38, 0.08);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
+.canvas-dashboard:hover { border-color: color-mix(in srgb, var(--line) 65%, var(--olive)); box-shadow: 0 2px 4px rgba(25, 29, 22, 0.05), 0 24px 58px rgba(43, 49, 38, 0.11); }
 .canvas-loading { padding: 30px; color: var(--muted-ink); font-size: 0.8rem; }
 .canvas-connect-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 24px; }
 .canvas-mark { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 15px; background: #e43b2f; color: white; font: 700 1.35rem/1 Inter, sans-serif; }
@@ -2615,7 +2617,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .canvas-error { display: block; margin-top: 7px; color: #9a3329; font-size: 0.7rem; }
 .canvas-inline-error { padding: 9px 20px; border-bottom: 1px solid #e7c7bf; background: #fff4f0; color: #8d3329; font-size: 0.7rem; }
 .canvas-dashboard-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px 18px; border-bottom: 1px solid var(--line); }
+.canvas-window-status { display: flex; align-items: center; gap: 10px; }
 .canvas-connected { padding: 6px 10px; border-radius: 999px; background: #edf2e9; color: var(--olive); font-size: 0.62rem; font-weight: 750; }
+.window-resize-hint { color: var(--muted-ink); font-size: 0.82rem; opacity: 0.55; }
 .canvas-reminder { margin: 0; padding: 9px 20px; border-bottom: 1px solid #ead5ac; background: #fff8e9; color: #72561f; font-size: 0.68rem; font-weight: 700; }
 .canvas-auto-status { margin: 0; padding: 9px 20px; border-bottom: 1px solid var(--line); background: #f6f3e8; color: var(--olive); font-size: 0.68rem; }
 .canvas-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 0.34fr); }
@@ -2669,6 +2673,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 
 .dashboard-study-rail { display: grid; gap: 16px; }
 .study-rail-card { padding: 18px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); box-shadow: var(--shadow-card); }
+.study-rail-card { transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+.study-rail-card:hover { border-color: color-mix(in srgb, var(--line) 65%, var(--olive)); box-shadow: var(--shadow-float); }
 .study-rail-card .streak-widget,
 .study-rail-card .timer-widget { padding: 8px 0 2px; border: 0; background: transparent; }
 .study-rail-card .streak-number { color: var(--olive); }
@@ -2684,6 +2690,35 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
   .dashboard-workspace-grid { grid-template-columns: 210px minmax(0, 1fr) 250px; gap: 16px; }
   .class-guide-popover { width: 280px; }
   .dashboard-study-rail .timer-mode { padding-inline: 5px; font-size: 0.62rem; }
+}
+
+@media (min-width: 1181px) {
+  .dashboard-class-rail {
+    width: 260px;
+    min-width: 220px;
+    max-width: 360px;
+    max-height: calc(100vh - 112px);
+    overflow: auto;
+    resize: horizontal;
+  }
+  .dashboard-study-rail {
+    width: 300px;
+    min-width: 260px;
+    max-width: 420px;
+    resize: horizontal;
+  }
+  .canvas-dashboard {
+    min-height: 300px;
+    max-height: calc(100vh - 118px);
+    overflow: auto;
+    resize: vertical;
+  }
+  .study-rail-card {
+    min-height: 150px;
+    max-height: calc(100vh - 140px);
+    overflow: auto;
+    resize: vertical;
+  }
 }
 
 @media (max-width: 980px) {
@@ -2726,7 +2761,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 }
 
 .dashboard-workspace-grid {
-  grid-template-columns: 260px minmax(0, 1fr) 300px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 22px;
 }
 .dashboard-class-rail,
