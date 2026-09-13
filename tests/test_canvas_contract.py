@@ -138,10 +138,6 @@ class CanvasContractTests(unittest.TestCase):
              patch.object(canvas, "_proxy_get", side_effect=[[item], assignment]), \
              patch.object(canvas, "get_supabase", return_value=db), \
              patch.object(canvas, "check_usage", return_value=usage), \
-             patch.object(canvas, "select_educational_sections", return_value={
-                 "is_educational": True,
-                 "sections": [{"heading": "Lesson", "text": assignment["description"]}],
-             }), \
              patch.object(canvas, "generate_study_guide", return_value="Q1: What is mitosis?\nA1: Cell division."), \
              patch.object(canvas, "learning_profile_for_user", return_value={"generation_guidance": "Use concise explanations."}), \
              patch.object(canvas, "record_usage") as record_usage:

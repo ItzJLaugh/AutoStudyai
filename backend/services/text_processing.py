@@ -330,6 +330,16 @@ def chunk_text(text: str, max_length: int = 1500, slides: List[dict] = None) -> 
     return chunks
 
 
+def build_review_sections(text: str, max_length: int = 6000) -> List[dict]:
+    """Create reviewable source sections without asking a model to copy the source."""
+    sections = []
+    for index, chunk in enumerate(chunk_text(clean_text(text), max_length=max_length), 1):
+        first_line = next((line.strip() for line in chunk.splitlines() if line.strip()), "")
+        heading = first_line if 3 <= len(first_line) <= 100 else f"Study material {index}"
+        sections.append({"id": f"section-{index}", "heading": heading, "text": chunk})
+    return sections
+
+
 def format_slideshow_text(slides: List[dict]) -> str:
     """
     Format extracted slides into XML-structured text.

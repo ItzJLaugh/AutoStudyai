@@ -1,67 +1,69 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CordiaClassroom</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>CordiaClassroom</h1>
+  <header class="brand-bar">
+    <img src="icon48.png" alt="">
+    <div><strong>CordiaClassroom</strong><span>Turn this into something you can learn.</span></div>
+  </header>
 
-  <!-- Auth section -->
-  <div id="auth-section">
-    <div id="auth-status" style="margin-bottom:8px;font-size:0.9em;color:#888;"></div>
-    <div id="auth-login" style="display:none;margin-bottom:10px;">
-      <input id="auth-email" type="email" placeholder="Email" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #ccc;font-size:0.9em;margin-bottom:6px;" />
-      <input id="auth-password" type="password" placeholder="Password" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #ccc;font-size:0.9em;margin-bottom:6px;" />
-      <button id="auth-login-btn" style="width:100%;padding:7px;font-size:0.9em;">Login</button>
-      <div id="auth-error" style="color:#e53935;font-size:0.85em;margin-top:4px;"></div>
-      <div style="text-align:center;margin-top:8px;font-size:0.85em;color:#888;">
-        Don't have an account?
-        <a href="https://classroom.cordiacode.com" target="_blank" id="auth-signup-link" style="color:#a78bfa;text-decoration:none;font-weight:600;">Sign Up</a>
-      </div>
+  <section id="auth-section" class="surface auth-surface">
+    <div id="auth-status"></div>
+    <div id="auth-login" style="display:none">
+      <input id="auth-email" type="email" autocomplete="email" placeholder="Email">
+      <input id="auth-password" type="password" autocomplete="current-password" placeholder="Password">
+      <button id="auth-login-btn" class="primary wide">Sign in</button>
+      <div id="auth-error" role="alert"></div>
+      <p>New here? <a href="https://classroom.cordiacode.com" target="_blank" id="auth-signup-link">Create an account</a></p>
     </div>
-    <div id="auth-logged-in" style="display:none;margin-bottom:10px;">
-      <span id="auth-user-email" style="font-size:0.85em;color:#4fc3f7;"></span>
-      <button id="auth-logout-btn" style="font-size:0.8em;margin-left:8px;padding:3px 8px;">Logout</button>
+    <div id="auth-logged-in" style="display:none">
+      <span id="auth-user-email"></span>
+      <button id="auth-logout-btn" class="quiet">Sign out</button>
     </div>
-  </div>
+  </section>
 
-  <button id="capture-btn">Capture Page Content</button>
-  <div id="capture-review" style="display:none;">
+  <button id="capture-btn" class="primary capture">Capture study material <span aria-hidden="true">&#8593;</span></button>
+
+  <div id="progress-log" style="display:none"></div>
+  <div id="status" role="status"></div>
+
+  <section id="capture-review" class="surface" style="display:none">
     <div id="capture-source"></div>
     <div id="excluded-summary"></div>
     <div id="section-list"></div>
-    <button id="generate-selected-btn" disabled>Generate study materials</button>
+    <button id="generate-selected-btn" class="primary wide" disabled>Build study guide</button>
+  </section>
+
+  <button id="save-guide-btn" class="secondary wide" style="display:none">Save to classroom</button>
+  <div id="platform-banner" style="display:none">
+    Open your guide in <a href="https://classroom.cordiacode.com" target="_blank">CordiaClassroom</a>
   </div>
-  <button id="save-guide-btn" style="display:none; margin-left:10px;">Save to Platform</button>
-  <div id="status"></div>
-  <div id="progress-log" style="display:none;"></div>
-  <div id="platform-banner" style="display:none;">
-    &#128279; Use your study guide on the platform &rarr;
-    <a href="https://classroom.cordiacode.com" target="_blank">classroom.cordiacode.com</a>
-  </div>
-  <div class="tabs">
+
+  <nav class="tabs" aria-label="Study materials">
     <button class="tab-btn active" data-tab="notes">Notes</button>
-    <button class="tab-btn" data-tab="guide">Study Guide</button>
-    <button class="tab-btn" data-tab="flashcards">Flashcards</button>
-    <button class="tab-btn" data-tab="chat">Chat</button>
-  </div>
-  <div id="tab-content">
+    <button class="tab-btn" data-tab="guide">Guide</button>
+    <button class="tab-btn" data-tab="flashcards">Cards</button>
+    <button class="tab-btn" data-tab="chat">Tutor</button>
+  </nav>
+  <main id="tab-content">
     <div id="notes-section" class="tab-section active"></div>
     <div id="guide-section" class="tab-section"></div>
     <div id="flashcards-section" class="tab-section"></div>
     <div id="chat-section" class="tab-section">
-      <div id="chat-history" style="max-height:120px;overflow-y:auto;margin-bottom:8px;"></div>
-      <div style="display:flex;gap:6px;align-items:center;">
-        <input id="chat-input" type="text" placeholder="Ask a question about the captured content..." style="flex:1;padding:7px 10px;border-radius:6px;border:1px solid #ccc;font-size:1em;" />
-        <button id="chat-send-btn">Send</button>
-        <button id="chat-example-btn" style="background:#e3eafc;color:#2a7ae2;">Example</button>
+      <div id="chat-history"></div>
+      <div class="chat-compose">
+        <input id="chat-input" type="text" placeholder="Ask about this material">
+        <button id="chat-send-btn" class="primary">Ask</button>
+        <button id="chat-example-btn" class="quiet">Example</button>
       </div>
-      <div id="chat-answer" style="margin-top:10px;"></div>
+      <div id="chat-answer"></div>
     </div>
-  </div>
-  <script src="jszip.min.js"></script>
-  <script src="pptxParser.js"></script>
+  </main>
   <script src="popup.js"></script>
 </body>
 </html>
