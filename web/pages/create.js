@@ -170,14 +170,15 @@ export default function CreateGuidePage() {
       setStatus('ingesting');
       const ingested = await apiFetch('/ingest', {
         method: 'POST',
-        body: JSON.stringify({ content: source, page_url: sourceUrl, content_type: 'webpage' }),
+        body: JSON.stringify({ content: source, content_type: 'webpage' }),
       });
-      if (!ingested?.content_id) throw new Error('Failed to process content.');
+      const reviewedContent = (ingested?.sections || []).map(section => section.text).join('\n\n');
+      if (!reviewedContent) throw new Error('No study material was found in this source.');
 
       setStatus('generating');
       const generated = await apiFetch('/generate', {
         method: 'POST',
-        body: JSON.stringify({ content_id: ingested.content_id, notes: generateNotes, study_guide: true, flashcards: generateFlashcards }),
+        body: JSON.stringify({ content: reviewedContent, notes: generateNotes, study_guide: true, flashcards: generateFlashcards }),
       });
       if (!generated) throw new Error('Failed to generate study materials. You may have reached your usage limit.');
 

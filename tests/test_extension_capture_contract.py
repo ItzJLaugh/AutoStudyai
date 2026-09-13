@@ -8,7 +8,7 @@ class ExtensionCaptureContractTests(unittest.TestCase):
     def test_capture_button_runs_the_existing_type_detection_pipeline(self):
         source = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
         handler = source[source.index("captureBtn.addEventListener"):source.index("function fallbackToPageContent")]
-        self.assertIn("runCaptureFlow(tabId, tabUrl, lastPageTitle)", handler)
+        self.assertIn("runCaptureFlow(tabId)", handler)
 
     def test_page_reader_is_injected_only_after_the_user_clicks_capture(self):
         manifest = (ROOT / "extension" / "manifest.json").read_text(encoding="utf-8")

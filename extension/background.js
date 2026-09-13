@@ -39,7 +39,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         const response = await authedFetch('/ingest', { method: 'POST', body: JSON.stringify({
-          content: message.content, page_url: message.url, images: message.images || []
+          content: message.content, images: message.images || []
         }) });
         const data = await response.json();
         sendResponse(response.ok ? { success: true, ...data } : { success: false, error: data.detail || 'Ingest failed', status: response.status });
@@ -52,7 +52,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         const response = await authedFetch('/generate', { method: 'POST', body: JSON.stringify({
-          content_id: message.contentId, section_ids: message.sectionIds, notes: true, study_guide: true, flashcards: true
+          content: message.content, images: message.images || [], notes: true, study_guide: true, flashcards: true
         }) });
         const data = await response.json();
         sendResponse(response.ok ? { success: true, ...data } : { success: false, error: data.detail || 'Generation failed', status: response.status });

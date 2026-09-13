@@ -7,7 +7,8 @@ let lastPageUrl = '';
 let lastPageTitle = '';
 let chatHistory = [];
 let exampleModeEnabled = false;
-let pendingContentId = '';
+let pendingSections = [];
+let pendingImages = [];
 
 // DOM elements
 const statusDiv = document.getElementById('status');
@@ -366,13 +367,13 @@ function ensureContentScript(tabId, callback) {
 }
 
 // Full capture flow: PDF → slideshow → PPTX → page content
-function runCaptureFlow(tabId, tabUrl, subjectName) {
-  console.log('[CAPTURE-FLOW] Starting. URL:', tabUrl);
+function runCaptureFlow(tabId) {
+  console.log('[CAPTURE-FLOW] Starting. URL:', lastPageUrl);
   chrome.tabs.sendMessage(tabId, { action: 'extractPdfText' }, (pdfResp) => {
     if (chrome.runtime.lastError) {
       console.log('[CAPTURE-FLOW] extractPdfText lastError:', chrome.runtime.lastError.message);
       showProgress('Content script unavailable, using page text...');
-      rawPageFallback(tabId, tabUrl, subjectName);
+      rawPageFallback(tabId);
       return;
     }
 
@@ -381,7 +382,7 @@ function runCaptureFlow(tabId, tabUrl, subjectName) {
       console.log('[CAPTURE-FLOW] → PDF path (content length:', pdfResp.content.length, ')');
       showProgress('PDF detected - extracting text...', true);
       showProgress('Processing PDF content...');
-      sendToBackend(pdfResp.content, tabUrl, subjectName);
+      sendToBackend(pdfResp.content);
     } else {
       showProgress('Checking for slideshows...');
       chrome.tabs.sendMessage(tabId, { action: 'detectSlideshow' }, (slideInfo) => {
@@ -392,10 +393,10 @@ function runCaptureFlow(tabId, tabUrl, subjectName) {
           captureSlideshowWithImages(tabId).then((result) => {
             if (result.success && result.content) {
               showProgress('Processing slideshow content...');
-              sendToBackend(result.content, tabUrl, subjectName, result.images || []);
+              sendToBackend(result.content, result.images || []);
             } else {
               showProgress('Slideshow capture failed, trying page content...');
-              fallbackToPageContent(tabId, tabUrl, subjectName);
+              fallbackToPageContent(tabId);
             }
           });
         } else {
@@ -405,11 +406,11 @@ function runCaptureFlow(tabId, tabUrl, subjectName) {
             if (pptxResp && pptxResp.success && pptxResp.url) {
               console.log('[CAPTURE-FLOW] → PPTX path. URL:', pptxResp.url);
               showProgress('PowerPoint file detected - downloading...', true);
-              capturePptx(pptxResp.url, tabId, tabUrl, subjectName);
+              capturePptx(pptxResp.url, tabId);
             } else {
               console.log('[CAPTURE-FLOW] → Page content fallback');
               showProgress('Grabbing page content...');
-              fallbackToPageContent(tabId, tabUrl, subjectName);
+              fallbackToPageContent(tabId);
             }
           });
         }
@@ -419,7 +420,7 @@ function runCaptureFlow(tabId, tabUrl, subjectName) {
 }
 
 // Download and parse a PPTX file
-function capturePptx(pptxUrl, tabId, tabUrl, subjectName) {
+function capturePptx(pptxUrl, tabId) {
   console.log('[PPTX-CAPTURE] Starting. PPTX URL:', pptxUrl);
   // Use content script to fetch (has session cookies for Canvas auth)
   sendTabMessage(tabId, { action: 'fetchBlob', url: pptxUrl }).then((blobResp) => {
@@ -442,10 +443,10 @@ function capturePptx(pptxUrl, tabId, tabUrl, subjectName) {
         console.log('[PPTX-CAPTURE] extractPptxText result (first 500):', slideText ? slideText.substring(0, 500) : '(empty)');
         if (slideText && slideText.length > 50) {
           console.log('[PPTX-CAPTURE] → Sending to backend');
-          sendToBackend(slideText, pptxUrl, subjectName);
+          sendToBackend(slideText);
         } else {
           console.log('[PPTX-CAPTURE] → slideText too short, falling back to page content');
-          fallbackToPageContent(tabId, tabUrl, subjectName);
+          fallbackToPageContent(tabId);
         }
       });
     } else {
@@ -459,19 +460,19 @@ function capturePptx(pptxUrl, tabId, tabUrl, subjectName) {
           const pptxParser = window.extractPptxText || (() => Promise.resolve(''));
           const slideText = await pptxParser(blob);
           console.log('[PPTX-CAPTURE] Direct fetch parse result length:', slideText ? slideText.length : 0);
-          sendToBackend(slideText, pptxUrl, subjectName);
+          sendToBackend(slideText);
         })
         .catch((err) => {
           console.error('[PPTX-CAPTURE] Direct fetch failed:', err);
           showProgress('Falling back to page content...');
-          fallbackToPageContent(tabId, tabUrl, subjectName);
+          fallbackToPageContent(tabId);
         });
     }
   });
 }
 
 // Last resort: raw body.innerText via executeScript (no content script needed)
-function rawPageFallback(tabId, tabUrl, subjectName) {
+function rawPageFallback(tabId) {
   chrome.scripting.executeScript({
     target: { tabId: tabId },
     func: () => {
@@ -481,7 +482,7 @@ function rawPageFallback(tabId, tabUrl, subjectName) {
   }, (results) => {
     if (results && results[0] && results[0].result && results[0].result.trim().length > 50) {
       showProgress('Page content captured!', true);
-      sendToBackend(results[0].result, tabUrl, subjectName);
+      sendToBackend(results[0].result);
     } else {
       statusDiv.innerText = 'Failed to capture content from this page.';
       showProgress('No content found', false);
@@ -513,12 +514,12 @@ captureBtn.addEventListener('click', async () => {
 
     // Ensure content script is loaded before starting detection
     ensureContentScript(tabId, () => {
-      runCaptureFlow(tabId, tabUrl, lastPageTitle);
+      runCaptureFlow(tabId);
     });
   });
 });
 
-function fallbackToPageContent(tabId, tabUrl, subjectName = 'content') {
+function fallbackToPageContent(tabId) {
   statusDiv.innerText = 'Capturing page content...';
 
   // First capture the user's selection, otherwise readable page content.
@@ -526,24 +527,27 @@ function fallbackToPageContent(tabId, tabUrl, subjectName = 'content') {
     const hasContent = resp && resp.content && resp.content.trim();
     if (hasContent && (resp.selected || resp.content.trim().length > 50)) {
       showProgress('Page content captured!', true);
-      sendToBackend(resp.content, tabUrl, subjectName, resp.images || []);
+      sendToBackend(resp.content, resp.images || []);
     } else {
       showProgress('No readable text found — capturing a screenshot...');
       takeScreenshot().then(screenshot => {
-        if (screenshot) sendToBackend('[Screenshot fallback]', tabUrl, subjectName, [{ data: screenshot }]);
+        if (screenshot) sendToBackend('[Screenshot fallback]', [{ data: screenshot }]);
         else { statusDiv.innerText = 'Failed to capture content.'; showProgress('Failed to capture content', false); }
       });
     }
   });
 }
 
-function sendToBackend(content, url, subjectName = 'content', images = []) {
+function sendToBackend(content, images = []) {
   statusDiv.innerText = 'Processing...';
   showProgress('Sending to AI for analysis...' + (images.length > 0 ? ' (' + images.length + ' images)' : ''));
+  pendingSections = [];
+  pendingImages = [];
 
-  chrome.runtime.sendMessage({action: 'ingestContent', content: content, url: url, images: images}, (response) => {
+  chrome.runtime.sendMessage({action: 'ingestContent', content: content, images: images}, (response) => {
     if (response && response.success) {
-      pendingContentId = response.content_id;
+      pendingSections = response.sections || [];
+      pendingImages = response.use_images ? images : [];
       renderCaptureReview(response);
     } else if (response && response.status === 402) {
       showProgress('Free guide limit reached', false);
@@ -594,9 +598,14 @@ function updateGenerateButton() {
 sectionList.addEventListener('change', updateGenerateButton);
 generateSelectedBtn.addEventListener('click', () => {
   const sectionIds = [...sectionList.querySelectorAll('input:checked')].map(input => input.value);
-  if (!sectionIds.length || !pendingContentId) return;
+  const selectedIds = new Set(sectionIds);
+  const content = pendingSections
+    .filter(section => selectedIds.has(section.id))
+    .map(section => section.text)
+    .join('\n\n');
+  if (!content) return;
   generateSelectedBtn.disabled = true;
-  chrome.runtime.sendMessage({ action: 'generateContent', contentId: pendingContentId, sectionIds }, response => {
+  chrome.runtime.sendMessage({ action: 'generateContent', content, images: pendingImages }, response => {
     generateSelectedBtn.disabled = false;
     if (response?.success) { reviewDiv.style.display = 'none'; displayResults(response); }
     else { statusDiv.innerText = 'Error: ' + (response?.error || 'Generation failed'); }
