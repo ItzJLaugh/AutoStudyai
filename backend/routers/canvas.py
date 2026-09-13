@@ -188,6 +188,7 @@ def _study_source(item: dict, user_id: str, account_id: str, config: dict) -> di
         "title": details.get("title") or details.get("name") or plannable.get("title") or "Canvas study guide",
         "content": content,
         "source_url": _public_url(details.get("html_url") or item.get("html_url") or plannable.get("html_url")),
+        "external_source_id": _source_id(account_id, item),
     }
 
 

@@ -6,7 +6,7 @@ Handles CRUD operations for saved study guides.
 import re
 import logging
 from fastapi import APIRouter, HTTPException, Header
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from database import get_supabase
 from auth_utils import get_user_id
@@ -31,6 +31,7 @@ class SaveGuideRequest(BaseModel):
     study_guide: Optional[str] = None
     flashcards: Optional[list] = None
     source_url: Optional[str] = None
+    external_source_id: Optional[str] = Field(default=None, max_length=500)
     domain: Optional[str] = None
 
     model_config = {"str_max_length": 5_000_000}
@@ -115,7 +116,15 @@ def save_guide(request: SaveGuideRequest, authorization: str = Header(default=""
         if request.flashcards:
             data["flashcards"] = request.flashcards
 
-        result = supabase.table("study_guides").insert(data).execute()
+        if request.external_source_id:
+            data["external_source_id"] = request.external_source_id
+
+        table = supabase.table("study_guides")
+        result = (
+            table.upsert(data, on_conflict="user_id,external_source_id")
+            if request.external_source_id
+            else table.insert(data)
+        ).execute()
 
         if result.data:
             return {"guide": result.data[0]}
