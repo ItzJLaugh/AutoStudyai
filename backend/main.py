@@ -504,7 +504,7 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         if body.notes:
             logger.info("Generating notes...")
             notes = generate_notes_ai('\n\n'.join(chunks))
-            notes_str = '\n'.join(f"- {note}" for note in notes) if notes else "No notes generated."
+            notes_str = '\n'.join(f"- {note}" for note in notes) if notes else None
 
         if body.study_guide:
             logger.info("Generating study guide...")

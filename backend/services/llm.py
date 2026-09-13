@@ -43,6 +43,8 @@ def generate_notes_ai(content: str, max_notes: int = 25) -> List[str]:
 
 CRITICAL: ONLY extract facts that are explicitly stated in the content below. NEVER invent, assume, or hallucinate any information. If the content contains no educational material (only navigation, UI elements, or unrelated text), respond with exactly: "NO_EDUCATIONAL_CONTENT"
 
+Academic assignments, rubrics, learning objectives, exam topics, and required deliverables are educational material. Summarize what the student must understand or complete.
+
 IGNORE completely:
 - Website navigation (Main Page, Contents, menus, sidebars)
 - UI elements (Edit, View history, Talk, buttons, links)
@@ -78,7 +80,7 @@ Return ONLY the bullet points, one per line, starting with "- ":"""
         # Detect if AI found no educational content
         if "NO_EDUCATIONAL_CONTENT" in result:
             logger.warning("Notes generation: no educational content detected")
-            return ["No educational content found in the captured page. Try capturing a page with actual course material."]
+            return []
 
         # Parse the response into individual notes
         notes = []
