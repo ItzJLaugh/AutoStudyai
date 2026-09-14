@@ -63,7 +63,6 @@ export default function StudyTimer({ timerState, setTimerState }) {
 
   return (
     <div className="timer-widget">
-      <div className="timer-label">{MODES[mode]?.label || 'Focus'}</div>
       <div className="timer-display">{pad(minutes)}:{pad(seconds)}</div>
 
       <div className="timer-controls">

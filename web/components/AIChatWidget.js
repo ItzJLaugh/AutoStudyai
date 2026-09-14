@@ -59,7 +59,7 @@ export default function AIChatWidget({ floating = false, guides: providedGuides 
   return (
     <section className={`cordia-tutor${floating ? ' is-floating' : ''}`} aria-label="Cordia tutor">
       <header className="cordia-tutor-header">
-        <div><strong>Cordia Tutor</strong><small>Adapts from how you study</small></div>
+        <strong>Cordia Tutor</strong>
         <select value={guideId} onChange={changeGuide} aria-label="Study material">
           {guides.length === 0 && <option value="">No guides yet</option>}
           {guides.map(item => <option key={item.id} value={item.id}>{item.title || 'Untitled guide'}</option>)}
