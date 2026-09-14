@@ -21,9 +21,107 @@ function courseLabel(name) {
   return name?.split(':')[0].trim() || 'Canvas';
 }
 
+function normalizeCanvasDomain(value) {
+  return value.trim().replace(/^https?:\/\//i, '').split('/')[0].toLowerCase();
+}
+
+function CanvasConnectionWizard({ onClose, onConnect, connecting }) {
+  const [step, setStep] = useState(1);
+  const [domain, setDomain] = useState('');
+  const [copied, setCopied] = useState(false);
+  const cleanDomain = normalizeCanvasDomain(domain);
+  const validDomain = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(cleanDomain);
+
+  async function copyDomain() {
+    await navigator.clipboard.writeText(cleanDomain);
+    setCopied(true);
+  }
+
+  return (
+    <div className="canvas-wizard-overlay" role="presentation" onClick={onClose}>
+      <section
+        className="canvas-token-wizard"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="canvas-wizard-title"
+        onClick={event => event.stopPropagation()}
+      >
+        <header className="canvas-wizard-header">
+          <div>
+            <small>Step {step} of 3</small>
+            <h2 id="canvas-wizard-title">Connect Canvas</h2>
+          </div>
+          <button type="button" className="canvas-wizard-close" onClick={onClose} aria-label="Close">×</button>
+        </header>
+
+        {step === 1 && (
+          <div className="canvas-wizard-body">
+            <h3>Enter your Canvas website</h3>
+            <p>Use the address you normally visit for classes.</p>
+            <label className="canvas-domain-field">
+              Canvas domain
+              <input
+                value={domain}
+                onChange={event => setDomain(event.target.value)}
+                placeholder="usaonline.southalabama.edu"
+                autoFocus
+              />
+            </label>
+            <button type="button" className="btn btn-green" disabled={!validDomain} onClick={() => setStep(2)}>
+              Continue
+            </button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="canvas-wizard-body">
+            <h3>Create your access token</h3>
+            <ol className="canvas-wizard-steps">
+              <li>Open Canvas settings.</li>
+              <li>Find <strong>Approved Integrations</strong> and select <strong>+ New Access Token</strong>.</li>
+              <li>Enter <strong>CordiaClassroom</strong> as the purpose, generate the token, and copy it before closing the window.</li>
+            </ol>
+            <a
+              className="btn btn-green canvas-wizard-link"
+              href={`https://${cleanDomain}/profile/settings`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open Canvas settings ↗
+            </a>
+            <button type="button" className="canvas-wizard-secondary" onClick={() => setStep(3)}>
+              I copied my token
+            </button>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="canvas-wizard-body">
+            <h3>Paste it into the secure form</h3>
+            <p>Use the token you copied. When the secure form asks for Domain, enter:</p>
+            <div className="canvas-domain-copy">
+              <code>{cleanDomain}</code>
+              <button type="button" onClick={copyDomain}>{copied ? 'Copied' : 'Copy domain'}</button>
+            </div>
+            <button type="button" className="btn btn-green" onClick={onConnect} disabled={connecting}>
+              {connecting ? 'Opening secure form…' : 'Open secure connection form'}
+            </button>
+            <small className="canvas-wizard-privacy">Your token is entered directly into Pipedream’s secure connection form.</small>
+          </div>
+        )}
+
+        {step > 1 && (
+          <button type="button" className="canvas-wizard-back" onClick={() => setStep(current => current - 1)}>← Back</button>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function CanvasDashboard({ onGuidesCreated }) {
   const [state, setState] = useState({ loading: true, connected: false, courses: [], items: [] });
   const [connecting, setConnecting] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [autoMessage, setAutoMessage] = useState('');
   const autoBuildStarted = useRef(false);
 
@@ -61,7 +159,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
     return () => window.removeEventListener('focus', load);
   }, [load]);
 
-  async function connect() {
+  async function openConnectionForm() {
     setConnecting(true);
     const data = await apiFetch('/canvas/connect', { method: 'POST' });
     if (data?.connect_url) {
@@ -89,18 +187,27 @@ export default function CanvasDashboard({ onGuidesCreated }) {
 
   if (!state.connected) {
     return (
-      <section className="canvas-dashboard canvas-connect-card">
-        <div className="canvas-mark" aria-hidden="true">C</div>
-        <div>
-          <p className="editorial-kicker">Canvas</p>
-          <h2>Bring Canvas into CordiaClassroom</h2>
-          <p>Connect once to see courses, assignments, and due dates in one study dashboard.</p>
-          {state.error && <small className="canvas-error">{state.error}</small>}
-        </div>
-        <button type="button" className="btn btn-green" onClick={connect} disabled={connecting}>
-          {connecting ? 'Opening Canvas…' : 'Connect Canvas'}
-        </button>
-      </section>
+      <>
+        <section className="canvas-dashboard canvas-connect-card">
+          <div className="canvas-mark" aria-hidden="true">C</div>
+          <div>
+            <p className="editorial-kicker">Canvas</p>
+            <h2>Bring Canvas into CordiaClassroom</h2>
+            <p>Connect once to see courses, assignments, and due dates in one study dashboard.</p>
+            {state.error && <small className="canvas-error">{state.error}</small>}
+          </div>
+          <button type="button" className="btn btn-green" onClick={() => setWizardOpen(true)}>
+            Connect Canvas
+          </button>
+        </section>
+        {wizardOpen && (
+          <CanvasConnectionWizard
+            connecting={connecting}
+            onClose={() => !connecting && setWizardOpen(false)}
+            onConnect={openConnectionForm}
+          />
+        )}
+      </>
     );
   }
 
