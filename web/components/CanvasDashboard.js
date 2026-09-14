@@ -17,6 +17,10 @@ function dueTime(item) {
   return Number.isNaN(value) ? Number.MAX_SAFE_INTEGER : value;
 }
 
+function courseLabel(name) {
+  return name?.split(':')[0].trim() || 'Canvas';
+}
+
 export default function CanvasDashboard({ onGuidesCreated }) {
   const [state, setState] = useState({ loading: true, connected: false, courses: [], items: [] });
   const [connecting, setConnecting] = useState(false);
@@ -88,7 +92,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
       <section className="canvas-dashboard canvas-connect-card">
         <div className="canvas-mark" aria-hidden="true">C</div>
         <div>
-          <p className="editorial-kicker">YOUR LMS</p>
+          <p className="editorial-kicker">Canvas</p>
           <h2>Bring Canvas into CordiaClassroom</h2>
           <p>Connect once to see courses, assignments, and due dates in one study dashboard.</p>
           {state.error && <small className="canvas-error">{state.error}</small>}
@@ -120,7 +124,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
     <section className="canvas-dashboard">
       <header className="canvas-dashboard-header">
         <div>
-          <p className="editorial-kicker">CANVAS · {state.institution}</p>
+          <p className="editorial-kicker">Canvas · {state.institution}</p>
           <h2>What needs your attention</h2>
         </div>
         <div className="canvas-window-status">
@@ -137,8 +141,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
             <p className="canvas-empty">No upcoming Canvas work.</p>
           ) : activeItems.map(item => (
             <div key={`${item.type}-${item.id}`} className="canvas-agenda-row">
-              <span className="canvas-due">{dueLabel(item.due_at)}</span>
-              <span><strong>{item.title}</strong><small>{courseNames[String(item.course_id)] || 'Canvas'}</small></span>
+              <span><strong>{item.title}</strong><small>{dueLabel(item.due_at)} · {courseLabel(courseNames[String(item.course_id)])}</small></span>
               {item.has_study_material
                 ? <button type="button" onClick={() => prepareGuide(item)}>Make guide</button>
                 : <a href={item.url || undefined} target="_blank" rel="noreferrer">Open ↗</a>}
@@ -146,7 +149,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
           ))}
         </div>
         <aside className="canvas-courses">
-          <span className="dashboard-rail-kicker">COURSES</span>
+          <span className="dashboard-rail-kicker">Courses</span>
           {state.courses.slice(0, 6).map(course => (
             <a key={course.id} href={course.url || undefined} target="_blank" rel="noreferrer">{course.name}</a>
           ))}

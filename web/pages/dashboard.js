@@ -354,7 +354,7 @@ export default function Dashboard({ timerState, setTimerState }) {
         <div className="fade-in study-library">
           <div className="study-library-header">
             <div>
-              <p className="editorial-kicker">LIBRARY</p>
+              <p className="editorial-kicker">Library</p>
               <h1>Study Guides</h1>
               <p>Everything you have captured or created, ready to review.</p>
             </div>
@@ -528,9 +528,7 @@ export default function Dashboard({ timerState, setTimerState }) {
       <div>
         <div className="dashboard-desktop-header">
           <div>
-            <p className="editorial-kicker">CORDIACLASSROOM</p>
             <h1>Your study workspace</h1>
-            <p>{guides.length} guides across {folders.length} classes</p>
           </div>
           <button className="btn" onClick={() => router.push('/create')}>New study guide</button>
         </div>
@@ -547,7 +545,7 @@ export default function Dashboard({ timerState, setTimerState }) {
         <CanvasDashboard onGuidesCreated={refreshGeneratedGuides} />
 
         <button type="button" className="dashboard-extension-banner" onClick={() => router.push('/install-extension')}>
-          <span className="extension-banner-badge">CHROME</span>
+          <span className="extension-banner-badge">Chrome</span>
           <span className="dashboard-extension-copy">
             <strong>Study something outside Canvas</strong>
             <small>Use the Chrome extension to capture any educational page, PDF, or slideshow.</small>
@@ -557,7 +555,7 @@ export default function Dashboard({ timerState, setTimerState }) {
 
         <div className="dashboard-guides-heading">
           <div>
-            <span className="dashboard-rail-kicker">INBOX</span>
+            <span className="dashboard-rail-kicker">Inbox</span>
             <h2>Not in a class</h2>
             <p>Drag a guide onto a class in the left sidebar to organize it.</p>
           </div>
@@ -580,7 +578,7 @@ export default function Dashboard({ timerState, setTimerState }) {
               onClick={() => router.push('/guide/' + guide.id)}
               onContextMenu={event => onGuideContextMenu(event, guide)}
             >
-              <span className="guide-row-type">GUIDE</span>
+              <span className="guide-row-type">Guide</span>
               <div className="guide-row-info">
                 <div className="guide-row-title">{guide.title}</div>
                 <div className="guide-row-meta">No class &middot; {formatDate(guide.created_at)}</div>
