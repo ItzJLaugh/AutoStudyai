@@ -28,6 +28,7 @@ assert.match(dashboard, /router\.replace\('\/smartnotes'\)/);
 assert.match(login, /AcademicInfinityMark/);
 assert.match(install, /AcademicInfinityMark/);
 assert.match(styles, /--font-sans: -apple-system/);
+assert.doesNotMatch(styles, /text-transform:\s*uppercase/);
 assert.doesNotMatch(documentPage, /Cormorant\+Garamond/);
 
 console.log('UI shell contract passed');
