@@ -463,13 +463,7 @@ function sendToBackend(content, images = []) {
       pendingImages = response.use_images ? images : [];
       renderCaptureReview(response);
     } else if (response && response.status === 402) {
-      showProgress('Free guide limit reached', false);
-      statusDiv.innerText = 'Free limit reached — upgrade to Plus';
-      if (platformBanner) {
-        platformBanner.style.display = 'block';
-        platformBanner.innerHTML = '&#9888; Free limit reached. <a href="https://classroom.cordiacode.com/settings?section=subscription" target="_blank">Upgrade to Plus</a> for 25 monthly builds and 250 AI actions.';
-      }
-      if (saveBtn) saveBtn.style.display = 'none';
+      showGuideLimit();
     } else {
       const errMsg = (response && response.error) ? response.error : 'Unknown error';
       showProgress('Processing failed: ' + errMsg, false);
@@ -477,6 +471,16 @@ function sendToBackend(content, images = []) {
       if (saveBtn) saveBtn.style.display = 'none';
     }
   });
+}
+
+function showGuideLimit() {
+  showProgress('Monthly guide limit reached', false);
+  statusDiv.innerText = 'Monthly guide limit reached';
+  if (platformBanner) {
+    platformBanner.style.display = 'block';
+    platformBanner.innerHTML = '<a href="https://classroom.cordiacode.com/settings?section=subscription" target="_blank">View plan</a>';
+  }
+  if (saveBtn) saveBtn.style.display = 'none';
 }
 
 function renderCaptureReview(response) {
@@ -521,6 +525,7 @@ generateSelectedBtn.addEventListener('click', () => {
   chrome.runtime.sendMessage({ action: 'generateContent', content, images: pendingImages }, response => {
     generateSelectedBtn.disabled = false;
     if (response?.success) { reviewDiv.style.display = 'none'; displayResults(response); }
+    else if (response?.status === 402) { showGuideLimit(); }
     else { statusDiv.innerText = 'Error: ' + (response?.error || 'Generation failed'); }
   });
 });

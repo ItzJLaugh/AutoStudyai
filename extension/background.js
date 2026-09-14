@@ -26,6 +26,11 @@ async function authedFetch(path, options = {}) {
   return fetch(API_URL + path, { ...options, headers });
 }
 
+function errorMessage(data, fallback) {
+  const detail = data && data.detail;
+  return typeof detail === 'string' ? detail : (detail && detail.message) || fallback;
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Screenshot handler for slide-by-slide capture with images
   if (message.action === 'screenshotTab') {
@@ -42,7 +47,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           content: message.content, images: message.images || []
         }) });
         const data = await response.json();
-        sendResponse(response.ok ? { success: true, ...data } : { success: false, error: data.detail || 'Ingest failed', status: response.status });
+        sendResponse(response.ok ? { success: true, ...data } : { success: false, error: errorMessage(data, 'Ingest failed'), status: response.status });
       } catch (error) { sendResponse({ success: false, error: error.message || 'Request failed' }); }
     })();
     return true;
@@ -55,7 +60,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           content: message.content, images: message.images || [], notes: true, study_guide: true, flashcards: true
         }) });
         const data = await response.json();
-        sendResponse(response.ok ? { success: true, ...data } : { success: false, error: data.detail || 'Generation failed', status: response.status });
+        sendResponse(response.ok ? { success: true, ...data } : { success: false, error: errorMessage(data, 'Generation failed'), status: response.status });
       } catch (error) { sendResponse({ success: false, error: error.message || 'Request failed' }); }
     })();
     return true;

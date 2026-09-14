@@ -61,6 +61,13 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         worker = (ROOT / "extension" / "background.js").read_text(encoding="utf-8")
         self.assertNotIn("message.action === 'sendContent'", worker)
 
+    def test_structured_billing_errors_are_human_readable(self):
+        worker = (ROOT / "extension" / "background.js").read_text(encoding="utf-8")
+        popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+        self.assertIn("detail && detail.message", worker)
+        self.assertIn("response?.status === 402", popup)
+        self.assertIn("showGuideLimit()", popup)
+
     def test_extension_reuses_classroom_session_without_password_form(self):
         popup = (ROOT / "extension" / "popup.html").read_text(encoding="utf-8")
         popup_script = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
