@@ -27,6 +27,7 @@ for (const label of ['Appearance', 'Your profile', 'Billing', 'Feedback', 'Sign 
 assert.match(dashboard, /router\.replace\('\/smartnotes'\)/);
 assert.match(login, /AcademicInfinityMark/);
 assert.match(install, /AcademicInfinityMark/);
-assert.match(documentPage, /Cormorant\+Garamond/);
+assert.match(styles, /--font-sans: -apple-system/);
+assert.doesNotMatch(documentPage, /Cormorant\+Garamond/);
 
 console.log('UI shell contract passed');
