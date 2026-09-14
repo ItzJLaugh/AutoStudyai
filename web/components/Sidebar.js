@@ -14,11 +14,15 @@ const navItems = [
 export default function Sidebar() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [theme, setTheme] = useState('light');
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const menuRef = useRef(null);
 
-  useEffect(() => setEmail(getUserEmail() || ''), []);
+  useEffect(() => {
+    setEmail(getUserEmail() || '');
+    setTheme(localStorage.getItem('theme') || 'light');
+  }, []);
 
   useEffect(() => {
     function closeOnDocument(event) {
@@ -46,6 +50,7 @@ export default function Sidebar() {
   function setAppearance(theme) {
     localStorage.setItem('theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
+    setTheme(theme);
   }
 
   function signOut() {
@@ -86,8 +91,8 @@ export default function Sidebar() {
             <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setShowFeedback(true); }}>Feedback</button>
             <div className="account-theme-row">
               <span>Appearance</span>
-              <button type="button" onClick={() => setAppearance('light')}>Light</button>
-              <button type="button" onClick={() => setAppearance('dark')}>Dark</button>
+              <button type="button" className={theme === 'light' ? 'active' : ''} aria-pressed={theme === 'light'} onClick={() => setAppearance('light')}>Light</button>
+              <button type="button" className={theme === 'dark' ? 'active' : ''} aria-pressed={theme === 'dark'} onClick={() => setAppearance('dark')}>Dark</button>
             </div>
             <button type="button" role="menuitem" className="account-signout" onClick={signOut}>Sign out</button>
           </div>

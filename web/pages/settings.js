@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const [message, setMessage] = useState('');
 
   // Theme state
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState('light');
 
   // Feedback modal
   const [showFeedback, setShowFeedback] = useState(false);
@@ -27,7 +27,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!ready) return;
     setEmail(getUserEmail() || '');
-    const saved = localStorage.getItem('theme') || 'dark';
+    const saved = localStorage.getItem('theme') || 'light';
     setTheme(saved);
 
     if (router.query.billing === 'success') {
@@ -258,28 +258,28 @@ export default function SettingsPage() {
       {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
 
       <style jsx>{`
-        .settings-page { max-width: 960px; padding: 32px; }
-        h2 { margin-bottom: 24px; font-size: 1.6rem; }
-        .settings-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border-default); padding-bottom: 12px; }
-        .settings-tab { background: none; border: none; color: var(--text-muted); font-size: 0.95rem; padding: 8px 16px; cursor: pointer; border-radius: 6px; font-weight: 500; }
+        .settings-page { width: min(920px, 100%); margin: 0 auto; }
+        h2 { margin-bottom: 24px; font-size: clamp(2.4rem, 4vw, 3.5rem); font-weight: 700; letter-spacing: -0.055em; }
+        .settings-tabs { display: inline-flex; gap: 4px; margin-bottom: 22px; padding: 4px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-sm); }
+        .settings-tab { background: none; border: none; color: var(--text-muted); font-size: 0.86rem; padding: 9px 15px; cursor: pointer; border-radius: 10px; font-weight: 600; }
         .settings-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
-        .settings-tab.active { color: var(--accent); background: var(--accent-glow); }
-        .settings-message { background: var(--accent-glow); border: 1px solid var(--border-default); border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; color: var(--text-primary); }
+        .settings-tab.active { color: var(--olive-hover); background: var(--accent-glow); }
+        .settings-message { background: var(--accent-glow); border: 1px solid var(--line); border-radius: 14px; padding: 13px 16px; margin-bottom: 22px; color: var(--text-primary); }
         .settings-loading { color: var(--text-muted); }
-        .settings-section { animation: fadeIn 0.2s ease; }
-        .settings-row { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border-subtle); }
+        .settings-section { padding: 28px; animation: fadeIn 0.2s ease; }
+        .settings-row { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--border-subtle); }
         .settings-label { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
         .settings-desc { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
-        .theme-toggle { padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border-default); background: var(--bg-tertiary); color: var(--text-primary); cursor: pointer; font-size: 0.9rem; font-weight: 500; }
-        .theme-toggle:hover { border-color: var(--accent); }
-        .btn-feedback { padding: 8px 20px; border-radius: 8px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; font-size: 0.9rem; font-weight: 500; }
+        .theme-toggle { padding: 9px 18px; border-radius: 999px; border: 1px solid var(--border-default); background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm); cursor: pointer; font-size: 0.86rem; font-weight: 600; }
+        .theme-toggle:hover { border-color: var(--accent); transform: translateY(-1px); }
+        .btn-feedback { padding: 9px 18px; border-radius: 999px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; font-size: 0.86rem; font-weight: 600; }
         .btn-feedback:hover { background: var(--accent-glow); }
         .settings-links { display: flex; gap: 16px; padding-top: 24px; margin-top: 8px; }
         .settings-links a { font-size: 0.85rem; color: var(--text-muted); }
         .settings-links a:hover { color: var(--accent); }
 
         /* Billing styles (from billing page) */
-        .billing-current-plan { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 20px 24px; margin-bottom: 32px; }
+        .billing-current-plan { background: var(--bg-tertiary); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; margin-bottom: 24px; }
         .plan-badge { display: inline-block; padding: 4px 14px; border-radius: 20px; font-weight: 700; font-size: 0.9rem; background: var(--bg-tertiary); color: var(--text-muted); margin-bottom: 12px; }
         .plan-badge[data-plan="plus"] { background: var(--accent); color: #fff; }
         .plan-usage { font-size: 0.95rem; color: var(--text-secondary); }
@@ -287,9 +287,9 @@ export default function SettingsPage() {
         .usage-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; margin-top: 8px; overflow: hidden; }
         .usage-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
         .plan-renews { font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; }
-        .billing-plans { display: flex; gap: 20px; }
-        .plan-card { flex: 1; border: 2px solid var(--border-default); border-radius: 16px; padding: 24px; }
-        .plan-card-pro { border-color: var(--accent); }
+        .billing-plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+        .plan-card { min-width: 0; border: 1px solid var(--border-default); border-radius: 18px; padding: 24px; background: var(--surface); box-shadow: var(--shadow-sm); }
+        .plan-card-pro { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
         .plan-card-current { box-shadow: 0 0 0 3px var(--accent-glow); }
         .plan-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; color: var(--text-primary); }
         .plan-price { font-size: 2rem; font-weight: 800; margin-bottom: 16px; color: var(--text-primary); }
@@ -301,12 +301,12 @@ export default function SettingsPage() {
         .plan-features li { list-style: none; list-style-type: none; padding: 6px 0; font-size: 0.9rem; color: var(--text-secondary); display: flex; align-items: baseline; gap: 6px; }
         .plan-features li::before { content: "✓"; color: var(--accent); font-weight: 700; flex-shrink: 0; }
         .plan-current-label { color: var(--accent); font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; }
-        .btn-upgrade { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
-        .btn-upgrade:hover { background: var(--accent-secondary); }
+        .btn-upgrade { width: 100%; padding: 12px; background: var(--ink); color: #fff; border: none; border-radius: 12px; box-shadow: 0 8px 20px rgba(17, 18, 15, .16); font-size: .92rem; font-weight: 650; cursor: pointer; }
+        .btn-upgrade:hover { background: #2a2c27; transform: translateY(-1px); }
         .btn-upgrade:disabled { opacity: 0.6; cursor: default; }
-        .btn-manage { padding: 10px 16px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--bg-tertiary); color: var(--text-primary); cursor: pointer; }
+        .btn-manage { padding: 10px 16px; border: 1px solid var(--border-default); border-radius: 12px; background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm); cursor: pointer; }
         .btn-manage:disabled { opacity: 0.6; cursor: default; }
-        @media (max-width: 600px) { .billing-plans { flex-direction: column; } }
+        @media (max-width: 600px) { .settings-section { padding: 20px; } .settings-tabs { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; } .settings-tab { padding-inline: 8px; } .settings-row { align-items: flex-start; flex-direction: column; } .billing-plans { grid-template-columns: 1fr; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
     </>
