@@ -35,8 +35,8 @@ export default function QuizPage() {
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
-        <div style={{ color: 'var(--accent)', fontSize: '1.1em', marginBottom: 8 }}>Generating your quiz...</div>
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>AI is creating answer choices. This may take a moment.</div>
+        <div style={{ color: 'var(--accent)', fontSize: '1.1em', marginBottom: 8 }}>Preparing your Retain quiz...</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>Preparing answer choices from this study guide.</div>
       </div>
     );
   }

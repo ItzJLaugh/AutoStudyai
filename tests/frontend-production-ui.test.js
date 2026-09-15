@@ -56,6 +56,7 @@ assert.match(styles, /resize: horizontal/);
 assert.match(styles, /resize: vertical/);
 assert.match(styles, /\.class-guide-popover\s*\{[^}]*background: var\(--surface-raised\)/s);
 assert.doesNotMatch(styles, /\.class-guide-popover\s*\{[^}]*transparent[^}]*\}/s);
+assert.match(styles, /\.dashboard-left-stack\s*\{[^}]*z-index: 40/s);
 assert.match(canvasDashboard, /sort\(\(a, b\) => dueTime\(a\) - dueTime\(b\)\)/);
 assert.match(canvasDashboard, /overdueCount/);
 assert.match(canvasDashboard, /due within 48 hours/);

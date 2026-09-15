@@ -13,7 +13,7 @@ from typing import List
 from database import get_supabase
 from services.llm import get_openai_client
 from auth_utils import get_user_id
-from routers.billing import check_usage, record_usage
+from routers.billing import check_usage, get_user_plan, record_usage
 
 _UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 
@@ -55,6 +55,34 @@ def _parse_qa_pairs(text: str) -> list:
     return pairs
 
 
+def _standard_questions(qa_pairs: list) -> list:
+    """Build a stable free Retain quiz from answers already in the guide."""
+    questions = []
+    for index, pair in enumerate(qa_pairs):
+        answer = pair["answer"]
+        distractors = []
+        seen = {answer.casefold()}
+        for candidate in qa_pairs[index + 1:] + qa_pairs[:index]:
+            value = candidate["answer"]
+            key = value.casefold()
+            if key not in seen:
+                seen.add(key)
+                distractors.append(value)
+            if len(distractors) == 3:
+                break
+        if not distractors:
+            continue
+        options = distractors.copy()
+        correct_index = index % (len(options) + 1)
+        options.insert(correct_index, answer)
+        questions.append({
+            "question": pair["question"],
+            "options": options,
+            "correct_index": correct_index,
+        })
+    return questions
+
+
 @router.get("/{guide_id}/generate")
 def generate_quiz(guide_id: str, authorization: str = Header(default="")):
     """Generate MCQ quiz from study guide Q&A pairs."""
@@ -72,9 +100,11 @@ def generate_quiz(guide_id: str, authorization: str = Header(default="")):
         if not result.data:
             raise HTTPException(status_code=404, detail="Guide not found")
 
-        # Return cached questions if already generated for this guide
+        plan = get_user_plan(user_id)["plan"]
+
+        # A paid quiz is generated once, then remains attached to its guide.
         cached = result.data[0].get("quiz_questions")
-        if cached:
+        if plan == "classroom_plus" and cached:
             return {"questions": cached}
 
         study_guide_text = result.data[0].get("study_guide", "")
@@ -86,6 +116,15 @@ def generate_quiz(guide_id: str, authorization: str = Header(default="")):
             raise HTTPException(status_code=400, detail="No Q&A pairs found in study guide")
 
         qa_pairs = qa_pairs[:50]
+
+        if plan != "classroom_plus":
+            questions = _standard_questions(qa_pairs)
+            if not questions:
+                raise HTTPException(
+                    status_code=400,
+                    detail="At least two distinct study-guide answers are needed for Retain",
+                )
+            return {"questions": questions}
 
         usage = check_usage(user_id, "lightweight")
         client = get_openai_client()

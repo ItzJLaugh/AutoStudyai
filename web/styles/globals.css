@@ -2452,6 +2452,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 }
 
 .dashboard-left-stack {
+  z-index: 40;
   min-width: 0;
   display: flex;
   flex-direction: column;
