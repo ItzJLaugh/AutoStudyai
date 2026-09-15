@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { apiFetch } from '../../lib/api';
+import { apiErrorMessage, apiFetch } from '../../lib/api';
 import { useRequireAuth } from '../../lib/auth';
 import { parseQAPairs, parseNotes, formatDate } from '../../lib/formatters';
 import useSessionTracker from '../../lib/useSessionTracker';
@@ -14,6 +14,7 @@ export default function GuidePage() {
   const { ready } = useRequireAuth();
   useSessionTracker('read', id || null);
   const [guide, setGuide] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [activeTab, setActiveTab] = useState('guide');
   const [revealedQs, setRevealedQs] = useState(new Set());
   const [quizHistory, setQuizHistory] = useState([]);
@@ -44,9 +45,12 @@ export default function GuidePage() {
   }, [revealedQs]);
 
   async function loadGuide() {
+    setLoadError('');
     const data = await apiFetch('/guides/' + id);
     if (data?.guide) {
       setGuide(data.guide);
+    } else {
+      setLoadError(apiErrorMessage(data?.detail, 'This study guide could not be loaded.'));
     }
   }
 
@@ -68,6 +72,17 @@ export default function GuidePage() {
       return next;
     });
   }
+
+  if (loadError && !guide) return (
+    <div className="empty-state" role="alert">
+      <h2>Study guide unavailable</h2>
+      <p>{loadError}</p>
+      <div className="resource-load-actions">
+        <button type="button" className="btn" onClick={loadGuide}>Try again</button>
+        <button type="button" className="btn-outline" onClick={() => router.push('/dashboard?view=guides')}>Back to Study Guides</button>
+      </div>
+    </div>
+  );
 
   if (!guide) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
