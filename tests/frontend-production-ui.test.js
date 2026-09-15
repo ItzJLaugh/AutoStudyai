@@ -23,6 +23,7 @@ const smartnotes = read('web', 'pages', 'smartnotes.js');
 const nclex = read('web', 'components', 'NCLEXQuizMode.js');
 const extensionPopup = read('extension', 'popup.js');
 const provenanceMigration = read('supabase', 'migrations', '20260916000000_guide_provenance.sql');
+const rlsMigration = read('supabase', 'migrations', '20260915035012_harden_classroom_rls.sql');
 const flashcardLibrary = read('web', 'pages', 'flashcards.js');
 const guidePage = read('web', 'pages', 'guide', '[id].js');
 const folderPage = read('web', 'pages', 'folder', '[id].js');
@@ -75,6 +76,15 @@ assert.match(extensionPopup, /source_type: lastSourceType/);
 assert.match(extensionPopup, /lastSourceType = source\.selected \? 'selected_text' : 'webpage'/);
 assert.match(guidePage, /Based on \{sourceHref/);
 for (const column of ['source_type', 'source_title', 'source_id']) assert.ok(provenanceMigration.includes(column));
+for (const policy of [
+  'Allow insert for authenticated users',
+  'Users can insert own guides',
+  'Users can update own guides',
+  'Users can delete own guides',
+  'Users can insert own usage',
+  'Users can update own usage',
+]) assert.ok(rlsMigration.includes(`drop policy if exists "${policy}"`));
+assert.doesNotMatch(rlsMigration, /drop policy[^;]*(?:select|view)/i);
 assert.match(tutorDrawer, /role="separator"/);
 assert.match(tutorDrawer, /aria-valuenow=\{width\}/);
 assert.match(tutorDrawer, /onKeyDown=\{resizeWithKeyboard\}/);

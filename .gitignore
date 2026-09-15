@@ -9,6 +9,8 @@
 .superpowers/
 docs/superpowers/
 docs/qa/
+debug.log
+supabase/.temp/
 
 # Python
 .venv/

@@ -1,6 +1,6 @@
 # CordiaClassroom production release plan
 
-Updated: 2026-09-14
+Updated: 2026-09-15
 
 ## Release target
 
@@ -24,6 +24,7 @@ The first public release is ready only when a new user can complete this path wi
 - GitHub Actions verifies backend contracts, frontend contracts, the production build, and extension capture on pull requests.
 - The repository does not contain a reproducible baseline for the complete Supabase schema.
 - The live Classroom Supabase schema and RLS policies were audited; a reproducible schema baseline and advisor review remain open.
+- The RLS hardening migration passed against the live schema inside a rolled-back transaction; all 17 original direct-write policies remained after validation.
 - Vercel preview deployment is enforced on pull requests.
 - Browser access and refresh tokens are stored in local storage; this is compatible with the extension bridge but remains a public-release security risk to review.
 
@@ -43,6 +44,7 @@ The first public release is ready only when a new user can complete this path wi
 ### P0 — release safety
 
 - [x] Add one CI workflow for backend contracts, frontend contracts, the production build, and extension browser capture.
+- [x] Audit live Classroom RLS and add a rollback-validated migration that removes the duplicate authenticated write surface.
 - [ ] Commit a reviewed Supabase schema baseline, migrations, indexes, RLS policies, and rollback notes.
 - [ ] Run Supabase security and performance advisors against the live project.
 - [x] Add conservative frontend security headers without breaking authentication or the extension bridge.
