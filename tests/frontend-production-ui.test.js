@@ -54,6 +54,8 @@ assert.match(canvasDashboard, /apiErrorMessage\(data\?\.detail/);
 assert.match(styles, /\.canvas-auto-status/);
 assert.match(styles, /resize: horizontal/);
 assert.match(styles, /resize: vertical/);
+assert.match(styles, /\.class-guide-popover\s*\{[^}]*background: var\(--surface-raised\)/s);
+assert.doesNotMatch(styles, /\.class-guide-popover\s*\{[^}]*transparent[^}]*\}/s);
 assert.match(canvasDashboard, /sort\(\(a, b\) => dueTime\(a\) - dueTime\(b\)\)/);
 assert.match(canvasDashboard, /overdueCount/);
 assert.match(canvasDashboard, /due within 48 hours/);
