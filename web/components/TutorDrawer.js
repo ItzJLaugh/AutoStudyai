@@ -4,7 +4,7 @@ import AIChatWidget from './AIChatWidget';
 const MIN_WIDTH = 300;
 const MAX_WIDTH = 520;
 
-export default function TutorDrawer({ preferredGuideId = '' }) {
+export default function TutorDrawer({ preferredGuideId = '', preferredNoteId = '' }) {
   const [open, setOpen] = useState(false);
   const [width, setWidth] = useState(360);
 
@@ -38,7 +38,7 @@ export default function TutorDrawer({ preferredGuideId = '' }) {
   return (
     <div className={`tutor-drawer-shell${open ? ' is-open' : ''}`} style={{ '--tutor-width': `${width}px` }}>
       <aside className="tutor-drawer" aria-label="Cordia Tutor" aria-hidden={!open} inert={!open}>
-        <AIChatWidget preferredGuideId={preferredGuideId} />
+        <AIChatWidget preferredGuideId={preferredGuideId} preferredNoteId={preferredNoteId} />
         <div className="tutor-resize-handle" role="separator" aria-label="Resize Tutor" onPointerDown={startResize} />
       </aside>
       <button

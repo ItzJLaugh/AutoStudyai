@@ -8,6 +8,7 @@ export default function Layout({ children, timerState, setTimerState }) {
   const router = useRouter();
   const pageOwnsTools = ['/dashboard', '/smartnotes', '/flashcards', '/create'].includes(router.pathname);
   const activeGuideId = router.query.guideId || (router.pathname === '/guide/[id]' ? router.query.id : '');
+  const activeNoteId = router.pathname === '/smartnotes' ? router.query.id : '';
 
   return (
     <div className="app-shell">
@@ -21,7 +22,7 @@ export default function Layout({ children, timerState, setTimerState }) {
           </section>
         )}
       </main>
-      <TutorDrawer preferredGuideId={activeGuideId} />
+      <TutorDrawer preferredGuideId={activeGuideId} preferredNoteId={activeNoteId} />
     </div>
   );
 }

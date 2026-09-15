@@ -18,7 +18,7 @@ The first public release is ready only when a new user can complete this path wi
 ## Current evidence
 
 - Next.js production build passes for all 20 routes.
-- 71 backend contracts and 9 frontend/browser contracts pass.
+- 72 backend contracts and 9 frontend/browser contracts pass.
 - Existing Canvas dashboard, secure file proxy, study-source review, guide generation, billing limits, learning profile, and extension capture contracts are present.
 - Live backend health endpoint responds successfully.
 - GitHub Actions verifies backend contracts, frontend contracts, the production build, and extension capture on pull requests.
@@ -55,7 +55,8 @@ The first public release is ready only when a new user can complete this path wi
 ### P1 — coherent learning experience
 
 - [x] Replace the fixed right-side tutor card with one collapsible, resizable left Tutor sidebar shared across learning screens.
-- [ ] Let Tutor use the active guide, SmartNote, Canvas source, slideshow, or attached file as explicit context.
+- [x] Let Tutor use the active guide, SmartNote, or session-attached PDF, DOCX, PPTX, image, or text file as explicit context.
+- [ ] Let Tutor fetch an unsaved Canvas source directly without duplicating the extension capture pipeline.
 - [x] Let Tutor create a practice-problem guide linked to the source guide and saved into the same class.
 - [x] In Retain Mode, prefill `Explain this question` after an incorrect response and ground the answer in the current guide.
 - [ ] Add source provenance to every generated guide and explanation.

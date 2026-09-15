@@ -52,6 +52,7 @@ class TutorContractTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["answer"], "Mitosis is cell division.")
+        self.assertEqual(response.json()["source"], {"type": "guide", "id": self.guide_id, "title": "Biology"})
         self.assertEqual(answer.call_args.kwargs["context"], "Q1: What is mitosis?\nA1: Cell division.")
 
     @patch("main._learning_guidance", return_value="")
@@ -80,6 +81,46 @@ class TutorContractTests(unittest.TestCase):
         self.assertEqual(payload["source_guide_id"], self.guide_id)
         self.assertEqual(payload["flashcards"], [{"front": "Apply mitosis.", "back": "Cell division."}])
         record.assert_called_once()
+
+    @patch("main._learning_guidance", return_value="")
+    @patch("main.record_usage")
+    @patch("main.check_usage", return_value={"used": 0})
+    @patch("main.generate_practice_guide", return_value="Q1: Apply recursion.\nA1: Use a base case.")
+    @patch("main.get_user_id", return_value="student-1")
+    def test_tutor_creates_practice_guide_from_owned_smartnote(self, _auth, generate, _usage, _record, _guidance):
+        note_id = "33333333-3333-4333-8333-333333333333"
+        note_table = MagicMock()
+        note_table.select.return_value = note_table
+        note_table.eq.return_value = note_table
+        note_table.execute.return_value = MagicMock(data=[{
+            "id": note_id,
+            "title": "Recursion Notes",
+            "folder_id": "folder-2",
+            "content": "<h2>Recursion</h2><p>Every recursive function needs a base case.</p>",
+        }])
+        guide_table = MagicMock()
+        guide_table.insert.return_value = guide_table
+        guide_table.execute.return_value = MagicMock(data=[{
+            "id": "44444444-4444-4444-8444-444444444444",
+            "title": "Recursion Notes — Practice Problems",
+            "folder_id": "folder-2",
+        }])
+        db = MagicMock()
+        db.table.side_effect = lambda name: note_table if name == "smart_notes" else guide_table
+
+        with patch("main.get_supabase", return_value=db):
+            response = self.client.post(
+                "/chat",
+                headers={"Authorization": "Bearer test"},
+                json={"question": "Create practice problems from these notes", "content": "untrusted", "note_id": note_id},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["source"], {"type": "note", "id": note_id, "title": "Recursion Notes"})
+        self.assertNotIn("<h2>", generate.call_args.args[0])
+        payload = guide_table.insert.call_args.args[0]
+        self.assertEqual(payload["folder_id"], "folder-2")
+        self.assertNotIn("source_guide_id", payload)
 
 
 if __name__ == "__main__":

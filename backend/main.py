@@ -5,6 +5,7 @@ FastAPI server for processing educational content and generating study materials
 
 import os
 import re
+import html
 import logging
 import traceback
 from uuid import uuid4
@@ -164,6 +165,14 @@ def _sanitize_text(text: str, max_length: int = MAX_CONTENT_LENGTH) -> str:
     if not text:
         return ""
     return text[:max_length]
+
+
+def _plain_context(text: str) -> str:
+    """Turn SmartNote HTML into readable model context without another parser."""
+    if not re.search(r"<[^>]+>", text or ""):
+        return text
+    text = re.sub(r"</?(?:p|div|li|h[1-6]|blockquote|br)[^>]*>", "\n", text, flags=re.IGNORECASE)
+    return html.unescape(re.sub(r"<[^>]+>", "", text))
 
 
 @app.post("/render-pptx")
@@ -595,7 +604,12 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
         if not question:
             raise HTTPException(status_code=400, detail="Question is required")
 
+        if body.guide_id and body.note_id:
+            raise HTTPException(status_code=400, detail="Choose one study source")
+
         guide = None
+        note = None
+        source = None
         if body.guide_id:
             if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', body.guide_id, re.IGNORECASE):
                 raise HTTPException(status_code=400, detail="Invalid guide ID")
@@ -608,6 +622,22 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
                 raise HTTPException(status_code=404, detail="Guide not found")
             guide = result.data[0]
             content = _sanitize_text(guide.get("study_guide") or guide.get("notes") or "", MAX_CONTENT_LENGTH)
+            source = {"type": "guide", "id": guide["id"], "title": guide.get("title") or "Study Guide"}
+        elif body.note_id:
+            if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', body.note_id, re.IGNORECASE):
+                raise HTTPException(status_code=400, detail="Invalid note ID")
+            result = get_supabase().table("smart_notes") \
+                .select("id,title,folder_id,content") \
+                .eq("id", body.note_id) \
+                .eq("user_id", user_id) \
+                .execute()
+            if not result.data:
+                raise HTTPException(status_code=404, detail="Note not found")
+            note = result.data[0]
+            content = _sanitize_text(_plain_context(note.get("content") or ""), MAX_CONTENT_LENGTH)
+            source = {"type": "note", "id": note["id"], "title": note.get("title") or "SmartNote"}
+        elif body.context_title and content:
+            source = {"type": "attachment", "title": body.context_title.strip() or "Attached file"}
 
         if not content:
             return ChatResponse(answer="Choose study material before asking Cordia.")
@@ -622,29 +652,31 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             re.IGNORECASE,
         ))
         if wants_practice:
-            if not guide:
-                raise HTTPException(status_code=400, detail="Choose a saved study guide first")
             usage = check_usage(user_id, "build")
             practice = generate_practice_guide(content, _learning_guidance(user_id))
             if not practice or practice.startswith("[Error"):
-                raise HTTPException(status_code=502, detail="Cordia could not create practice problems from this guide")
-            created = get_supabase().table("study_guides").insert({
+                raise HTTPException(status_code=502, detail="Cordia could not create practice problems from this material")
+            source_title = (source or {}).get("title") or "Study Material"
+            payload = {
                 "user_id": user_id,
-                "folder_id": guide.get("folder_id"),
-                "title": f"{guide.get('title') or 'Study Guide'} — Practice Problems",
+                "folder_id": (guide or note or {}).get("folder_id"),
+                "title": f"{source_title} — Practice Problems",
                 "study_guide": practice,
                 "flashcards": study_guide_to_flashcards(practice),
-                "source_url": guide.get("source_url"),
-                "source_guide_id": guide["id"],
-            }).execute()
+            }
+            if guide:
+                payload.update(source_url=guide.get("source_url"), source_guide_id=guide["id"])
+            created = get_supabase().table("study_guides").insert(payload).execute()
             if not created.data:
                 raise HTTPException(status_code=500, detail="Practice guide could not be saved")
             record_usage(user_id, "build", usage)
             saved = created.data[0]
+            location = " in the same class" if saved.get("folder_id") else " in Study Guides"
             return ChatResponse(
-                answer=f"Created {saved['title']} in the same class.",
+                answer=f"Created {saved['title']}{location}.",
                 action="created_guide",
                 guide={"id": saved["id"], "title": saved["title"], "folder_id": saved.get("folder_id")},
+                source=source,
             )
 
         usage = check_usage(user_id, "lightweight")
@@ -656,7 +688,7 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
         )
 
         record_usage(user_id, "lightweight", usage)
-        return ChatResponse(answer=answer)
+        return ChatResponse(answer=answer, source=source)
 
     except HTTPException:
         raise

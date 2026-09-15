@@ -1850,6 +1850,9 @@ input::placeholder { color: var(--text-muted); }
   color: var(--ink, var(--text-primary));
 }
 .cordia-tutor-header select { padding: 8px 10px; font-size: 0.72rem; }
+.cordia-tutor-attach { justify-self: start; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 0.7rem; font-weight: 650; cursor: pointer; }
+.cordia-tutor-attach:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow-card); }
+.cordia-tutor-attach:disabled { opacity: 0.55; cursor: wait; }
 .cordia-tutor-messages {
   flex: 1;
   min-height: 170px;
@@ -1869,6 +1872,8 @@ input::placeholder { color: var(--text-muted); }
 .cordia-tutor-input button:disabled { opacity: 0.45; cursor: not-allowed; }
 .cordia-tutor-limit { padding: 0 12px 10px; color: var(--muted-ink, var(--text-muted)); font-size: 0.64rem; }
 .cordia-tutor-guide-link { display: block; margin-top: 8px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 650; cursor: pointer; }
+.cordia-tutor-source { display: block; margin: 0 0 6px; padding: 0; border: 0; background: transparent; color: var(--olive); font: inherit; font-size: 0.65rem; font-weight: 700; text-align: left; cursor: pointer; }
+.cordia-tutor-source:disabled { color: var(--muted-ink); cursor: default; }
 
 .tutor-drawer-shell {
   --tutor-width: 360px;

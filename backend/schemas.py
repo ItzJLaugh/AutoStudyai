@@ -70,6 +70,8 @@ class ChatRequest(BaseModel):
     content: str = Field(..., max_length=500_000)
     mode: str = Field(default="short", max_length=10)
     guide_id: Optional[str] = Field(default=None, max_length=36)
+    note_id: Optional[str] = Field(default=None, max_length=36)
+    context_title: Optional[str] = Field(default=None, max_length=200)
 
     @field_validator("mode")
     @classmethod
@@ -85,3 +87,4 @@ class ChatResponse(BaseModel):
     answer: str
     action: Optional[str] = None
     guide: Optional[dict] = None
+    source: Optional[dict] = None
