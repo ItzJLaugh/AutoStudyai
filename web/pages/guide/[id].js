@@ -8,7 +8,7 @@ import AILoadingSphere from '../../components/AILoadingSphere';
 import FlashcardViewer from '../../components/FlashcardViewer';
 import QuizMode from '../../components/QuizMode';
 
-export default function GuidePage({ setGuideContent, setGuideTitle }) {
+export default function GuidePage() {
   const router = useRouter();
   const { id } = router.query;
   const { ready } = useRequireAuth();
@@ -47,8 +47,6 @@ export default function GuidePage({ setGuideContent, setGuideTitle }) {
     const data = await apiFetch('/guides/' + id);
     if (data?.guide) {
       setGuide(data.guide);
-      if (setGuideContent) setGuideContent(data.guide.study_guide || '');
-      if (setGuideTitle) setGuideTitle(data.guide.title || '');
     }
   }
 

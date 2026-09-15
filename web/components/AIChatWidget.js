@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { apiFetch } from '../lib/api';
 
 const MAX_MESSAGES = 15;
 
-export default function AIChatWidget({ floating = false, guides: providedGuides = null }) {
+export default function AIChatWidget({ guides: providedGuides = null, preferredGuideId = '' }) {
+  const router = useRouter();
   const [loadedGuides, setLoadedGuides] = useState([]);
   const [guideId, setGuideId] = useState('');
   const [messages, setMessages] = useState([]);
@@ -22,10 +24,24 @@ export default function AIChatWidget({ floating = false, guides: providedGuides 
   const guides = providedGuides || loadedGuides;
 
   useEffect(() => {
+    if (preferredGuideId && guides.some(item => String(item.id) === String(preferredGuideId))) {
+      setGuideId(String(preferredGuideId));
+      return;
+    }
     if (!guides.some(item => String(item.id) === guideId)) {
       setGuideId(String(guides[0]?.id || ''));
     }
-  }, [guides, guideId]);
+  }, [guides, guideId, preferredGuideId]);
+
+  useEffect(() => {
+    const prefill = event => {
+      const detail = event.detail || {};
+      if (detail.guideId) setGuideId(String(detail.guideId));
+      if (detail.prompt) setInput(detail.prompt);
+    };
+    window.addEventListener('cordia:tutor-prompt', prefill);
+    return () => window.removeEventListener('cordia:tutor-prompt', prefill);
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -47,17 +63,30 @@ export default function AIChatWidget({ floating = false, guides: providedGuides 
     setLoading(true);
     const data = await apiFetch('/chat', {
       method: 'POST',
-      body: JSON.stringify({ question, content: guide.study_guide || guide.notes || '', mode: 'short' }),
+      body: JSON.stringify({
+        question,
+        guide_id: guide.id,
+        content: guide.study_guide || guide.notes || '',
+        mode: 'short',
+      }),
     });
+    if (data?.action === 'created_guide' && !providedGuides) {
+      const refreshed = await apiFetch('/guides?limit=50');
+      if (Array.isArray(refreshed?.guides)) {
+        setLoadedGuides(refreshed.guides);
+        setGuideId(String(data.guide.id));
+      }
+    }
     setMessages(current => [...current, {
       role: 'ai',
       text: data?.answer || data?.detail || 'Cordia could not answer that yet.',
+      guide: data?.guide || null,
     }]);
     setLoading(false);
   }
 
   return (
-    <section className={`cordia-tutor${floating ? ' is-floating' : ''}`} aria-label="Cordia tutor">
+    <section className="cordia-tutor" aria-label="Cordia tutor">
       <header className="cordia-tutor-header">
         <strong>Cordia Tutor</strong>
         <select value={guideId} onChange={changeGuide} aria-label="Study material">
@@ -71,7 +100,14 @@ export default function AIChatWidget({ floating = false, guides: providedGuides 
           <p>{guide ? `Ask about ${guide.title || 'this guide'}.` : 'Your Canvas study guides will appear here.'}</p>
         )}
         {messages.map((message, index) => (
-          <div key={index} className={`cordia-tutor-message ${message.role}`}>{message.text}</div>
+          <div key={index} className={`cordia-tutor-message ${message.role}`}>
+            {message.text}
+            {message.guide && (
+              <button type="button" className="cordia-tutor-guide-link" onClick={() => router.push('/guide/' + message.guide.id)}>
+                Open {message.guide.title}
+              </button>
+            )}
+          </div>
         ))}
         {loading && <div className="cordia-tutor-message ai">Thinking…</div>}
         <div ref={endRef} />

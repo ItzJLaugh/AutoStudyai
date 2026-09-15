@@ -33,8 +33,8 @@ The first public release is ready only when a new user can complete this path wi
 - [x] Filter Canvas planner noise before applying the automatic-guide scan limit.
 - [x] Preserve loaded Classroom data during partial API failures and provide an explicit retry state.
 - [x] Normalize structured API errors before rendering them.
-- [ ] Synchronize Canvas courses to Classes with an immutable external course ID and idempotent updates.
-- [ ] Attach Canvas-created guides to the matching class automatically.
+- [x] Synchronize Canvas courses to Classes with an immutable external course ID and idempotent updates.
+- [x] Attach Canvas-created guides to the matching class automatically.
 - [ ] Show generation state as `queued`, `building`, `ready`, or `failed`; never imply success before a guide is saved.
 - [ ] Test the complete real path: authentication → Canvas → source → generated guide → saved class.
 - [ ] Add structured server error reporting and a request ID visible to support without exposing student content.
@@ -52,10 +52,10 @@ The first public release is ready only when a new user can complete this path wi
 
 ### P1 — coherent learning experience
 
-- [ ] Replace the fixed right-side tutor card with one collapsible, resizable left Tutor sidebar shared across learning screens.
+- [x] Replace the fixed right-side tutor card with one collapsible, resizable left Tutor sidebar shared across learning screens.
 - [ ] Let Tutor use the active guide, SmartNote, Canvas source, slideshow, or attached file as explicit context.
-- [ ] Let Tutor create a previewed practice-problem guide linked to the source guide and saved into the same class.
-- [ ] In Retain Mode, prefill `Explain this question` after an incorrect response and ground the answer in the current guide.
+- [x] Let Tutor create a practice-problem guide linked to the source guide and saved into the same class.
+- [x] In Retain Mode, prefill `Explain this question` after an incorrect response and ground the answer in the current guide.
 - [ ] Add source provenance to every generated guide and explanation.
 - [ ] Keep generation prompts centralized, versioned, evaluated, and as short as the output contract permits.
 - [ ] Add small quality evaluations for factual grounding, answer coverage, duplicate cards, and malformed output.

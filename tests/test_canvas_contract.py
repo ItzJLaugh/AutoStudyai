@@ -115,6 +115,36 @@ class CanvasContractTests(unittest.TestCase):
             result = canvas.canvas_dashboard("Bearer token")
         self.assertEqual(result, {"connected": False, "courses": [], "items": []})
 
+    def test_canvas_sync_upserts_courses_as_owned_class_folders(self):
+        account = {"id": "apn_canvas", "name": "State University"}
+        courses = [{"id": 4, "name": "Biology", "course_code": "BIO-101"}]
+        table = MagicMock()
+        table.upsert.return_value = table
+        table.execute.return_value = MagicMock(data=[{
+            "id": "folder-1",
+            "external_source_id": "canvas:apn_canvas:course:4",
+        }])
+        db = MagicMock()
+        db.table.return_value = table
+
+        with patch.object(canvas, "get_user_id", return_value="student-1"), \
+             patch.object(canvas, "_config", return_value={"project_id": "proj_test"}), \
+             patch.object(canvas, "_canvas_account", return_value=account) as account_lookup, \
+             patch.object(canvas, "_proxy_get", side_effect=[courses, []]), \
+             patch.object(canvas, "get_supabase", return_value=db):
+            result = canvas.canvas_sync("Bearer token")
+
+        self.assertTrue(result["connected"])
+        account_lookup.assert_called_once()
+        table.upsert.assert_called_once_with(
+            [{
+                "user_id": "student-1",
+                "name": "Biology",
+                "external_source_id": "canvas:apn_canvas:course:4",
+            }],
+            on_conflict="user_id,external_source_id",
+        )
+
     def test_canvas_item_can_become_reviewed_guide_source(self):
         item = {
             "course_id": 4,
@@ -172,8 +202,13 @@ class CanvasContractTests(unittest.TestCase):
         table.limit.return_value = table
         table.upsert.return_value = table
         table.execute.side_effect = [MagicMock(data=[]), MagicMock(data=[{"id": "guide-1", "title": "Mitosis"}])]
+        folder_table = MagicMock()
+        folder_table.select.return_value = folder_table
+        folder_table.eq.return_value = folder_table
+        folder_table.limit.return_value = folder_table
+        folder_table.execute.return_value = MagicMock(data=[{"id": "folder-1"}])
         db = MagicMock()
-        db.table.return_value = table
+        db.table.side_effect = lambda name: folder_table if name == "folders" else table
         usage = {"builds_used": 0, "builds_limit": 3, "lightweight_actions_used": 0}
 
         with patch.object(canvas, "get_user_id", return_value="student-1"), \
@@ -190,6 +225,7 @@ class CanvasContractTests(unittest.TestCase):
         self.assertEqual(result, {"created": [{"id": "guide-1", "title": "Mitosis"}], "count": 1})
         payload = table.upsert.call_args.args[0]
         self.assertEqual(payload["external_source_id"], "canvas:apn_canvas:4:assignment:7")
+        self.assertEqual(payload["folder_id"], "folder-1")
         record_usage.assert_called_once_with("student-1", "build", usage)
 
     def test_auto_guides_skips_an_existing_canvas_source(self):

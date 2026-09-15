@@ -118,20 +118,25 @@ function CanvasConnectionWizard({ onClose, onConnect, connecting }) {
   );
 }
 
-export default function CanvasDashboard({ onGuidesCreated }) {
+export default function CanvasDashboard({ onWorkspaceChanged }) {
   const [state, setState] = useState({ loading: true, connected: false, courses: [], items: [] });
   const [connecting, setConnecting] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [autoMessage, setAutoMessage] = useState('');
   const autoBuildStarted = useRef(false);
+  const workspaceSynced = useRef(false);
 
   const load = useCallback(async () => {
-    const data = await apiFetch('/canvas/dashboard');
+    const data = await apiFetch('/canvas/sync', { method: 'POST' });
     if (!data || data.detail) {
-      setState({ loading: false, connected: false, courses: [], items: [], error: apiErrorMessage(data?.detail, 'Canvas is unavailable') });
+      setState(current => ({ ...current, loading: false, error: apiErrorMessage(data?.detail, 'Canvas is unavailable') }));
       return;
     }
     setState({ loading: false, ...data });
+    if (data.connected && !workspaceSynced.current) {
+      workspaceSynced.current = true;
+      onWorkspaceChanged?.();
+    }
     if (data.connected && !autoBuildStarted.current) {
       autoBuildStarted.current = true;
       const today = new Date().toISOString().slice(0, 10);
@@ -141,7 +146,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
         if (result?.count) {
           localStorage.setItem('canvasAutoBuildDate', today);
           setAutoMessage('Your next Canvas study guide is ready.');
-          onGuidesCreated?.();
+          onWorkspaceChanged?.();
         } else if (!result || result.detail) {
           autoBuildStarted.current = false;
           setAutoMessage(apiErrorMessage(result?.detail, 'Automatic guide creation is unavailable.'));
@@ -151,7 +156,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
         }
       });
     }
-  }, [onGuidesCreated]);
+  }, [onWorkspaceChanged]);
 
   useEffect(() => {
     load();

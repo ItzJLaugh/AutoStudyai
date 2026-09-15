@@ -9,7 +9,6 @@ export default function QuizPage() {
   const { guideId } = router.query;
   const { ready } = useRequireAuth();
   const [questions, setQuestions] = useState(null);
-  const [guideContent, setGuideContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -21,13 +20,9 @@ export default function QuizPage() {
     setLoading(true);
     setError('');
     try {
-      const [quizData, guideData] = await Promise.all([
-        apiFetch('/quiz/' + guideId + '/generate'),
-        apiFetch('/guides/' + guideId),
-      ]);
+      const quizData = await apiFetch('/quiz/' + guideId + '/generate');
       if (quizData?.questions) {
         setQuestions(quizData.questions);
-        setGuideContent(guideData?.guide?.study_guide || '');
       } else {
         setError('Failed to generate quiz. Make sure the guide has Q&A content.');
       }
@@ -61,7 +56,7 @@ export default function QuizPage() {
         &larr; Back to Guide
       </a>
       <h2 style={{ marginTop: 8, marginBottom: 20 }}>Quiz</h2>
-      <QuizMode questions={questions} guideId={guideId} guideContent={guideContent} />
+      <QuizMode questions={questions} guideId={guideId} />
     </div>
   );
 }

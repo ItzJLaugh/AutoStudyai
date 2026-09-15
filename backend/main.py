@@ -31,10 +31,12 @@ from services.text_processing import (
 from services.llm import (
     generate_notes_ai, generate_study_guide,
     generate_flashcards, answer_question,
-    analyze_images_for_slides
+    analyze_images_for_slides, generate_practice_guide,
+    study_guide_to_flashcards,
 )
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes, canvas
 from auth_utils import get_user_id
+from database import get_supabase
 from routers.billing import check_usage, record_usage
 from services.pptx_rendering import (
     PptxRenderError,
@@ -570,12 +572,57 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
         if not question:
             raise HTTPException(status_code=400, detail="Question is required")
 
+        guide = None
+        if body.guide_id:
+            if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', body.guide_id, re.IGNORECASE):
+                raise HTTPException(status_code=400, detail="Invalid guide ID")
+            result = get_supabase().table("study_guides") \
+                .select("id,title,folder_id,study_guide,notes,source_url") \
+                .eq("id", body.guide_id) \
+                .eq("user_id", user_id) \
+                .execute()
+            if not result.data:
+                raise HTTPException(status_code=404, detail="Guide not found")
+            guide = result.data[0]
+            content = _sanitize_text(guide.get("study_guide") or guide.get("notes") or "", MAX_CONTENT_LENGTH)
+
         if not content:
-            return ChatResponse(answer="No content provided. Please capture a page first.")
+            return ChatResponse(answer="Choose study material before asking Cordia.")
 
         # Validate mode
         if body.mode not in ("short", "detailed", "example"):
             raise HTTPException(status_code=400, detail="Invalid mode")
+
+        wants_practice = bool(re.search(
+            r'\b(create|make|generate|build)\b.*\bpractice\b.*\b(problems?|questions?|guide)\b',
+            question,
+            re.IGNORECASE,
+        ))
+        if wants_practice:
+            if not guide:
+                raise HTTPException(status_code=400, detail="Choose a saved study guide first")
+            usage = check_usage(user_id, "build")
+            practice = generate_practice_guide(content, _learning_guidance(user_id))
+            if not practice or practice.startswith("[Error"):
+                raise HTTPException(status_code=502, detail="Cordia could not create practice problems from this guide")
+            created = get_supabase().table("study_guides").insert({
+                "user_id": user_id,
+                "folder_id": guide.get("folder_id"),
+                "title": f"{guide.get('title') or 'Study Guide'} — Practice Problems",
+                "study_guide": practice,
+                "flashcards": study_guide_to_flashcards(practice),
+                "source_url": guide.get("source_url"),
+                "source_guide_id": guide["id"],
+            }).execute()
+            if not created.data:
+                raise HTTPException(status_code=500, detail="Practice guide could not be saved")
+            record_usage(user_id, "build", usage)
+            saved = created.data[0]
+            return ChatResponse(
+                answer=f"Created {saved['title']} in the same class.",
+                action="created_guide",
+                guide={"id": saved["id"], "title": saved["title"], "folder_id": saved.get("folder_id")},
+            )
 
         usage = check_usage(user_id, "lightweight")
         answer = answer_question(

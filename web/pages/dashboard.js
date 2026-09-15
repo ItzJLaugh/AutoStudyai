@@ -92,10 +92,15 @@ export default function Dashboard({ timerState, setTimerState }) {
     }
   }
 
-  const refreshGeneratedGuides = useCallback(async () => {
-    const [guidesData, statsData] = await Promise.all([apiFetch('/guides'), apiFetch('/stats/overview')]);
-    setGuides(guidesData?.guides || []);
-    if (statsData) setStats(statsData);
+  const refreshCanvasWorkspace = useCallback(async () => {
+    const [foldersData, guidesData, statsData] = await Promise.all([
+      apiFetch('/folders'),
+      apiFetch('/guides'),
+      apiFetch('/stats/overview'),
+    ]);
+    if (Array.isArray(foldersData?.folders)) setFolders(foldersData.folders);
+    if (Array.isArray(guidesData?.guides)) setGuides(guidesData.guides);
+    if (statsData && !statsData.detail) setStats(statsData);
   }, []);
 
   async function deleteSmartNote(id, e) {
@@ -367,7 +372,7 @@ export default function Dashboard({ timerState, setTimerState }) {
   if (view === 'guides') {
     const filteredGuides = getFilteredGuides();
     return (
-      <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="guides" timerState={timerState} setTimerState={setTimerState} guides={guides}>
+      <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="guides" timerState={timerState} setTimerState={setTimerState}>
         <div className="fade-in study-library">
           {loadErrorBanner}
           <div className="study-library-header">
@@ -541,7 +546,7 @@ export default function Dashboard({ timerState, setTimerState }) {
 
   // ============== DEFAULT DASHBOARD VIEW ==============
   return (
-    <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="dashboard" timerState={timerState} setTimerState={setTimerState} guides={guides}>
+    <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="dashboard" timerState={timerState} setTimerState={setTimerState}>
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
       <div>
         {loadErrorBanner}
@@ -561,7 +566,7 @@ export default function Dashboard({ timerState, setTimerState }) {
           </div>
         )}
 
-        <CanvasDashboard onGuidesCreated={refreshGeneratedGuides} />
+        <CanvasDashboard onWorkspaceChanged={refreshCanvasWorkspace} />
 
         <button type="button" className="dashboard-extension-banner" onClick={() => router.push('/install-extension')}>
           <span className="extension-banner-badge">Chrome</span>

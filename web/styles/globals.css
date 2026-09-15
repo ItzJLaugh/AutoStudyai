@@ -1833,18 +1833,6 @@ input::placeholder { color: var(--text-muted); }
   overflow: hidden;
   color: var(--ink, var(--text-primary));
 }
-.cordia-tutor.is-floating {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 1001;
-  width: min(360px, calc(100vw - 32px));
-  height: 460px;
-  border: 1px solid var(--line, var(--border-subtle));
-  border-radius: 20px;
-  background: var(--surface, var(--bg-secondary));
-  box-shadow: 0 18px 45px rgba(28, 32, 24, 0.16);
-}
 .cordia-tutor-header {
   display: grid;
   gap: 10px;
@@ -1879,6 +1867,50 @@ input::placeholder { color: var(--text-muted); }
 .cordia-tutor-input button { width: 38px; border: 0; border-radius: 10px; background: var(--olive, var(--accent)); color: #fff; cursor: pointer; }
 .cordia-tutor-input button:disabled { opacity: 0.45; cursor: not-allowed; }
 .cordia-tutor-limit { padding: 0 12px 10px; color: var(--muted-ink, var(--text-muted)); font-size: 0.64rem; }
+.cordia-tutor-guide-link { display: block; margin-top: 8px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 650; cursor: pointer; }
+
+.tutor-drawer-shell {
+  --tutor-width: 360px;
+  position: fixed;
+  top: 90px;
+  bottom: 18px;
+  left: 0;
+  z-index: 80;
+  display: flex;
+  transform: translateX(calc(-100% + 61px));
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1);
+}
+.tutor-drawer-shell.is-open { transform: translateX(0); }
+.tutor-drawer {
+  position: relative;
+  width: var(--tutor-width);
+  min-width: 300px;
+  max-width: min(520px, calc(100vw - 54px));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 22px 22px 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+.tutor-drawer .cordia-tutor { height: 100%; }
+.tutor-resize-handle { position: absolute; inset: 0 -4px 0 auto; width: 10px; cursor: ew-resize; touch-action: none; }
+.tutor-drawer-toggle {
+  align-self: flex-start;
+  margin-top: 18px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 13px 13px 0;
+  background: var(--olive);
+  color: white;
+  box-shadow: var(--shadow-card);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tutor-drawer-toggle:hover { transform: translateY(-1px); box-shadow: var(--shadow-float); }
 
 /* === Responsive === */
 @media (max-width: 1100px) {
@@ -2637,8 +2669,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .learning-profile-card { display: flex; flex-direction: column; gap: 7px; }
 .learning-profile-card strong { font-size: 1.05rem; letter-spacing: -0.02em; }
 .learning-profile-card p { color: var(--muted-ink); font-size: 0.7rem; line-height: 1.45; }
-.study-rail-chat { min-height: 318px; display: flex; flex-direction: column; }
-.study-rail-chat .cordia-tutor { margin-top: 0; }
 
 @media (max-width: 1180px) {
   .dashboard-workspace-grid { grid-template-columns: 210px minmax(0, 1fr) 250px; gap: 16px; }
@@ -2682,7 +2712,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
   .dashboard-class-rail { order: 1; }
   .dashboard-center-column { order: 2; }
   .dashboard-study-rail { order: 3; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .study-rail-chat { grid-column: 1 / -1; }
   .class-guide-popover { position: static; width: auto; display: none; margin: 8px 0 12px; opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
   .class-rail-item:hover .class-guide-popover,
   .class-rail-item:focus-within .class-guide-popover { display: block; }
@@ -2690,7 +2719,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 
 @media (max-width: 640px) {
   .dashboard-study-rail { grid-template-columns: 1fr; }
-  .study-rail-chat { grid-column: auto; }
   .dashboard-desktop-header { align-items: flex-start; flex-direction: column; }
   .dashboard-desktop-header h1 { font-size: 3rem; }
   .dashboard-metrics-strip { grid-template-columns: repeat(2, 1fr); }
@@ -2724,6 +2752,12 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .dashboard-study-rail { overflow-y: auto; padding-right: 2px; }
 .dashboard-center-column { padding-top: 0; }
 .dashboard-center-column > .fade-in { max-width: none; }
+
+@media (max-width: 640px) {
+  .tutor-drawer-shell { top: 112px; bottom: 10px; }
+  .tutor-drawer { width: min(var(--tutor-width), calc(100vw - 46px)); min-width: 0; }
+  .tutor-resize-handle { display: none; }
+}
 
 .study-library-header {
   display: flex;

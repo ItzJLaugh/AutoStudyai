@@ -22,26 +22,14 @@ export default function App({ Component, pageProps }) {
   const [timerState, setTimerState] = useState({
     mode: 'focus', minutes: 25, seconds: 0, isRunning: false
   });
-  const [guideContent, setGuideContent] = useState(null);
-  const [guideTitle, setGuideTitle] = useState(null);
-
-  // Clear guide content when navigating away from a guide page
-  useEffect(() => {
-    const handleRouteChange = (url) => {
-      if (!url.startsWith('/guide/')) { setGuideContent(null); setGuideTitle(null); }
-    };
-    router.events.on('routeChangeStart', handleRouteChange);
-    return () => router.events.off('routeChangeStart', handleRouteChange);
-  }, [router]);
-
   if (isLoginPage) {
     return <Component {...pageProps} />;
   }
 
   return (
     <>
-      <Layout timerState={timerState} setTimerState={setTimerState} guideContent={guideContent} guideTitle={guideTitle}>
-        <Component {...pageProps} setGuideContent={setGuideContent} setGuideTitle={setGuideTitle} timerState={timerState} setTimerState={setTimerState} />
+      <Layout timerState={timerState} setTimerState={setTimerState}>
+        <Component {...pageProps} timerState={timerState} setTimerState={setTimerState} />
       </Layout>
     </>
   );
