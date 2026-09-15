@@ -23,3 +23,7 @@ drop policy if exists "Users can update own streaks" on public.user_streaks;
 
 drop policy if exists "Users can insert own usage" on public.monthly_usage;
 drop policy if exists "Users can update own usage" on public.monthly_usage;
+
+-- The auth trigger uses fully-qualified tables and should only run as a trigger.
+alter function public.handle_new_user() set search_path = '';
+revoke execute on function public.handle_new_user() from public, anon, authenticated;

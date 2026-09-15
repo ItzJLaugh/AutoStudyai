@@ -85,6 +85,8 @@ for (const policy of [
   'Users can update own usage',
 ]) assert.ok(rlsMigration.includes(`drop policy if exists "${policy}"`));
 assert.doesNotMatch(rlsMigration, /drop policy[^;]*(?:select|view)/i);
+assert.match(rlsMigration, /alter function public\.handle_new_user\(\) set search_path = ''/);
+assert.match(rlsMigration, /revoke execute on function public\.handle_new_user\(\) from public, anon, authenticated/);
 assert.match(tutorDrawer, /role="separator"/);
 assert.match(tutorDrawer, /aria-valuenow=\{width\}/);
 assert.match(tutorDrawer, /onKeyDown=\{resizeWithKeyboard\}/);
