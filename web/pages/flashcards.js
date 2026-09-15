@@ -56,7 +56,7 @@ export default function FlashcardsHub({ timerState, setTimerState }) {
     >
     <div className="fade-in study-library">
       <div className="study-library-header">
-        <div><p className="editorial-kicker">Library</p><h1>Flashcards</h1><p>Review cards generated from your study guides.</p></div>
+        <div><h1>Flashcards</h1><p>Review cards generated from your study guides.</p></div>
         <button className="btn" onClick={() => router.push('/create')}>New study guide</button>
       </div>
       <div className="study-library-tabs" role="tablist" aria-label="Study library">

@@ -65,7 +65,7 @@ The first public release is ready only when a new user can complete this path wi
 ### P1 — visual and interaction system
 
 - [ ] Consolidate font, color, radius, shadow, spacing, motion, and focus values into one token layer.
-- [ ] Use the current Cordia white, black, and dark olive identity; remove decorative labels and duplicated headings.
+- [x] Use the current Cordia white, black, and dark olive identity; remove decorative labels and duplicated headings from the primary learning screens.
 - [ ] Use one information hierarchy: page title, primary action, content windows, contextual Tutor.
 - [ ] Make resize and collapse behavior predictable and keyboard accessible; persist user layout preferences.
 - [ ] Meet WCAG 2.2 AA contrast, focus visibility, target size, reduced-motion, and responsive layout requirements.

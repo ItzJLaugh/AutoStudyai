@@ -2285,7 +2285,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .app-shell { min-height: 100vh; }
 .main-content { width: 100%; max-width: 1540px; margin: 0 auto; padding: 52px clamp(24px, 4vw, 64px) 72px; }
 .main-content > .fade-in, .main-content > .extension-install-page { max-width: none; }
-.editorial-kicker { margin-bottom: 10px; color: var(--muted-ink); font-size: 0.76rem; font-weight: 650; letter-spacing: -0.01em; }
 .editorial-page-title { max-width: 820px; margin: 0; font-size: clamp(2.65rem, 4.2vw, 4.15rem) !important; font-weight: 700 !important; line-height: 0.98 !important; letter-spacing: -0.058em !important; }
 .dash-header { align-items: flex-end; margin-bottom: 52px; }
 .dash-subtitle { margin-top: 19px; font-size: 1rem; }
@@ -2425,12 +2424,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
   color: var(--ink);
   font-size: 1.6rem;
   font-weight: 600;
-}
-.dashboard-rail-kicker {
-  color: var(--muted-ink);
-  font-size: 0.76rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
 }
 .class-add-trigger {
   padding: 7px 11px;
@@ -2580,7 +2573,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .canvas-mark { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 15px; background: #e43b2f; color: white; font: 700 1.35rem/1 Inter, sans-serif; }
 .canvas-connect-card h2,
 .canvas-dashboard-header h2 { margin: 2px 0 5px; font-size: 1.5rem; line-height: 1.05; }
-.canvas-connect-card p:not(.editorial-kicker) { max-width: 560px; color: var(--muted-ink); font-size: 0.76rem; line-height: 1.5; }
+.canvas-connect-card p { max-width: 560px; color: var(--muted-ink); font-size: 0.76rem; line-height: 1.5; }
 .canvas-error { display: block; margin-top: 7px; color: #9a3329; font-size: 0.7rem; }
 .canvas-wizard-overlay { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 20px; background: rgba(25, 28, 23, 0.34); backdrop-filter: blur(8px); }
 .canvas-token-wizard { width: min(100%, 520px); overflow: hidden; border: 1px solid var(--line); border-radius: 24px; background: var(--surface-raised); box-shadow: 0 30px 90px rgba(25, 29, 22, 0.22); }
@@ -2628,6 +2621,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .canvas-agenda-row button:hover,
 .canvas-agenda-row > a:hover { transform: translateY(-1px); box-shadow: var(--shadow-card); }
 .canvas-courses { display: flex; flex-direction: column; gap: 9px; padding: 19px 20px; border-left: 1px solid var(--line); background: var(--bg-tertiary); }
+.canvas-courses h3 { margin: 0 0 2px; color: var(--ink); font-size: 0.78rem; font-weight: 700; }
 .canvas-courses a { overflow: hidden; color: var(--ink); font-size: 0.74rem; font-weight: 650; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .canvas-courses a:hover { color: var(--olive); }
 .canvas-empty { padding: 22px; color: var(--muted-ink); font-size: 0.74rem; }

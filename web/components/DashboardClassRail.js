@@ -17,7 +17,6 @@ export default function DashboardClassRail({
     <aside className="dashboard-class-rail" aria-label="Classes">
       <div className="dashboard-rail-heading">
         <div>
-          <span className="dashboard-rail-kicker">Organize</span>
           <h2>Classes</h2>
         </div>
         {allowCreate && <button type="button" className="class-add-trigger" onClick={() => setShowNewFolder(true)}>New</button>}

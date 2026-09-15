@@ -377,7 +377,6 @@ export default function Dashboard({ timerState, setTimerState }) {
           {loadErrorBanner}
           <div className="study-library-header">
             <div>
-              <p className="editorial-kicker">Library</p>
               <h1>Study Guides</h1>
               <p>Everything you have captured or created, ready to review.</p>
             </div>
@@ -579,7 +578,6 @@ export default function Dashboard({ timerState, setTimerState }) {
 
         <div className="dashboard-guides-heading">
           <div>
-            <span className="dashboard-rail-kicker">Inbox</span>
             <h2>Not in a class</h2>
             <p>Drag a guide onto a class in the left sidebar to organize it.</p>
           </div>

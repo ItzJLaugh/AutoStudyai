@@ -9,16 +9,13 @@ export default function DashboardStudyRail({ timerState, setTimerState }) {
 
   return (
     <aside className="dashboard-study-rail" aria-label="Study tools">
-      <section className="study-rail-card">
-        <span className="dashboard-rail-kicker">Momentum</span>
+      <section className="study-rail-card" aria-label="Study streak">
         <StreakCounter />
       </section>
-      <section className="study-rail-card">
-        <span className="dashboard-rail-kicker">Focus</span>
+      <section className="study-rail-card" aria-label="Focus timer">
         <StudyTimer timerState={timerState} setTimerState={setTimerState} />
       </section>
-      <section className="study-rail-card learning-profile-card">
-        <span className="dashboard-rail-kicker">Cordia adapts</span>
+      <section className="study-rail-card learning-profile-card" aria-label="Learning profile">
         <strong>{profile?.status === 'active' ? 'Learning with you' : 'Still learning'}</strong>
         <p>{profile?.message || 'Your study activity will shape future guides.'}</p>
       </section>

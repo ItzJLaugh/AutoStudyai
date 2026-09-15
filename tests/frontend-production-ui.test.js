@@ -17,6 +17,9 @@ const tutorDrawer = read('web', 'components', 'TutorDrawer.js');
 const retain = read('web', 'components', 'QuizMode.js');
 const flashcards = read('web', 'components', 'FlashcardViewer.js');
 const studyRail = read('web', 'components', 'DashboardStudyRail.js');
+const classRail = read('web', 'components', 'DashboardClassRail.js');
+const createPage = read('web', 'pages', 'create.js');
+const flashcardLibrary = read('web', 'pages', 'flashcards.js');
 const nextConfig = read('web', 'next.config.js');
 
 assert.match(navigation, /className="top-navigation"/);
@@ -61,6 +64,8 @@ assert.match(retain, /Explain this question:/);
 assert.match(flashcards, /Explain this question:/);
 assert.doesNotMatch(retain, /Chatbot being created|requestExplanation/);
 assert.doesNotMatch(studyRail, /AIChatWidget/);
+assert.doesNotMatch([dashboard, canvasDashboard, createPage, flashcardLibrary].join('\n'), /editorial-kicker|dashboard-rail-kicker/);
+assert.doesNotMatch([studyRail, classRail].join('\n'), /dashboard-rail-kicker/);
 assert.match(layout, /<TutorDrawer preferredGuideId=\{activeGuideId\} \/>/);
 assert.doesNotMatch(tutor, /requestAnimationFrame|MAX_BUBBLES|stepPhysics/);
 assert.match(canvasDashboard, /status: 'building'/);

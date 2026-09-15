@@ -196,7 +196,6 @@ export default function CanvasDashboard({ onWorkspaceChanged }) {
         <section className="canvas-dashboard canvas-connect-card">
           <div className="canvas-mark" aria-hidden="true">C</div>
           <div>
-            <p className="editorial-kicker">Canvas</p>
             <h2>Bring Canvas into CordiaClassroom</h2>
             <p>Connect once to see courses, assignments, and due dates in one study dashboard.</p>
             {state.error && <small className="canvas-error">{state.error}</small>}
@@ -236,11 +235,10 @@ export default function CanvasDashboard({ onWorkspaceChanged }) {
     <section className="canvas-dashboard">
       <header className="canvas-dashboard-header">
         <div>
-          <p className="editorial-kicker">Canvas · {state.institution}</p>
           <h2>What needs your attention</h2>
         </div>
         <div className="canvas-window-status">
-          <span className="canvas-connected">Connected</span>
+          <span className="canvas-connected" title={state.institution || 'Canvas'}>Canvas connected</span>
           <span className="window-resize-hint" title="Drag the corner to resize">↘</span>
         </div>
       </header>
@@ -265,7 +263,7 @@ export default function CanvasDashboard({ onWorkspaceChanged }) {
           ))}
         </div>
         <aside className="canvas-courses">
-          <span className="dashboard-rail-kicker">Courses</span>
+          <h3>Courses</h3>
           {state.courses.slice(0, 6).map(course => (
             <a key={course.id} href={course.url || undefined} target="_blank" rel="noreferrer">{course.name}</a>
           ))}
