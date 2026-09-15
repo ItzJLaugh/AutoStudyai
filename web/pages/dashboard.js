@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { apiFetch } from '../lib/api';
+import { apiErrorMessage, apiFetch } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
 import { formatDate } from '../lib/formatters';
 import useSessionTracker from '../lib/useSessionTracker';
@@ -16,6 +16,7 @@ export default function Dashboard({ timerState, setTimerState }) {
   useSessionTracker('browse');
   const view = router.query.view || null; // null = dashboard, 'classes', 'guides'
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [folders, setFolders] = useState([]);
   const [guides, setGuides] = useState([]);
   const [smartNotes, setSmartNotes] = useState([]);
@@ -61,6 +62,7 @@ export default function Dashboard({ timerState, setTimerState }) {
 
   async function loadData() {
     setLoading(true);
+    setLoadError('');
     try {
       const results = await Promise.allSettled([
         apiFetch('/folders'),
@@ -73,10 +75,18 @@ export default function Dashboard({ timerState, setTimerState }) {
       const guidesData = value(1);
       const statsData = value(2);
       const notesData = value(3);
-      setFolders(foldersData?.folders || []);
-      setGuides(guidesData?.guides || []);
-      setStats(statsData);
-      setSmartNotes(notesData?.notes || []);
+      const responses = [foldersData, guidesData, statsData, notesData];
+      const failure = responses.find(data => !data || data.detail);
+      if (failure) {
+        setLoadError(apiErrorMessage(
+          failure?.detail,
+          'Some Classroom data could not be refreshed. Your saved work is unchanged.'
+        ));
+      }
+      if (Array.isArray(foldersData?.folders)) setFolders(foldersData.folders);
+      if (Array.isArray(guidesData?.guides)) setGuides(guidesData.guides);
+      if (statsData && !statsData.detail) setStats(statsData);
+      if (Array.isArray(notesData?.notes)) setSmartNotes(notesData.notes);
     } finally {
       setLoading(false);
     }
@@ -222,6 +232,12 @@ export default function Dashboard({ timerState, setTimerState }) {
   }
 
   const organized = organizeDashboardGuides(folders, guides);
+  const loadErrorBanner = loadError && (
+    <div className="canvas-inline-error" role="alert">
+      <span>{loadError}</span>
+      <button type="button" className="btn-outline" onClick={loadData}>Try again</button>
+    </div>
+  );
   const workspaceClassRail = {
     newFolderName,
     setNewFolderName,
@@ -240,6 +256,7 @@ export default function Dashboard({ timerState, setTimerState }) {
   if (view === 'classes') {
     return (
       <div className="fade-in">
+        {loadErrorBanner}
         <div className="section-header">
           <h2>My Classes</h2>
           <button className="btn" onClick={() => setShowNewFolder(true)}>+ New Class</button>
@@ -352,6 +369,7 @@ export default function Dashboard({ timerState, setTimerState }) {
     return (
       <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="guides" timerState={timerState} setTimerState={setTimerState} guides={guides}>
         <div className="fade-in study-library">
+          {loadErrorBanner}
           <div className="study-library-header">
             <div>
               <p className="editorial-kicker">Library</p>
@@ -526,6 +544,7 @@ export default function Dashboard({ timerState, setTimerState }) {
     <StudyWorkspaceFrame classes={organized.classes} classRail={workspaceClassRail} section="dashboard" timerState={timerState} setTimerState={setTimerState} guides={guides}>
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
       <div>
+        {loadErrorBanner}
         <div className="dashboard-desktop-header">
           <div>
             <h1>Your study workspace</h1>

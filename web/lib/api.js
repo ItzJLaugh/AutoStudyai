@@ -52,6 +52,12 @@ export function authOnlyHeaders() {
   };
 }
 
+export function apiErrorMessage(detail, fallback = 'Something went wrong. Please try again.') {
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (typeof detail?.message === 'string' && detail.message.trim()) return detail.message;
+  return fallback;
+}
+
 // Proactive token refresh — silently renews the token 2 min before expiry.
 let _proactiveTimer = null;
 

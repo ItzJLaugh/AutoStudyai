@@ -260,6 +260,27 @@ class CanvasContractTests(unittest.TestCase):
         self.assertEqual(result, {"created": [], "count": 0})
         self.assertEqual(study_source.call_count, canvas.AUTO_GUIDE_SCAN_LIMIT)
 
+    def test_auto_guides_filters_canvas_noise_before_scan_limit(self):
+        noise = [
+            {
+                "plannable_id": item_id,
+                "plannable_type": "calendar_event" if item_id % 2 else "assignment",
+                "plannable": {"title": f"Noise {item_id}", "due_at": f"2026-09-{item_id + 1:02d}T12:00:00Z"},
+                "submissions": {"submitted": item_id % 2 == 0},
+            }
+            for item_id in range(canvas.AUTO_GUIDE_SCAN_LIMIT)
+        ]
+        useful = {
+            "course_id": 4,
+            "plannable_id": 99,
+            "plannable_type": "assignment",
+            "plannable": {"title": "Useful assignment", "due_at": "2026-09-20T12:00:00Z"},
+        }
+
+        candidates = canvas._auto_guide_candidates([*noise, useful])
+
+        self.assertEqual([item["plannable_id"] for item in candidates], [99])
+
     @patch.dict(os.environ, {}, clear=True)
     def test_missing_provider_configuration_is_truthful(self):
         with self.assertRaisesRegex(Exception, "Canvas connections are not configured"):

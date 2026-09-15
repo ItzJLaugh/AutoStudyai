@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { apiFetch } from '../lib/api';
+import { apiErrorMessage, apiFetch } from '../lib/api';
 
 function dueLabel(value) {
   if (!value) return 'No due date';
@@ -128,7 +128,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
   const load = useCallback(async () => {
     const data = await apiFetch('/canvas/dashboard');
     if (!data || data.detail) {
-      setState({ loading: false, connected: false, courses: [], items: [], error: data?.detail || 'Canvas is unavailable' });
+      setState({ loading: false, connected: false, courses: [], items: [], error: apiErrorMessage(data?.detail, 'Canvas is unavailable') });
       return;
     }
     setState({ loading: false, ...data });
@@ -144,7 +144,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
           onGuidesCreated?.();
         } else if (!result || result.detail) {
           autoBuildStarted.current = false;
-          setAutoMessage(result?.detail?.message || result?.detail || 'Automatic guide creation is unavailable.');
+          setAutoMessage(apiErrorMessage(result?.detail, 'Automatic guide creation is unavailable.'));
         } else {
           localStorage.setItem('canvasAutoBuildDate', today);
           setAutoMessage('No new Canvas study material was ready.');
@@ -167,14 +167,14 @@ export default function CanvasDashboard({ onGuidesCreated }) {
       return;
     }
     setConnecting(false);
-    setState(current => ({ ...current, error: data?.detail || 'Canvas connection could not start' }));
+    setState(current => ({ ...current, error: apiErrorMessage(data?.detail, 'Canvas connection could not start') }));
   }
 
   async function prepareGuide(item) {
     const params = new URLSearchParams({ course_id: String(item.course_id), item_id: String(item.id) });
     const data = await apiFetch(`/canvas/study-source?${params}`);
     if (!data || data.detail) {
-      setState(current => ({ ...current, error: data?.detail || 'Study material could not be loaded' }));
+      setState(current => ({ ...current, error: apiErrorMessage(data?.detail, 'Study material could not be loaded') }));
       return;
     }
     localStorage.setItem('autostudy_text_draft', JSON.stringify(data));

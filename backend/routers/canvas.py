@@ -207,6 +207,20 @@ def _source_id(account_id: str, item: dict) -> str:
     ))
 
 
+def _auto_guide_candidates(items: list) -> list:
+    eligible = [
+        item
+        for item in items
+        if isinstance(item, dict)
+        and _normalize_planner_item(item)["type"] == "assignment"
+        and not _normalize_planner_item(item)["completed"]
+    ]
+    return sorted(
+        eligible,
+        key=lambda item: _normalize_planner_item(item).get("due_at") or "9999",
+    )[:AUTO_GUIDE_SCAN_LIMIT]
+
+
 @router.get("/status")
 def canvas_status(authorization: str = Header(default="")):
     user_id = get_user_id(authorization)
@@ -322,19 +336,13 @@ def canvas_auto_guides(authorization: str = Header(default="")):
     if remaining <= 0:
         return {"created": [], "count": 0}
     items = _proxy_get(_planner_path(), user_id, account["id"], config)
-    candidates = sorted(
-        (item for item in items if isinstance(item, dict)),
-        key=lambda item: _normalize_planner_item(item).get("due_at") or "9999",
-    )
+    candidates = _auto_guide_candidates(items)
     db = get_supabase()
     created = []
 
     # Canvas can return an entire semester of assignments. Keep the automatic
     # pass fast and inexpensive; students can explicitly build older items.
-    for item in candidates[:AUTO_GUIDE_SCAN_LIMIT]:
-        normalized = _normalize_planner_item(item)
-        if normalized["completed"] or normalized["type"] != "assignment":
-            continue
+    for item in candidates:
         external_source_id = _source_id(account["id"], item)
         existing = (
             db.table("study_guides")
