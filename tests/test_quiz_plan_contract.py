@@ -49,9 +49,20 @@ class QuizPlanContractTests(unittest.TestCase):
             result = quiz.generate_quiz(GUIDE_ID, "Bearer token")
 
         self.assertEqual(len(result["questions"]), 4)
-        self.assertEqual(result["questions"][0]["options"], ["Alpha", "Beta", "Gamma", "Delta"])
+        first = result["questions"][0]
+        self.assertEqual(set(first["options"]), {"Alpha", "Beta", "Gamma", "Delta"})
+        self.assertEqual(first["options"][first["correct_index"]], "Alpha")
         self.assertIsNone(query.updated)
         openai.assert_not_called()
+
+    def test_length_outliers_are_replaced_with_balanced_guide_answers(self):
+        distractors = quiz._balanced_distractors(
+            "Alpha concept",
+            ["A", "This answer is far too long to look like a peer option", "Beta concept"],
+            ["Gamma concept", "Delta concept"],
+        )
+
+        self.assertEqual(distractors, ["Beta concept", "Gamma concept", "Delta concept"])
 
     def test_paid_quiz_reuses_the_saved_ai_quiz(self):
         cached = [{"question": "Saved?", "options": ["Yes", "No"], "correct_index": 0}]
@@ -89,6 +100,34 @@ class QuizPlanContractTests(unittest.TestCase):
         self.assertEqual(len(result["questions"]), 4)
         self.assertEqual(query.updated, {"quiz_questions": result["questions"]})
         record_usage.assert_called_once_with("student-1", "lightweight", usage)
+        prompt = client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
+        self.assertIn("incorrect terminology", prompt)
+        self.assertIn("missing or altering one essential factor", prompt)
+
+    def test_paid_regeneration_replaces_cached_distractors(self):
+        cached = [{"question": "Saved?", "options": ["Yes", "No"], "correct_index": 0}]
+        database, query = self._database({"study_guide": GUIDE, "quiz_questions": cached})
+        response = MagicMock()
+        response.choices[0].message.content = (
+            '[{"distractors":["Omega","Sigma","Theta"]},'
+            '{"distractors":["Theta","Delta","Alpha"]},'
+            '{"distractors":["Sigma","Alpha","Delta"]},'
+            '{"distractors":["Theta","Gamma","Alpha"]}]'
+        )
+        client = MagicMock()
+        client.chat.completions.create.return_value = response
+        usage = {"builds_used": 0, "lightweight_actions_used": 0}
+        with patch.object(quiz, "get_user_id", return_value="student-1"), \
+             patch.object(quiz, "get_supabase", return_value=database), \
+             patch.object(quiz, "get_user_plan", return_value={"plan": "classroom_plus"}), \
+             patch.object(quiz, "check_usage", return_value=usage), \
+             patch.object(quiz, "record_usage"), \
+             patch.object(quiz, "get_openai_client", return_value=client):
+            result = quiz.regenerate_quiz(GUIDE_ID, "Bearer token")
+
+        self.assertNotEqual(result["questions"], cached)
+        self.assertEqual(query.updated, {"quiz_questions": result["questions"]})
+        client.chat.completions.create.assert_called_once()
 
 
 if __name__ == "__main__":

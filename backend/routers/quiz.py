@@ -55,37 +55,68 @@ def _parse_qa_pairs(text: str) -> list:
     return pairs
 
 
+def _other_answers(qa_pairs: list, index: int) -> list:
+    """Return distinct guide answers, closest in length to the correct answer."""
+    answer = qa_pairs[index]["answer"]
+    seen = {answer.casefold()}
+    candidates = []
+    for candidate in qa_pairs:
+        value = candidate["answer"].strip()
+        key = value.casefold()
+        if value and key not in seen:
+            seen.add(key)
+            candidates.append(value)
+    return sorted(candidates, key=lambda value: abs(len(value) - len(answer)))
+
+
 def _standard_questions(qa_pairs: list) -> list:
-    """Build a stable free Retain quiz from answers already in the guide."""
+    """Build an instant free Retain quiz from answers already in the guide."""
     questions = []
     for index, pair in enumerate(qa_pairs):
         answer = pair["answer"]
-        distractors = []
-        seen = {answer.casefold()}
-        for candidate in qa_pairs[index + 1:] + qa_pairs[:index]:
-            value = candidate["answer"]
-            key = value.casefold()
-            if key not in seen:
-                seen.add(key)
-                distractors.append(value)
-            if len(distractors) == 3:
-                break
+        candidates = _other_answers(qa_pairs, index)
+        shortlist = candidates[:min(6, len(candidates))]
+        distractors = random.sample(shortlist, min(3, len(shortlist)))
         if not distractors:
             continue
-        options = distractors.copy()
-        correct_index = index % (len(options) + 1)
-        options.insert(correct_index, answer)
+        options = [answer, *distractors]
+        random.shuffle(options)
         questions.append({
             "question": pair["question"],
             "options": options,
-            "correct_index": correct_index,
+            "correct_index": options.index(answer),
         })
     return questions
 
 
-@router.get("/{guide_id}/generate")
-def generate_quiz(guide_id: str, authorization: str = Header(default="")):
-    """Generate MCQ quiz from study guide Q&A pairs."""
+def _balanced_distractors(answer: str, generated: list, fallback: list) -> list:
+    """Prefer distinct model choices close to the correct answer's visible length."""
+    lower = max(1, round(len(answer) * 0.65))
+    upper = max(lower, round(len(answer) * 1.35))
+    seen = {answer.casefold()}
+    accepted = []
+
+    def add(values, enforce_length=False):
+        for raw in values:
+            value = str(raw).strip()
+            key = value.casefold()
+            if not value or key in seen:
+                continue
+            if enforce_length and not lower <= len(value) <= upper:
+                continue
+            seen.add(key)
+            accepted.append(value)
+            if len(accepted) == 3:
+                return
+
+    add(generated, enforce_length=True)
+    add(fallback, enforce_length=True)
+    add(sorted([*generated, *fallback], key=lambda value: abs(len(str(value)) - len(answer))))
+    return accepted[:3]
+
+
+def _quiz_for_guide(guide_id: str, authorization: str, regenerate: bool = False):
+    """Load or generate a Retain quiz, optionally replacing saved distractors."""
     try:
         _validate_uuid(guide_id, "guide ID")
         user_id = get_user_id(authorization)
@@ -104,7 +135,7 @@ def generate_quiz(guide_id: str, authorization: str = Header(default="")):
 
         # A paid quiz is generated once, then remains attached to its guide.
         cached = result.data[0].get("quiz_questions")
-        if plan == "classroom_plus" and cached:
+        if plan == "classroom_plus" and cached and not regenerate:
             return {"questions": cached}
 
         study_guide_text = result.data[0].get("study_guide", "")
@@ -133,16 +164,16 @@ def generate_quiz(guide_id: str, authorization: str = Header(default="")):
 
         qa_text = "\n".join(f"Q: {p['question']}\nA: {p['answer']}" for p in qa_pairs)
 
-        prompt = f"""For each Q&A pair below, generate exactly 3 WRONG answer choices.
+        prompt = f"""For each Q&A pair below, generate exactly 3 plausible but WRONG answer choices.
 Return as JSON array where each element has:
 - "distractors": [wrong1, wrong2, wrong3]
 
 CRITICAL RULES — follow every one:
-1. Each distractor MUST match the correct answer in sentence structure, length (within ±20% of the correct answer's character count), and level of detail. If the correct answer is a full sentence, every distractor must be a full sentence. If the correct answer is a short phrase, every distractor must be a short phrase. The correct answer must NEVER stand out by being longer, more specific, or more thorough than the distractors.
-2. Distractors must be plausible — wrong in a subtle, meaningful way (wrong mechanism, wrong value, wrong direction, wrong agent, wrong sequence). A student who didn't study should reasonably be tempted to choose them. They must NEVER be obviously absurd or off-topic.
-3. Never use "None of the above", "All of the above", "Both A and B", or any placeholder/filler text.
-4. Ground every distractor in the same domain/topic as the correct answer — no random facts from unrelated subjects.
-5. Distractors must be clearly factually incorrect — they cannot also be true statements about the topic.
+1. Match the correct answer's grammatical form, specificity, and approximate visible length. Keep every distractor within ±20% of the correct answer's character count. The correct answer must NEVER stand out as the longest, most detailed, or only precisely worded option.
+2. Give the three distractors different incorrect logic: use an incorrect mechanism or relationship; incorrect terminology, value, actor, direction, or sequence; and an answer missing or altering one essential factor. When appropriate, adapt an answer from another supplied question if it remains plausible for this question.
+3. Make each distractor tempting to a student with an incomplete understanding, while keeping it unambiguously false for the question. Do not create three paraphrases of the same mistake.
+4. Never use "None of the above", "All of the above", "Both A and B", or any placeholder/filler text.
+5. Ground every distractor in the same domain/topic as the correct answer — no random facts from unrelated subjects.
 
 {qa_text}
 
@@ -169,8 +200,18 @@ Return ONLY a JSON array, no other text:"""
         for i, pair in enumerate(qa_pairs):
             if i >= len(distractors_list):
                 break
-            options = [pair["answer"]] + distractors_list[i].get("distractors", ["Option B", "Option C", "Option D"])[:3]
             correct_answer = pair["answer"]
+            generated = distractors_list[i].get("distractors", [])
+            if not isinstance(generated, list):
+                generated = []
+            distractors = _balanced_distractors(
+                correct_answer,
+                generated,
+                _other_answers(qa_pairs, i),
+            )
+            if not distractors:
+                continue
+            options = [correct_answer, *distractors]
             random.shuffle(options)
             correct_index = options.index(correct_answer)
             questions.append({
@@ -178,6 +219,9 @@ Return ONLY a JSON array, no other text:"""
                 "options": options,
                 "correct_index": correct_index
             })
+
+        if not questions:
+            raise HTTPException(status_code=502, detail="Could not create balanced Retain options")
 
         # Cache generated questions so future Retain clicks load instantly
         try:
@@ -197,6 +241,18 @@ Return ONLY a JSON array, no other text:"""
     except Exception as e:
         logger.error(f"Error generating quiz: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate quiz")
+
+
+@router.get("/{guide_id}/generate")
+def generate_quiz(guide_id: str, authorization: str = Header(default="")):
+    """Load the saved Pro Retain quiz or build an instant free quiz."""
+    return _quiz_for_guide(guide_id, authorization)
+
+
+@router.post("/{guide_id}/regenerate")
+def regenerate_quiz(guide_id: str, authorization: str = Header(default="")):
+    """Replace the current distractors using the user's plan rules."""
+    return _quiz_for_guide(guide_id, authorization, regenerate=True)
 
 
 @router.post("/{guide_id}/submit")

@@ -28,6 +28,7 @@ const flashcardLibrary = read('web', 'pages', 'flashcards.js');
 const guidePage = read('web', 'pages', 'guide', '[id].js');
 const folderPage = read('web', 'pages', 'folder', '[id].js');
 const nextConfig = read('web', 'next.config.js');
+const retainPage = read('web', 'pages', 'quiz', '[guideId].js');
 
 assert.match(navigation, /className="top-navigation"/);
 assert.match(navigation, /className="account-menu-panel"/);
@@ -95,6 +96,9 @@ assert.match(tutorDrawer, /cordiaTutorOpen/);
 assert.match(tutorDrawer, /event\.key !== 'Escape'/);
 assert.match(tutorDrawer, /cordia:tutor-prompt/);
 assert.match(retain, /Explain this question:/);
+assert.match(retainPage, /Regenerate questions/);
+assert.match(retainPage, /\/quiz\/.*\/regenerate/);
+assert.match(retainPage, /method: 'POST'/);
 assert.match(flashcards, /Explain this question:/);
 assert.doesNotMatch(retain, /Chatbot being created|requestExplanation/);
 assert.doesNotMatch(studyRail, /AIChatWidget/);
