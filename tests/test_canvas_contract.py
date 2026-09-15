@@ -12,6 +12,30 @@ class CanvasContractTests(unittest.TestCase):
     def test_external_user_ids_are_namespaced(self):
         self.assertEqual(canvas._external_user_id("student-1"), "cordia-classroom:student-1")
 
+    def test_latest_healthy_canvas_account_is_selected(self):
+        accounts = [
+            {"id": "old", "healthy": True, "created_at": "2026-09-01T00:00:00Z"},
+            {"id": "dead", "healthy": True, "dead": True, "created_at": "2026-09-03T00:00:00Z"},
+            {"id": "new", "healthy": True, "created_at": "2026-09-02T00:00:00Z"},
+        ]
+        with patch.object(canvas, "_headers", return_value={}), \
+             patch.object(canvas, "_request", return_value={"data": accounts}):
+            result = canvas._canvas_account("student-1", {"project_id": "proj_test"})
+        self.assertEqual(result["id"], "new")
+
+    def test_canvas_proxy_maps_invalid_token_to_reconnect_message(self):
+        response = MagicMock(status_code=401)
+        error = canvas.requests.HTTPError(response=response)
+        with patch.object(canvas, "_headers", return_value={}), \
+             patch.object(canvas.requests, "request", side_effect=error):
+            with self.assertRaises(canvas.HTTPException) as raised:
+                canvas._proxy("/api/v1/courses", "student-1", "account-1", {"project_id": "proj_test"})
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertEqual(
+            raised.exception.detail,
+            "Canvas rejected the saved access token. Reconnect Canvas with a new token.",
+        )
+
     def test_canvas_guide_save_is_idempotent(self):
         table = MagicMock()
         table.upsert.return_value = table

@@ -48,7 +48,16 @@ def _config():
     }
 
 
-def _request(method: str, url: str, *, headers=None, params=None, json=None, raw=False):
+def _request(
+    method: str,
+    url: str,
+    *,
+    headers=None,
+    params=None,
+    json=None,
+    raw=False,
+    unauthorized_detail=None,
+):
     try:
         response = requests.request(
             method, url, headers=headers, params=params, json=json, timeout=30
@@ -57,6 +66,8 @@ def _request(method: str, url: str, *, headers=None, params=None, json=None, raw
         return response if raw else (response.json() if response.content else {})
     except (requests.RequestException, ValueError) as exc:
         status = getattr(getattr(exc, "response", None), "status_code", "unavailable")
+        if status == 401 and unauthorized_detail:
+            raise HTTPException(status_code=409, detail=unauthorized_detail) from exc
         raise HTTPException(status_code=502, detail=f"Canvas provider request failed ({status})") from exc
 
 
@@ -96,13 +107,15 @@ def _canvas_account(user_id: str, config: dict):
         params={"external_user_id": _external_user_id(user_id), "app": "canvas"},
     )
     accounts = result.get("data") or []
-    return next(
-        (
-            account
-            for account in accounts
-            if account.get("id") and not account.get("dead") and account.get("healthy", True)
-        ),
-        None,
+    available = [
+        account
+        for account in accounts
+        if account.get("id") and not account.get("dead") and account.get("healthy", True)
+    ]
+    return max(
+        available,
+        key=lambda account: account.get("updated_at") or account.get("created_at") or "",
+        default=None,
     )
 
 
@@ -114,6 +127,7 @@ def _proxy(path: str, user_id: str, account_id: str, config: dict, *, raw=False)
         headers=_headers(config),
         params={"external_user_id": _external_user_id(user_id), "account_id": account_id},
         raw=raw,
+        unauthorized_detail="Canvas rejected the saved access token. Reconnect Canvas with a new token.",
     )
 
 
