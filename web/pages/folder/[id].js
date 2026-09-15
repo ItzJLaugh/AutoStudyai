@@ -110,7 +110,7 @@ export default function FolderPage() {
       <p>{loadError}</p>
       <div className="resource-load-actions">
         <button type="button" className="btn" onClick={loadData}>Try again</button>
-        <button type="button" className="btn-outline" onClick={() => router.push('/dashboard?view=classes')}>Back to Classes</button>
+        <button type="button" className="btn-outline" onClick={() => router.push('/dashboard?view=guides')}>Back to Study Guides</button>
       </div>
     </div>
   );
@@ -133,8 +133,8 @@ export default function FolderPage() {
         />
       )}
 
-      <a href="#" onClick={e => { e.preventDefault(); router.push('/dashboard?view=classes'); }} style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-        &larr; All Classes
+      <a href="#" onClick={e => { e.preventDefault(); router.push('/dashboard?view=guides'); }} style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+        &larr; All Study Guides
       </a>
 
       <div className="section-header" style={{ marginTop: 12 }}>

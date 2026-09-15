@@ -25,12 +25,35 @@ function normalizeCanvasDomain(value) {
   return value.trim().replace(/^https?:\/\//i, '').split('/')[0].toLowerCase();
 }
 
+const CANVAS_LOGO = '/canvas-logo.svg';
+
+function CanvasCapabilities() {
+  return (
+    <ul className="canvas-capabilities">
+      <li><strong>Import classes:</strong> active Canvas courses become Classroom classes.</li>
+      <li><strong>Track deadlines:</strong> upcoming assignments and due dates appear on your dashboard.</li>
+      <li><strong>Create study guides:</strong> supported assignment material becomes a guide in the matching class.</li>
+      <li><strong>Build automatically:</strong> the next supported Canvas item becomes a guide when material is available.</li>
+      <li><strong>Keep the source:</strong> every Canvas item can still be opened in its original course.</li>
+    </ul>
+  );
+}
+
 function CanvasConnectionWizard({ onClose, onConnect, connecting }) {
   const [step, setStep] = useState(1);
   const [domain, setDomain] = useState('');
   const [copied, setCopied] = useState(false);
   const cleanDomain = normalizeCanvasDomain(domain);
   const validDomain = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(cleanDomain);
+
+  useEffect(() => {
+    setDomain(localStorage.getItem('canvasDomain') || '');
+  }, []);
+
+  function continueWithDomain() {
+    localStorage.setItem('canvasDomain', cleanDomain);
+    setStep(2);
+  }
 
   async function copyDomain() {
     await navigator.clipboard.writeText(cleanDomain);
@@ -67,7 +90,7 @@ function CanvasConnectionWizard({ onClose, onConnect, connecting }) {
                 autoFocus
               />
             </label>
-            <button type="button" className="btn btn-green" disabled={!validDomain} onClick={() => setStep(2)}>
+            <button type="button" className="btn btn-green" disabled={!validDomain} onClick={continueWithDomain}>
               Continue
             </button>
           </div>
@@ -77,21 +100,19 @@ function CanvasConnectionWizard({ onClose, onConnect, connecting }) {
           <div className="canvas-wizard-body">
             <h3>Create your access token</h3>
             <ol className="canvas-wizard-steps">
-              <li>Open Canvas settings.</li>
-              <li>Find <strong>Approved Integrations</strong> and select <strong>+ New Access Token</strong>.</li>
-              <li>Enter <strong>CordiaClassroom</strong> as the purpose, generate the token, and copy it before closing the window.</li>
+              <li><strong>Open settings:</strong> the button below takes you to the correct page for your school.</li>
+              <li><strong>Create a token:</strong> under Approved Integrations, select <strong>+ New Access Token</strong>.</li>
+              <li><strong>Copy it once:</strong> use CordiaClassroom as the purpose, generate the token, and copy it before closing the window.</li>
             </ol>
             <a
               className="btn btn-green canvas-wizard-link"
               href={`https://${cleanDomain}/profile/settings`}
               target="_blank"
               rel="noreferrer"
+              onClick={() => setStep(3)}
             >
               Open Canvas settings ↗
             </a>
-            <button type="button" className="canvas-wizard-secondary" onClick={() => setStep(3)}>
-              I copied my token
-            </button>
           </div>
         )}
 
@@ -194,10 +215,11 @@ export default function CanvasDashboard({ onWorkspaceChanged }) {
     return (
       <>
         <section className="canvas-dashboard canvas-connect-card">
-          <div className="canvas-mark" aria-hidden="true">C</div>
+          <img className="canvas-mark" src={CANVAS_LOGO} alt="Canvas" />
           <div>
             <h2>Bring Canvas into CordiaClassroom</h2>
-            <p>Connect once to see courses, assignments, and due dates in one study dashboard.</p>
+            <p>Connect once, then Classroom keeps the useful parts of Canvas together.</p>
+            <CanvasCapabilities />
             {state.error && <small className="canvas-error">{state.error}</small>}
           </div>
           <button type="button" className="btn btn-green" onClick={() => setWizardOpen(true)}>
@@ -234,7 +256,8 @@ export default function CanvasDashboard({ onWorkspaceChanged }) {
   return (
     <section className="canvas-dashboard">
       <header className="canvas-dashboard-header">
-        <div>
+        <div className="canvas-dashboard-title">
+          <img className="canvas-mark canvas-mark-small" src={CANVAS_LOGO} alt="" />
           <h2>What needs your attention</h2>
         </div>
         <div className="canvas-window-status">
@@ -242,6 +265,10 @@ export default function CanvasDashboard({ onWorkspaceChanged }) {
           <span className="window-resize-hint" title="Drag the corner to resize">↘</span>
         </div>
       </header>
+      <div className="canvas-connection-summary">
+        <strong>Canvas capabilities</strong>
+        <CanvasCapabilities />
+      </div>
       {reminder && <p className="canvas-reminder">{reminder}</p>}
       {generation.message && (
         <p className="canvas-auto-status" data-status={generation.status} role="status" aria-live="polite">

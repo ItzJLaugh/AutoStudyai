@@ -5,16 +5,13 @@ import { useRequireAuth } from '../lib/auth';
 import useSessionTracker from '../lib/useSessionTracker';
 import AILoadingSphere from '../components/AILoadingSphere';
 import StudyWorkspaceFrame from '../components/StudyWorkspaceFrame';
-import { organizeDashboardGuides } from '../lib/dashboardOrganization';
 
 export default function FlashcardsHub({ timerState, setTimerState }) {
   const router = useRouter();
   const { ready } = useRequireAuth();
   useSessionTracker('browse');
   const [loading, setLoading] = useState(true);
-  const [allGuides, setAllGuides] = useState([]);
   const [guides, setGuides] = useState([]);
-  const [folders, setFolders] = useState([]);
 
   useEffect(() => {
     if (ready) loadGuides();
@@ -22,12 +19,9 @@ export default function FlashcardsHub({ timerState, setTimerState }) {
 
   async function loadGuides() {
     setLoading(true);
-    const [guideData, folderData] = await Promise.all([apiFetch('/guides'), apiFetch('/folders')]);
+    const guideData = await apiFetch('/guides');
     const fetchedGuides = guideData?.guides || [];
-    const withCards = fetchedGuides.filter(g => g.flashcards && g.flashcards.length > 0);
-    setAllGuides(fetchedGuides);
-    setGuides(withCards);
-    setFolders(folderData?.folders || []);
+    setGuides(fetchedGuides.filter(g => g.flashcards && g.flashcards.length > 0));
     setLoading(false);
   }
 
@@ -40,19 +34,11 @@ export default function FlashcardsHub({ timerState, setTimerState }) {
     );
   }
 
-  const organized = organizeDashboardGuides(folders, allGuides);
-
   return (
     <StudyWorkspaceFrame
-      classes={organized.classes}
       section="flashcards"
       timerState={timerState}
       setTimerState={setTimerState}
-      classRail={{
-        allowCreate: false,
-        openFolder: folderId => router.push('/folder/' + folderId),
-        openGuide: guideId => router.push('/guide/' + guideId),
-      }}
     >
     <div className="fade-in study-library">
       <div className="study-library-header">

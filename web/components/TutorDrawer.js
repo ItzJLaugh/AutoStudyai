@@ -5,7 +5,7 @@ const MIN_WIDTH = 300;
 const MAX_WIDTH = 520;
 const OPEN_KEY = 'cordiaTutorOpen';
 
-export default function TutorDrawer({ preferredGuideId = '', preferredNoteId = '' }) {
+export default function TutorDrawer({ preferredGuideId = '', preferredNoteId = '', docked = false }) {
   const [open, setOpen] = useState(false);
   const [width, setWidth] = useState(360);
   const toggleRef = useRef(null);
@@ -68,6 +68,27 @@ export default function TutorDrawer({ preferredGuideId = '', preferredNoteId = '
     if (next === null) return;
     event.preventDefault();
     changeWidth(next);
+  }
+
+  if (docked) {
+    return (
+      <section className={`tutor-dock${open ? ' is-open' : ''}`} aria-label="Cordia Tutor">
+        <button
+          ref={toggleRef}
+          type="button"
+          className="tutor-dock-toggle"
+          onClick={() => changeOpen(!open)}
+          aria-controls="cordia-tutor-dock"
+          aria-expanded={open}
+        >
+          <span>Tutor</span>
+          <span aria-hidden="true">{open ? '−' : '+'}</span>
+        </button>
+        <div id="cordia-tutor-dock" className="tutor-dock-panel" aria-hidden={!open} inert={!open}>
+          <AIChatWidget preferredGuideId={preferredGuideId} preferredNoteId={preferredNoteId} />
+        </div>
+      </section>
+    );
   }
 
   return (

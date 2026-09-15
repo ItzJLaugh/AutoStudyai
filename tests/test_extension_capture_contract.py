@@ -26,8 +26,11 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("iframe[src], embed[src], object[data], a[href]", source)
         self.assertIn(".ic-Layout-contentMain", source)
         self.assertIn("normalizeCanvasDownload", source)
+        self.assertIn("file_preview|download", source)
         resolver = source[source.index("function extractSource"):source.index("async function fetchFile")]
-        self.assertLess(resolver.index("window.getSelection()"), resolver.index("findDocument()"))
+        self.assertLess(resolver.index("window.getSelection()"), resolver.index("findDocument(true)"))
+        self.assertLess(resolver.index("findDocument(true)"), resolver.index("visibleText()"))
+        self.assertLess(resolver.index("visibleText()"), resolver.index("findDocument()"))
 
     def test_documents_use_server_file_extractor_without_manual_content_type(self):
         popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")

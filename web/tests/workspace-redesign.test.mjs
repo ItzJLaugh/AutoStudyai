@@ -4,24 +4,30 @@ import { readFile } from 'node:fs/promises';
 
 const source = relativePath => readFile(new URL(`../${relativePath}`, import.meta.url), 'utf8');
 
-test('top navigation keeps creation and flashcards inside Study Guides', async () => {
+test('top navigation keeps classes inside Dashboard and Study Guides', async () => {
   const sidebar = await source('components/Sidebar.js');
   const labels = [...sidebar.matchAll(/\{ label: '([^']+)'/g)].map(match => match[1]);
 
-  assert.deepEqual(labels, ['Dashboard', 'Study Guides', 'SmartNotes', 'Classes']);
+  assert.deepEqual(labels, ['Dashboard', 'Study Guides', 'SmartNotes']);
 });
 
-test('dashboard routes use the shared three-column workspace except Classes', async () => {
+test('dashboard routes use the shared workspace and retire the separate Classes view', async () => {
   const dashboard = await source('pages/dashboard.js');
 
   assert.match(dashboard, /<StudyWorkspaceFrame/);
   assert.match(dashboard, /section="guides"/);
 
-  const classesView = dashboard.slice(
-    dashboard.indexOf("if (view === 'classes')"),
-    dashboard.indexOf("if (view === 'notes')"),
-  );
-  assert.doesNotMatch(classesView, /Create Guide|Unassigned Guides|DashboardStudyRail|DashboardClassRail/);
+  assert.match(dashboard, /router\.query\.view === 'classes'.*router\.replace\('\/dashboard\?view=guides'\)/s);
+  assert.doesNotMatch(dashboard, /My Classes/);
+});
+
+test('class rail and docked Tutor share only the dashboard and guide layouts', async () => {
+  const frame = await source('components/StudyWorkspaceFrame.js');
+
+  assert.match(frame, /section === 'dashboard' \|\| section === 'guides'/);
+  assert.match(frame, /<TutorDrawer docked \/>/);
+  assert.match(frame, /dashboard-left-stack/);
+  assert.match(frame, /without-classes/);
 });
 
 test('Study Guides owns the Flashcards destination and creation action', async () => {

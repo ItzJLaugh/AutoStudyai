@@ -14,12 +14,11 @@ export default function Dashboard({ timerState, setTimerState }) {
   const router = useRouter();
   const { ready } = useRequireAuth();
   useSessionTracker('browse');
-  const view = router.query.view || null; // null = dashboard, 'classes', 'guides'
+  const view = router.query.view || null; // null = dashboard, 'guides' = study-guide library
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [folders, setFolders] = useState([]);
   const [guides, setGuides] = useState([]);
-  const [smartNotes, setSmartNotes] = useState([]);
   const [stats, setStats] = useState(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -30,12 +29,11 @@ export default function Dashboard({ timerState, setTimerState }) {
   const [toast, setToast] = useState(null);
   const [guidesFilter, setGuidesFilter] = useState('all'); // all, bookmarked, unassigned
   const [guidesSort, setGuidesSort] = useState('recent'); // recent, title, progress
-  const [renamingFolder, setRenamingFolder] = useState(null);
-  const [renameValue, setRenameValue] = useState('');
   const contextRef = useRef(null);
 
   useEffect(() => {
     if (ready && router.query.view === 'notes') router.replace('/smartnotes');
+    if (ready && router.query.view === 'classes') router.replace('/dashboard?view=guides');
   }, [ready, router, router.query.view]);
 
   useEffect(() => {
@@ -68,14 +66,12 @@ export default function Dashboard({ timerState, setTimerState }) {
         apiFetch('/folders'),
         apiFetch('/guides'),
         apiFetch('/stats/overview'),
-        apiFetch('/smart_notes'),
       ]);
       const value = index => results[index].status === 'fulfilled' ? results[index].value : null;
       const foldersData = value(0);
       const guidesData = value(1);
       const statsData = value(2);
-      const notesData = value(3);
-      const responses = [foldersData, guidesData, statsData, notesData];
+      const responses = [foldersData, guidesData, statsData];
       const failure = responses.find(data => !data || data.detail);
       if (failure) {
         setLoadError(apiErrorMessage(
@@ -86,7 +82,6 @@ export default function Dashboard({ timerState, setTimerState }) {
       if (Array.isArray(foldersData?.folders)) setFolders(foldersData.folders);
       if (Array.isArray(guidesData?.guides)) setGuides(guidesData.guides);
       if (statsData && !statsData.detail) setStats(statsData);
-      if (Array.isArray(notesData?.notes)) setSmartNotes(notesData.notes);
     } finally {
       setLoading(false);
     }
@@ -103,16 +98,6 @@ export default function Dashboard({ timerState, setTimerState }) {
     if (statsData && !statsData.detail) setStats(statsData);
   }, []);
 
-  async function deleteSmartNote(id, e) {
-    e?.stopPropagation();
-    if (!window.confirm('Delete this note?')) return;
-    const ok = await apiFetch('/smart_notes/' + id, { method: 'DELETE' });
-    if (ok) {
-      setSmartNotes(prev => prev.filter(n => n.id !== id));
-      showToast('Note deleted');
-    }
-  }
-
   async function createFolder() {
     if (!newFolderName.trim()) return;
     const data = await apiFetch('/folders', {
@@ -125,10 +110,6 @@ export default function Dashboard({ timerState, setTimerState }) {
       setShowNewFolder(false);
       showToast('Class created!');
     }
-  }
-
-  function guideCount(folderId) {
-    return guides.filter(g => g.folder_id === folderId).length;
   }
 
   async function toggleBookmark(guideId, e) {
@@ -224,7 +205,7 @@ export default function Dashboard({ timerState, setTimerState }) {
     return filtered;
   }
 
-  if (!ready || view === 'notes') return null;
+  if (!ready || view === 'notes' || view === 'classes') return null;
 
   // ============== LOADING STATE ==============
   if (!ready || loading) {
@@ -256,117 +237,6 @@ export default function Dashboard({ timerState, setTimerState }) {
     onDrop,
     dropTargetId,
   };
-
-  // ============== CLASSES VIEW ==============
-  if (view === 'classes') {
-    return (
-      <div className="fade-in">
-        {loadErrorBanner}
-        <div className="section-header">
-          <h2>My Classes</h2>
-          <button className="btn" onClick={() => setShowNewFolder(true)}>+ New Class</button>
-        </div>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: 16 }}>
-          {folders.length} classes &middot; Drag study guides onto a class to organize them
-        </p>
-
-        {showNewFolder && (
-          <div className="card" style={{ marginBottom: 16, padding: '14px 16px' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                type="text" placeholder="Class name..." value={newFolderName}
-                onChange={e => setNewFolderName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') setShowNewFolder(false); }}
-                autoFocus style={{ flex: 1, marginBottom: 0 }}
-              />
-              <button className="btn btn-green" onClick={createFolder}>Create</button>
-              <button className="btn btn-gray" onClick={() => setShowNewFolder(false)}>Cancel</button>
-            </div>
-          </div>
-        )}
-
-        <div className="folder-grid">
-          {folders.map(folder => (
-            <div
-              key={folder.id}
-              className={'folder-card' + (dropTargetId === folder.id ? ' drop-target' : '')}
-              onClick={() => router.push('/folder/' + folder.id)}
-              onDragOver={e => onDragOver(e, folder.id)}
-              onDragLeave={e => onDragLeave(e, folder.id)}
-              onDrop={e => onDrop(e, folder.id)}
-            >
-              <h3>{folder.name}</h3>
-              <p>{guideCount(folder.id)} study guides</p>
-              <div className="folder-card-actions">
-                <span className="timestamp">{formatDate(folder.created_at)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {folders.length === 0 && !showNewFolder && (
-          <div className="empty-state">
-            <div className="empty-state-icon">&#128193;</div>
-            No classes yet. Create one to organize your study guides!
-          </div>
-        )}
-
-        {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
-        {contextMenu && renderContextMenu()}
-      </div>
-    );
-  }
-
-  // ============== NOTES VIEW ==============
-  if (view === 'notes') {
-    return (
-      <div className="fade-in">
-        <div className="section-header">
-          <h2>Notes</h2>
-          <button className="btn" onClick={() => router.push('/smartnotes')} style={{ fontSize: '0.8em' }}>
-            + New Note
-          </button>
-        </div>
-
-        {smartNotes.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">&#128221;</div>
-            No saved notes yet. Open SmartNotes to start writing — every keystroke autosaves here.
-          </div>
-        ) : (
-          smartNotes.map(note => (
-            <div
-              key={note.id}
-              className="card"
-              onClick={() => router.push('/smartnotes?id=' + note.id)}
-              style={{ cursor: 'pointer' }}
-            >
-              <div className="card-row">
-                <div style={{ flex: 1 }}>
-                  <h3>{note.title || 'Untitled Notes'}</h3>
-                  <p>
-                    <span className="timestamp">
-                      Updated {formatDate(note.updated_at || note.created_at)}
-                    </span>
-                  </p>
-                </div>
-                <button
-                  className="bookmark-btn"
-                  style={{ color: 'var(--error)', opacity: 0.55, fontSize: '0.95em' }}
-                  title="Delete note"
-                  onClick={e => deleteSmartNote(note.id, e)}
-                >
-                  &#128465;
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-
-        {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
-      </div>
-    );
-  }
 
   // ============== STUDY GUIDES VIEW ==============
   if (view === 'guides') {

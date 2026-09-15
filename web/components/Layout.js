@@ -7,6 +7,8 @@ import { useRouter } from 'next/router';
 export default function Layout({ children, timerState, setTimerState }) {
   const router = useRouter();
   const pageOwnsTools = ['/dashboard', '/smartnotes', '/flashcards', '/create'].includes(router.pathname);
+  const pageOwnsTutor = router.pathname === '/dashboard'
+    && (!router.query.view || router.query.view === 'guides');
   const activeGuideId = router.query.guideId || (router.pathname === '/guide/[id]' ? router.query.id : '');
   const activeNoteId = router.pathname === '/smartnotes' ? router.query.id : '';
 
@@ -22,7 +24,7 @@ export default function Layout({ children, timerState, setTimerState }) {
           </section>
         )}
       </main>
-      <TutorDrawer preferredGuideId={activeGuideId} preferredNoteId={activeNoteId} />
+      {!pageOwnsTutor && <TutorDrawer preferredGuideId={activeGuideId} preferredNoteId={activeNoteId} />}
     </div>
   );
 }

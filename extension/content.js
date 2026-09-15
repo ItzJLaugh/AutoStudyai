@@ -50,7 +50,7 @@ function documentCandidate(element, attribute) {
   const url = absoluteUrl(raw);
   if (!url) return null;
   const metadata = `${url} ${element.getAttribute('type') || ''} ${element.getAttribute('title') || ''} ${element.textContent || ''}`;
-  const canvasFile = /\/files\/\d+(?:\/preview)?(?:[/?#]|$)/i.test(url);
+  const canvasFile = /\/files\/\d+(?:\/(?:preview|file_preview|download))?(?:[/?#]|$)/i.test(url);
   const knownDocument = DOCUMENT_PATTERN.test(metadata) || /application\/(pdf|vnd\.openxmlformats)/i.test(metadata);
   if (!canvasFile && !knownDocument) return null;
   return {
@@ -61,7 +61,7 @@ function documentCandidate(element, attribute) {
   };
 }
 
-function findDocument() {
+function findDocument(embeddedOnly = false) {
   const candidates = [];
   document.querySelectorAll('iframe[src], embed[src], object[data], a[href]').forEach((element) => {
     const attribute = element.tagName === 'OBJECT' ? 'data' : element.tagName === 'A' ? 'href' : 'src';
@@ -71,7 +71,8 @@ function findDocument() {
   if (DOCUMENT_PATTERN.test(location.href)) {
     candidates.push({ kind: 'file', url: location.href, filename: filenameFrom(location.href), embedded: true });
   }
-  return candidates.sort((a, b) => Number(b.embedded) - Number(a.embedded))[0] || null;
+  const ranked = candidates.sort((a, b) => Number(b.embedded) - Number(a.embedded));
+  return (embeddedOnly ? ranked.find(candidate => candidate.embedded) : ranked[0]) || null;
 }
 
 function visibleText() {
@@ -93,7 +94,10 @@ function visibleText() {
 function extractSource() {
   const selected = window.getSelection()?.toString().trim() || '';
   if (selected) return { kind: 'text', content: selected, selected: true, title: document.title };
-  return findDocument() || visibleText();
+  const embeddedDocument = findDocument(true);
+  if (embeddedDocument) return embeddedDocument;
+  const pageText = visibleText();
+  return pageText.content.length > 50 ? pageText : findDocument() || pageText;
 }
 
 async function fetchFile(url) {

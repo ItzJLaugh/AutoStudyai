@@ -8,7 +8,6 @@ const navItems = [
   { label: 'Dashboard', href: '/dashboard', match: '/dashboard' },
   { label: 'Study Guides', href: '/dashboard?view=guides', match: 'view=guides' },
   { label: 'SmartNotes', href: '/smartnotes', match: '/smartnotes' },
-  { label: 'Classes', href: '/dashboard?view=classes', match: 'view=classes' },
 ];
 
 export default function Sidebar() {
