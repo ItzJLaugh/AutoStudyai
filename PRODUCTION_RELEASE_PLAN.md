@@ -18,12 +18,13 @@ The first public release is ready only when a new user can complete this path wi
 ## Current evidence
 
 - Next.js production build passes for all 20 routes.
-- 65 backend contracts pass.
+- 68 backend contracts and 9 frontend/browser contracts pass.
 - Existing Canvas dashboard, secure file proxy, study-source review, guide generation, billing limits, learning profile, and extension capture contracts are present.
 - Live backend health endpoint responds successfully.
-- No GitHub Actions workflow currently protects releases.
+- GitHub Actions verifies backend contracts, frontend contracts, the production build, and extension capture on pull requests.
 - The repository does not contain a reproducible baseline for the complete Supabase schema.
-- Live Supabase and Vercel project audits still require authenticated project access.
+- The live Classroom Supabase schema and RLS policies were audited; a reproducible schema baseline and advisor review remain open.
+- Vercel preview deployment is enforced on pull requests.
 - Browser access and refresh tokens are stored in local storage; this is compatible with the extension bridge but remains a public-release security risk to review.
 
 ## Implementation order
@@ -35,16 +36,17 @@ The first public release is ready only when a new user can complete this path wi
 - [x] Normalize structured API errors before rendering them.
 - [x] Synchronize Canvas courses to Classes with an immutable external course ID and idempotent updates.
 - [x] Attach Canvas-created guides to the matching class automatically.
-- [ ] Show generation state as `queued`, `building`, `ready`, or `failed`; never imply success before a guide is saved.
+- [x] Show the actual synchronous generation state as `building`, `ready`, or `failed`; never invent a queue or imply success before a guide is saved.
 - [ ] Test the complete real path: authentication → Canvas → source → generated guide → saved class.
 - [ ] Add structured server error reporting and a request ID visible to support without exposing student content.
 
 ### P0 — release safety
 
-- [ ] Add one CI workflow for backend contracts, frontend contracts, the production build, and extension browser capture.
+- [x] Add one CI workflow for backend contracts, frontend contracts, the production build, and extension browser capture.
 - [ ] Commit a reviewed Supabase schema baseline, migrations, indexes, RLS policies, and rollback notes.
 - [ ] Run Supabase security and performance advisors against the live project.
-- [ ] Add frontend security headers and review token storage with the extension authentication bridge.
+- [x] Add conservative frontend security headers without breaking authentication or the extension bridge.
+- [ ] Review token storage with the extension authentication bridge before changing the current local-storage contract.
 - [ ] Verify billing checkout, webhook idempotency, quota enforcement, cancellation, and failed-payment recovery in Stripe test mode.
 - [ ] Verify database backup/restore and document frontend and backend rollback targets.
 - [ ] Publish one privacy disclosure that matches actual Canvas, extension, AI, and analytics data use.

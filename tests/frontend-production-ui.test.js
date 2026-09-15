@@ -17,6 +17,7 @@ const tutorDrawer = read('web', 'components', 'TutorDrawer.js');
 const retain = read('web', 'components', 'QuizMode.js');
 const flashcards = read('web', 'components', 'FlashcardViewer.js');
 const studyRail = read('web', 'components', 'DashboardStudyRail.js');
+const nextConfig = read('web', 'next.config.js');
 
 assert.match(navigation, /className="top-navigation"/);
 assert.match(navigation, /className="account-menu-panel"/);
@@ -59,5 +60,13 @@ assert.doesNotMatch(retain, /Chatbot being created|requestExplanation/);
 assert.doesNotMatch(studyRail, /AIChatWidget/);
 assert.match(layout, /<TutorDrawer preferredGuideId=\{activeGuideId\} \/>/);
 assert.doesNotMatch(tutor, /requestAnimationFrame|MAX_BUBBLES|stepPhysics/);
+assert.match(canvasDashboard, /status: 'building'/);
+assert.match(canvasDashboard, /status: 'ready'/);
+assert.match(canvasDashboard, /status: 'failed'/);
+assert.match(nextConfig, /Strict-Transport-Security/);
+assert.match(nextConfig, /X-Content-Type-Options/);
+assert.match(nextConfig, /X-Frame-Options/);
+assert.match(nextConfig, /Referrer-Policy/);
+assert.match(nextConfig, /Permissions-Policy/);
 
 console.log('Production frontend contract passed');

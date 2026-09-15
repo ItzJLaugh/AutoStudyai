@@ -122,7 +122,7 @@ export default function CanvasDashboard({ onWorkspaceChanged }) {
   const [state, setState] = useState({ loading: true, connected: false, courses: [], items: [] });
   const [connecting, setConnecting] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [autoMessage, setAutoMessage] = useState('');
+  const [generation, setGeneration] = useState({ status: 'idle', message: '' });
   const autoBuildStarted = useRef(false);
   const workspaceSynced = useRef(false);
 
@@ -141,18 +141,18 @@ export default function CanvasDashboard({ onWorkspaceChanged }) {
       autoBuildStarted.current = true;
       const today = new Date().toISOString().slice(0, 10);
       if (localStorage.getItem('canvasAutoBuildDate') === today) return;
-      setAutoMessage('Checking Canvas for study material…');
+      setGeneration({ status: 'building', message: 'Building your next Canvas study guide…' });
       apiFetch('/canvas/auto-guides', { method: 'POST', timeoutMs: 120000 }).then(result => {
         if (result?.count) {
           localStorage.setItem('canvasAutoBuildDate', today);
-          setAutoMessage('Your next Canvas study guide is ready.');
+          setGeneration({ status: 'ready', message: 'Your next Canvas study guide is ready.' });
           onWorkspaceChanged?.();
         } else if (!result || result.detail) {
           autoBuildStarted.current = false;
-          setAutoMessage(apiErrorMessage(result?.detail, 'Automatic guide creation is unavailable.'));
+          setGeneration({ status: 'failed', message: apiErrorMessage(result?.detail, 'Automatic guide creation failed. Try again later.') });
         } else {
           localStorage.setItem('canvasAutoBuildDate', today);
-          setAutoMessage('No new Canvas study material was ready.');
+          setGeneration({ status: 'idle', message: 'No new Canvas study material is ready.' });
         }
       });
     }
@@ -245,7 +245,11 @@ export default function CanvasDashboard({ onWorkspaceChanged }) {
         </div>
       </header>
       {reminder && <p className="canvas-reminder">{reminder}</p>}
-      {autoMessage && <p className="canvas-auto-status">{autoMessage}</p>}
+      {generation.message && (
+        <p className="canvas-auto-status" data-status={generation.status} role="status" aria-live="polite">
+          {generation.message}
+        </p>
+      )}
       {state.error && <div className="canvas-inline-error">{state.error}</div>}
       <div className="canvas-dashboard-grid">
         <div className="canvas-agenda">
