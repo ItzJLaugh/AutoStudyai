@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from schemas import GenerateRequest
+from services.llm import study_guide_is_complete, study_guide_to_flashcards
 from services.text_processing import build_review_sections
 from main import app
 
@@ -62,7 +63,7 @@ class UniversalCaptureContractTests(unittest.TestCase):
     @patch("main._learning_guidance", return_value="")
     @patch("main.record_usage")
     @patch("main.check_usage", return_value={"used": 0})
-    @patch("main.generate_study_guide", return_value="Study guide")
+    @patch("main.generate_study_guide", return_value="Q1: What is mitosis?\nA1: Cell division.")
     @patch("main.generate_notes_ai", return_value=["Study note"])
     @patch("main.get_user_id", return_value="student-1")
     def test_generate_accepts_reviewed_text_directly(self, _auth, _notes, _guide, _usage, _record, _guidance):
@@ -73,7 +74,35 @@ class UniversalCaptureContractTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["notes"], "- Study note")
-        self.assertEqual(response.json()["study_guide"], "Study guide")
+        self.assertEqual(response.json()["study_guide"], "Q1: What is mitosis?\nA1: Cell division.")
+
+    def test_canonical_parser_drops_duplicate_and_incomplete_pairs(self):
+        guide = (
+            "Q1: What is mitosis?\nA1: Cell division.\n\n"
+            "Q2: What is mitosis?\nA2: Cell division.\n\n"
+            "Q3: This question has no answer"
+        )
+        self.assertEqual(
+            study_guide_to_flashcards(guide),
+            [{"front": "What is mitosis?", "back": "Cell division."}],
+        )
+        self.assertFalse(study_guide_is_complete(guide))
+
+    @patch("main._learning_guidance", return_value="")
+    @patch("main.record_usage")
+    @patch("main.check_usage", return_value={"used": 0})
+    @patch("main.generate_study_guide", return_value="Q1: What is mitosis?\nA1: Cell division.\nQ2: What follows?")
+    @patch("main.generate_notes_ai", return_value=[])
+    @patch("main.get_user_id", return_value="student-1")
+    def test_malformed_generation_is_rejected(self, _auth, _notes, _guide, _usage, record, _guidance):
+        response = self.client.post(
+            "/generate",
+            headers={"Authorization": "Bearer test"},
+            json={"content": "Cells divide through mitosis.", "notes": False, "flashcards": False},
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["detail"], "CordiaClassroom received an incomplete guide. Please try again.")
+        record.assert_not_called()
 
     @patch("main._learning_guidance", return_value="")
     @patch("main.record_usage")

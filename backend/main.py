@@ -34,7 +34,7 @@ from services.llm import (
     generate_notes_ai, generate_study_guide,
     generate_flashcards, answer_question,
     analyze_images_for_slides, generate_practice_guide,
-    study_guide_to_flashcards,
+    study_guide_is_complete, study_guide_to_flashcards,
 )
 from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes, canvas
 from auth_utils import get_user_id
@@ -534,6 +534,7 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         notes_str = None
         study_guide = None
         flashcards = None
+        guide_flashcards = []
 
         if body.notes:
             logger.info("Generating notes...")
@@ -553,25 +554,20 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
                     status_code=422,
                     detail="CordiaClassroom could not build a guide from this material.",
                 )
+            guide_flashcards = study_guide_to_flashcards(study_guide)
+            if not guide_flashcards or not study_guide_is_complete(study_guide):
+                raise HTTPException(
+                    status_code=422,
+                    detail="CordiaClassroom received an incomplete guide. Please try again.",
+                )
 
         if body.flashcards:
             logger.info("Generating flashcards...")
-            # Derive flashcards from study guide Q&A pairs (1:1) instead of separate AI call
-            if study_guide:
-                flashcards = []
-                lines = study_guide.split('\n')
-                current_q = None
-                for line in lines:
-                    q_match = re.match(r'^Q\d+:\s*(.+)', line)
-                    a_match = re.match(r'^A\d+:\s*(.+)', line)
-                    if q_match:
-                        current_q = q_match.group(1).strip()
-                    elif a_match and current_q:
-                        flashcards.append({'front': current_q, 'back': a_match.group(1).strip()})
-                        current_q = None
-                logger.info(f"Created {len(flashcards)} flashcards from study guide Q&A pairs")
-            else:
-                flashcards = generate_flashcards(chunks)
+            # Reuse the canonical parser so guide and flashcard validation cannot drift.
+            flashcards = guide_flashcards if study_guide else generate_flashcards(chunks)
+            if not flashcards:
+                raise HTTPException(status_code=422, detail="CordiaClassroom could not build flashcards from this material.")
+            logger.info(f"Created {len(flashcards)} flashcards")
 
         record_usage(user_id, "build", usage)
         return GenerateResponse(
@@ -656,13 +652,16 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             practice = generate_practice_guide(content, _learning_guidance(user_id))
             if not practice or practice.startswith("[Error"):
                 raise HTTPException(status_code=502, detail="Cordia could not create practice problems from this material")
+            practice_cards = study_guide_to_flashcards(practice)
+            if not practice_cards or not study_guide_is_complete(practice):
+                raise HTTPException(status_code=502, detail="Cordia received incomplete practice problems. Please try again.")
             source_title = (source or {}).get("title") or "Study Material"
             payload = {
                 "user_id": user_id,
                 "folder_id": (guide or note or {}).get("folder_id"),
                 "title": f"{source_title} — Practice Problems",
                 "study_guide": practice,
-                "flashcards": study_guide_to_flashcards(practice),
+                "flashcards": practice_cards,
                 "source_type": (source or {}).get("type"),
                 "source_title": source_title,
                 "source_id": (source or {}).get("id"),

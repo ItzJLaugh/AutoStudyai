@@ -15,7 +15,7 @@ from auth_utils import get_user_id
 from database import get_supabase
 from routers.billing import check_usage, record_usage
 from routers.stats import learning_profile_for_user
-from services.llm import generate_study_guide
+from services.llm import generate_study_guide, study_guide_is_complete, study_guide_to_flashcards
 from services.text_processing import chunk_text, clean_text
 
 router = APIRouter(prefix="/canvas", tags=["canvas"])
@@ -420,6 +420,8 @@ def canvas_auto_guides(authorization: str = Header(default="")):
         )
         if not guide or guide.startswith("[Error"):
             raise HTTPException(status_code=502, detail="Automatic guide generation failed")
+        if not study_guide_to_flashcards(guide) or not study_guide_is_complete(guide):
+            raise HTTPException(status_code=502, detail="Automatic guide generation returned incomplete content")
         saved = db.table("study_guides").upsert(
             {
                 "user_id": user_id,

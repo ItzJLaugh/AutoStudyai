@@ -471,8 +471,9 @@ A1: [source-grounded answer]
 
 
 def study_guide_to_flashcards(content: str) -> list:
-    """Convert the canonical Q/A guide format to flashcards."""
+    """Return unique, complete pairs from the canonical Q/A guide format."""
     pairs = []
+    seen = set()
     question = None
     for line in content.splitlines():
         question_match = re.match(r'^Q\d+:\s*(.+)', line)
@@ -480,9 +481,30 @@ def study_guide_to_flashcards(content: str) -> list:
         if question_match:
             question = question_match.group(1).strip()
         elif answer_match and question:
-            pairs.append({"front": question, "back": answer_match.group(1).strip()})
+            answer = answer_match.group(1).strip()
+            key = (question.casefold(), answer.casefold())
+            if answer and key not in seen:
+                pairs.append({"front": question, "back": answer})
+                seen.add(key)
             question = None
     return pairs
+
+
+def study_guide_is_complete(content: str) -> bool:
+    """Require every canonical question to have one following answer."""
+    awaiting_answer = False
+    found_pair = False
+    for line in content.splitlines():
+        if re.match(r'^Q\d+:\s*\S', line):
+            if awaiting_answer:
+                return False
+            awaiting_answer = True
+        elif re.match(r'^A\d+:\s*\S', line):
+            if not awaiting_answer:
+                return False
+            awaiting_answer = False
+            found_pair = True
+    return found_pair and not awaiting_answer
 
 
 def generate_study_guide(chunks: List[str], has_images: bool = False, domain: Optional[str] = None, learning_guidance: str = "") -> str:
