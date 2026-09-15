@@ -7,6 +7,7 @@ import os
 import re
 import logging
 import traceback
+from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Header, UploadFile
@@ -89,14 +90,36 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["X-Request-ID"],
     max_age=600,
 )
 
 
-# Security headers middleware
+# Shared response metadata and security headers
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
+    request_id = uuid4().hex[:12]
+    request.state.request_id = request_id
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception(
+            "Unhandled request error request_id=%s method=%s path=%s",
+            request_id,
+            request.method,
+            request.url.path,
+        )
+        response = JSONResponse(status_code=500, content={"detail": "Unexpected server error"})
+    else:
+        if response.status_code >= 400:
+            logger.warning(
+                "Request failed request_id=%s status=%s method=%s path=%s",
+                request_id,
+                response.status_code,
+                request.method,
+                request.url.path,
+            )
+    response.headers["X-Request-ID"] = request_id
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"

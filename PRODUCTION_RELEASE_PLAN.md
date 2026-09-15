@@ -18,7 +18,7 @@ The first public release is ready only when a new user can complete this path wi
 ## Current evidence
 
 - Next.js production build passes for all 20 routes.
-- 68 backend contracts and 9 frontend/browser contracts pass.
+- 71 backend contracts and 9 frontend/browser contracts pass.
 - Existing Canvas dashboard, secure file proxy, study-source review, guide generation, billing limits, learning profile, and extension capture contracts are present.
 - Live backend health endpoint responds successfully.
 - GitHub Actions verifies backend contracts, frontend contracts, the production build, and extension capture on pull requests.
@@ -38,7 +38,7 @@ The first public release is ready only when a new user can complete this path wi
 - [x] Attach Canvas-created guides to the matching class automatically.
 - [x] Show the actual synchronous generation state as `building`, `ready`, or `failed`; never invent a queue or imply success before a guide is saved.
 - [ ] Test the complete real path: authentication → Canvas → source → generated guide → saved class.
-- [ ] Add structured server error reporting and a request ID visible to support without exposing student content.
+- [x] Add structured server error reporting and a request ID visible to support without exposing student content.
 
 ### P0 — release safety
 

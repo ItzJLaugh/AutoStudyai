@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import { apiFetch, getToken } from '../lib/api';
+import { apiFetch, getToken, responseJson } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -155,7 +155,7 @@ export default function CreateGuidePage() {
       headers: { Authorization: 'Bearer ' + (getToken() || '') },
       body: formData,
     });
-    const data = await response.json();
+    const data = await responseJson(response);
     if (!response.ok || !data.text) throw new Error(data.detail || 'Could not read this file.');
     return data.text;
   }

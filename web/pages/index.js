@@ -2,7 +2,7 @@ import Head from 'next/head';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import AcademicInfinityMark from '../components/AcademicInfinityMark';
-import { getToken, setToken, scheduleProactiveRefresh } from '../lib/api';
+import { getToken, responseJson, setToken, scheduleProactiveRefresh } from '../lib/api';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -30,7 +30,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email }),
       });
       if (response.ok) setForgotSent(true);
-      else setError((await response.json()).detail || 'Unable to send reset email.');
+      else setError((await responseJson(response)).detail || 'Unable to send reset email.');
     } catch {
       setError('Service unavailable. Try again in a moment.');
     }
@@ -54,7 +54,7 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await response.json();
+      const data = await responseJson(response);
 
       if (response.ok && data.access_token) {
         setToken(data.access_token, data.email, data.refresh_token);
@@ -64,8 +64,9 @@ export default function LoginPage() {
         setConfirmationSent(true);
       } else {
         const detail = (Array.isArray(data.detail) ? data.detail[0]?.msg : data.detail)?.replace(/^Value error,\s*/, '');
+        const reference = data.request_id ? ` Reference: ${data.request_id}` : '';
         setError(response.status === 401
-          ? 'That email and password did not match. Try again or reset your password.'
+          ? `That email and password did not match. Try again or reset your password.${reference}`
           : detail || 'Authentication failed.');
       }
     } catch {
