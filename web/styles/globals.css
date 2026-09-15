@@ -1884,7 +1884,7 @@ input::placeholder { color: var(--text-muted); }
   z-index: 80;
   display: flex;
   transform: translateX(calc(-100% + 61px));
-  transition: transform 220ms cubic-bezier(.2, .8, .2, 1);
+  transition: transform var(--motion-smooth);
 }
 .tutor-drawer-shell.is-open { transform: translateX(0); }
 .tutor-drawer {
@@ -1901,6 +1901,7 @@ input::placeholder { color: var(--text-muted); }
 }
 .tutor-drawer .cordia-tutor { height: 100%; }
 .tutor-resize-handle { position: absolute; inset: 0 -4px 0 auto; width: 10px; cursor: ew-resize; touch-action: none; }
+.tutor-resize-handle:focus-visible { outline: 3px solid color-mix(in srgb, var(--olive) 30%, transparent); outline-offset: -4px; }
 .tutor-drawer-toggle {
   align-self: flex-start;
   margin-top: 18px;

@@ -68,7 +68,7 @@ The first public release is ready only when a new user can complete this path wi
 - [ ] Consolidate font, color, radius, shadow, spacing, motion, and focus values into one token layer.
 - [x] Use the current Cordia white, black, and dark olive identity; remove decorative labels and duplicated headings from the primary learning screens.
 - [ ] Use one information hierarchy: page title, primary action, content windows, contextual Tutor.
-- [ ] Make resize and collapse behavior predictable and keyboard accessible; persist user layout preferences.
+- [x] Make Tutor resize and collapse behavior predictable, keyboard accessible, and preference-persistent.
 - [ ] Meet WCAG 2.2 AA contrast, focus visibility, target size, reduced-motion, and responsive layout requirements.
 - [ ] Test the five critical screens at phone, tablet, laptop, and wide desktop sizes.
 
