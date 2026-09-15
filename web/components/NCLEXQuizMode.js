@@ -113,7 +113,14 @@ export default function NCLEXQuizMode({ questions, guideId, onComplete }) {
       back: q.correct_indices.map(ci => q.options[ci]).join('; ') + (q.rationale ? ' — ' + q.rationale : '')
     }));
 
-    const body = { title: saveTitle.trim(), study_guide: studyGuide, flashcards };
+    const body = {
+      title: saveTitle.trim(),
+      study_guide: studyGuide,
+      flashcards,
+      source_type: 'study_guide',
+      source_title: 'Source study guide',
+      source_id: guideId,
+    };
     if (saveFolderId) body.folder_id = saveFolderId;
 
     const saved = await apiFetch('/guides', { method: 'POST', body: JSON.stringify(body) });

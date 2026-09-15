@@ -427,6 +427,9 @@ def canvas_auto_guides(authorization: str = Header(default="")):
                 "study_guide": guide,
                 "source_url": source["source_url"],
                 "external_source_id": external_source_id,
+                "source_type": "canvas",
+                "source_title": source["title"],
+                "source_id": external_source_id,
                 "folder_id": _folder_id_for_course(
                     db,
                     user_id,

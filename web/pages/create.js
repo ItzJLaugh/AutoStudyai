@@ -196,6 +196,9 @@ export default function CreateGuidePage() {
           flashcards: generated.flashcards || null,
           source_url: sourceUrl || null,
           external_source_id: externalSourceId || null,
+          source_type: externalSourceId.startsWith('canvas:') ? 'canvas' : uploadFile ? 'file' : sourceUrl ? 'webpage' : 'pasted_text',
+          source_title: uploadFile?.name || resolvedTitle(),
+          source_id: externalSourceId || null,
           ...(selectedFolder ? { folder_id: selectedFolder } : {}),
         }),
       });

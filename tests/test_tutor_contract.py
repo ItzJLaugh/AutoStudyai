@@ -52,7 +52,7 @@ class TutorContractTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["answer"], "Mitosis is cell division.")
-        self.assertEqual(response.json()["source"], {"type": "guide", "id": self.guide_id, "title": "Biology"})
+        self.assertEqual(response.json()["source"], {"type": "study_guide", "id": self.guide_id, "title": "Biology"})
         self.assertEqual(answer.call_args.kwargs["context"], "Q1: What is mitosis?\nA1: Cell division.")
 
     @patch("main._learning_guidance", return_value="")
@@ -79,6 +79,9 @@ class TutorContractTests(unittest.TestCase):
         payload = table.insert.call_args.args[0]
         self.assertEqual(payload["folder_id"], "folder-1")
         self.assertEqual(payload["source_guide_id"], self.guide_id)
+        self.assertEqual(payload["source_type"], "study_guide")
+        self.assertEqual(payload["source_title"], "Biology")
+        self.assertEqual(payload["source_id"], self.guide_id)
         self.assertEqual(payload["flashcards"], [{"front": "Apply mitosis.", "back": "Cell division."}])
         record.assert_called_once()
 
@@ -116,10 +119,12 @@ class TutorContractTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["source"], {"type": "note", "id": note_id, "title": "Recursion Notes"})
+        self.assertEqual(response.json()["source"], {"type": "smartnote", "id": note_id, "title": "Recursion Notes"})
         self.assertNotIn("<h2>", generate.call_args.args[0])
         payload = guide_table.insert.call_args.args[0]
         self.assertEqual(payload["folder_id"], "folder-2")
+        self.assertEqual(payload["source_type"], "smartnote")
+        self.assertEqual(payload["source_id"], note_id)
         self.assertNotIn("source_guide_id", payload)
 
 

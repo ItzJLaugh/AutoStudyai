@@ -168,7 +168,7 @@ export default function FolderPage() {
               <div style={{ flex: 1 }}>
                 <h3>{guide.title}</h3>
                 <p>
-                  {guide.source_url && <span>{guide.source_url.substring(0, 50)}...</span>}
+                  {(guide.source_title || guide.source_url) && <span>Based on {guide.source_title || 'Original source'}</span>}
                   {' '}
                   <span className="timestamp">{formatDate(guide.created_at)}</span>
                   {guide.read_progress > 0 && (

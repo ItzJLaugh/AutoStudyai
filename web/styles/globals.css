@@ -1557,6 +1557,7 @@ input::placeholder { color: var(--text-muted); }
 
 /* === Timestamp === */
 .timestamp { color: var(--text-muted); font-size: 0.8em; }
+.guide-source a { color: var(--olive); font-weight: 650; }
 
 /* === Confirm Dialog === */
 .confirm-overlay {

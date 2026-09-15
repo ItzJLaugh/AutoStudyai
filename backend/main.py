@@ -622,7 +622,7 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
                 raise HTTPException(status_code=404, detail="Guide not found")
             guide = result.data[0]
             content = _sanitize_text(guide.get("study_guide") or guide.get("notes") or "", MAX_CONTENT_LENGTH)
-            source = {"type": "guide", "id": guide["id"], "title": guide.get("title") or "Study Guide"}
+            source = {"type": "study_guide", "id": guide["id"], "title": guide.get("title") or "Study Guide"}
         elif body.note_id:
             if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', body.note_id, re.IGNORECASE):
                 raise HTTPException(status_code=400, detail="Invalid note ID")
@@ -635,9 +635,9 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
                 raise HTTPException(status_code=404, detail="Note not found")
             note = result.data[0]
             content = _sanitize_text(_plain_context(note.get("content") or ""), MAX_CONTENT_LENGTH)
-            source = {"type": "note", "id": note["id"], "title": note.get("title") or "SmartNote"}
+            source = {"type": "smartnote", "id": note["id"], "title": note.get("title") or "SmartNote"}
         elif body.context_title and content:
-            source = {"type": "attachment", "title": body.context_title.strip() or "Attached file"}
+            source = {"type": "file", "title": body.context_title.strip() or "Attached file"}
 
         if not content:
             return ChatResponse(answer="Choose study material before asking Cordia.")
@@ -663,6 +663,9 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
                 "title": f"{source_title} — Practice Problems",
                 "study_guide": practice,
                 "flashcards": study_guide_to_flashcards(practice),
+                "source_type": (source or {}).get("type"),
+                "source_title": source_title,
+                "source_id": (source or {}).get("id"),
             }
             if guide:
                 payload.update(source_url=guide.get("source_url"), source_guide_id=guide["id"])

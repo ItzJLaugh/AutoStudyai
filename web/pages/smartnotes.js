@@ -488,6 +488,9 @@ function NotesIndex({ router, timerState, setTimerState }) {
           notes: guidePreview.notes_html || '',
           flashcards: flashcards.length ? flashcards : undefined,
           folder_id: selectedFolderId || null,
+          source_type: guidePreview.source?.type,
+          source_title: guidePreview.source?.title,
+          source_id: guidePreview.source?.id,
         }),
       });
       const data = await responseJson(resp);
@@ -1402,6 +1405,9 @@ function SmartNotesEditor() {
           notes: guidePreview.notes_html || '',
           flashcards: flashcards.length ? flashcards : undefined,
           folder_id: folderIdRef.current || null,
+          source_type: guidePreview.source?.type,
+          source_title: guidePreview.source?.title,
+          source_id: guidePreview.source?.id,
         }),
       });
       const data = await responseJson(resp);

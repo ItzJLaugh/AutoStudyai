@@ -122,8 +122,8 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
   }
 
   function openSource(source) {
-    if (source?.type === 'guide') router.push('/guide/' + source.id);
-    if (source?.type === 'note') router.push('/smartnotes?id=' + source.id);
+    if (source?.type === 'study_guide') router.push('/guide/' + source.id);
+    if (source?.type === 'smartnote') router.push('/smartnotes?id=' + source.id);
   }
 
   return (
@@ -153,7 +153,7 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
         {messages.map((message, index) => (
           <div key={index} className={`cordia-tutor-message ${message.role}`}>
             {message.source && (
-              <button type="button" className="cordia-tutor-source" onClick={() => openSource(message.source)} disabled={message.source.type === 'attachment'}>
+              <button type="button" className="cordia-tutor-source" onClick={() => openSource(message.source)} disabled={message.source.type === 'file'}>
                 Based on {message.source.title}
               </button>
             )}

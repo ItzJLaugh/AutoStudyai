@@ -22,6 +22,9 @@ class CanvasContractTests(unittest.TestCase):
             title="Mitosis",
             study_guide="Q1: What is mitosis?\nA1: Cell division.",
             external_source_id="canvas:account:4:assignment:7",
+            source_type="canvas",
+            source_title="Mitosis assignment",
+            source_id="canvas:account:4:assignment:7",
         )
         with patch.object(guides, "get_user_id", return_value="student-1"), \
              patch.object(guides, "get_supabase", return_value=db):
@@ -31,6 +34,14 @@ class CanvasContractTests(unittest.TestCase):
             unittest.mock.ANY,
             on_conflict="user_id,external_source_id",
         )
+        payload = table.upsert.call_args.args[0]
+        self.assertEqual(payload["source_type"], "canvas")
+        self.assertEqual(payload["source_title"], "Mitosis assignment")
+        self.assertEqual(payload["source_id"], "canvas:account:4:assignment:7")
+
+    def test_guide_rejects_unsafe_source_url(self):
+        with self.assertRaises(ValueError):
+            guides.SaveGuideRequest(title="Unsafe", source_url="javascript:alert(1)")
 
     def test_course_response_is_small_and_human_readable(self):
         self.assertEqual(
@@ -225,6 +236,9 @@ class CanvasContractTests(unittest.TestCase):
         self.assertEqual(result, {"created": [{"id": "guide-1", "title": "Mitosis"}], "count": 1})
         payload = table.upsert.call_args.args[0]
         self.assertEqual(payload["external_source_id"], "canvas:apn_canvas:4:assignment:7")
+        self.assertEqual(payload["source_type"], "canvas")
+        self.assertEqual(payload["source_title"], "Mitosis")
+        self.assertEqual(payload["source_id"], "canvas:apn_canvas:4:assignment:7")
         self.assertEqual(payload["folder_id"], "folder-1")
         record_usage.assert_called_once_with("student-1", "build", usage)
 
