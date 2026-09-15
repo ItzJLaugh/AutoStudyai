@@ -52,6 +52,28 @@ export function authOnlyHeaders() {
   };
 }
 
+export function apiErrorMessage(detail, fallback = 'Something went wrong. Please try again.') {
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (typeof detail?.message === 'string' && detail.message.trim()) return detail.message;
+  return fallback;
+}
+
+function addRequestReference(data, response) {
+  if (response.ok || !data || typeof data !== 'object' || Array.isArray(data)) return data;
+  const requestId = response.headers.get('X-Request-ID');
+  if (!requestId) return data;
+  const suffix = ` Reference: ${requestId}`;
+  return {
+    ...data,
+    request_id: requestId,
+    detail: typeof data.detail === 'string' ? `${data.detail}${suffix}` : data.detail,
+  };
+}
+
+export async function responseJson(response) {
+  return addRequestReference(await response.json(), response);
+}
+
 // Proactive token refresh — silently renews the token 2 min before expiry.
 let _proactiveTimer = null;
 
@@ -131,7 +153,7 @@ export async function apiFetch(path, options = {}) {
       }
     }
 
-    return resp.json();
+    return responseJson(resp);
   } catch (e) {
     console.error('API fetch error:', path, e);
     return null;

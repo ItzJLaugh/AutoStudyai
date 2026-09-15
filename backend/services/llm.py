@@ -5,6 +5,7 @@ Uses OpenAI GPT-4o for intelligent content processing.
 
 import os
 import logging
+import re
 from typing import List, Optional
 try:
     from openai import OpenAI
@@ -429,6 +430,81 @@ def generate_study_guide_from_notes(html_content: str) -> str:
         if hasattr(e, 'status_code') and e.status_code == 429:
             return "[Error: OpenAI rate limit reached. Please try again later.]"
         return "[Error generating study guide]"
+
+
+def generate_practice_guide(context: str, learning_guidance: str = "") -> str:
+    """Create source-grounded practice problems in the existing Q/A guide format."""
+    client = get_openai_client()
+    if not client:
+        return "[Error: OpenAI API key not configured]"
+
+    guidance = (
+        f"\nAdapt the presentation using this learning guidance: {learning_guidance}"
+        if learning_guidance else ""
+    )
+    prompt = f"""Create 8-12 practice problems using only the source material below.
+Each problem must be answerable from the source. Include a concise answer that explains the reasoning using only source facts.
+Do not introduce outside facts, fabricated examples, or unsupported assumptions.{guidance}
+
+SOURCE:
+{context[:25000]}
+
+Return only this repeated format:
+Q1: [practice problem]
+A1: [source-grounded answer]
+"""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You create rigorous, source-grounded practice problems for students."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=4000,
+            temperature=0.2,
+        )
+        result, _ = _postprocess_study_guide(response.choices[0].message.content.strip())
+        return result if re.search(r'^Q\d+:', result, re.MULTILINE) else "[Error generating practice guide]"
+    except Exception as e:
+        logger.error(f"Error generating practice guide: {e}")
+        return "[Error generating practice guide]"
+
+
+def study_guide_to_flashcards(content: str) -> list:
+    """Return unique, complete pairs from the canonical Q/A guide format."""
+    pairs = []
+    seen = set()
+    question = None
+    for line in content.splitlines():
+        question_match = re.match(r'^Q\d+:\s*(.+)', line)
+        answer_match = re.match(r'^A\d+:\s*(.+)', line)
+        if question_match:
+            question = question_match.group(1).strip()
+        elif answer_match and question:
+            answer = answer_match.group(1).strip()
+            key = (question.casefold(), answer.casefold())
+            if answer and key not in seen:
+                pairs.append({"front": question, "back": answer})
+                seen.add(key)
+            question = None
+    return pairs
+
+
+def study_guide_is_complete(content: str) -> bool:
+    """Require every canonical question to have one following answer."""
+    awaiting_answer = False
+    found_pair = False
+    for line in content.splitlines():
+        if re.match(r'^Q\d+:\s*\S', line):
+            if awaiting_answer:
+                return False
+            awaiting_answer = True
+        elif re.match(r'^A\d+:\s*\S', line):
+            if not awaiting_answer:
+                return False
+            awaiting_answer = False
+            found_pair = True
+    return found_pair and not awaiting_answer
 
 
 def generate_study_guide(chunks: List[str], has_images: bool = False, domain: Optional[str] = None, learning_guidance: str = "") -> str:

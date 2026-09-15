@@ -9,7 +9,6 @@ export default function StudyWorkspaceFrame({
   section,
   timerState,
   setTimerState,
-  guides,
   classRail = {},
 }) {
   return (
@@ -30,7 +29,7 @@ export default function StudyWorkspaceFrame({
         allowCreate={classRail.allowCreate !== false}
       />
       <section className="dashboard-center-column">{children}</section>
-      <DashboardStudyRail timerState={timerState} setTimerState={setTimerState} guides={guides} />
+      <DashboardStudyRail timerState={timerState} setTimerState={setTimerState} />
     </div>
   );
 }

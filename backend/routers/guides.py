@@ -32,6 +32,9 @@ class SaveGuideRequest(BaseModel):
     flashcards: Optional[list] = None
     source_url: Optional[str] = None
     external_source_id: Optional[str] = Field(default=None, max_length=500)
+    source_type: Optional[str] = Field(default=None, max_length=50)
+    source_title: Optional[str] = Field(default=None, max_length=500)
+    source_id: Optional[str] = Field(default=None, max_length=500)
     domain: Optional[str] = None
 
     model_config = {"str_max_length": 5_000_000}
@@ -57,6 +60,8 @@ class SaveGuideRequest(BaseModel):
     def validate_url(cls, v):
         if v and len(v) > 2048:
             raise ValueError("URL too long")
+        if v and not re.match(r"^https?://", v, re.IGNORECASE):
+            raise ValueError("Source URL must use HTTP or HTTPS")
         return v
 
 
@@ -118,6 +123,11 @@ def save_guide(request: SaveGuideRequest, authorization: str = Header(default=""
 
         if request.external_source_id:
             data["external_source_id"] = request.external_source_id
+
+        for field in ("source_type", "source_title", "source_id"):
+            value = getattr(request, field)
+            if value:
+                data[field] = value
 
         table = supabase.table("study_guides")
         result = (

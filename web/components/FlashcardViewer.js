@@ -39,6 +39,12 @@ export default function FlashcardViewer({ flashcards, guideId, onComplete }) {
     setMissedSet(newMissed);
     setQueue(newQueue);
     setIsFlipped(false);
+    window.dispatchEvent(new CustomEvent('cordia:tutor-prompt', {
+      detail: {
+        guideId,
+        prompt: `Explain this question: ${flashcards[cardIndex].front}`,
+      },
+    }));
   }
 
   function goBack() {

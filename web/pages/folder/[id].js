@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { apiFetch } from '../../lib/api';
+import { apiErrorMessage, apiFetch } from '../../lib/api';
 import { useRequireAuth } from '../../lib/auth';
 import { formatDate } from '../../lib/formatters';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -11,6 +11,7 @@ export default function FolderPage() {
   const { id } = router.query;
   const { ready } = useRequireAuth();
   const [folder, setFolder] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [folders, setFolders] = useState([]);
   const [guides, setGuides] = useState([]);
   const [confirm, setConfirm] = useState(null);
@@ -35,14 +36,24 @@ export default function FolderPage() {
   }
 
   async function loadData() {
+    setLoadError('');
     const [foldersData, guidesData] = await Promise.all([
       apiFetch('/folders'),
       apiFetch('/guides?folder_id=' + id)
     ]);
+    const failure = [foldersData, guidesData].find(data => !data || data.detail);
+    if (failure) {
+      setLoadError(apiErrorMessage(failure?.detail, 'This class could not be loaded.'));
+      return;
+    }
     const allFolders = foldersData?.folders || [];
     setFolders(allFolders);
     const currentFolder = allFolders.find(f => f.id === id);
-    setFolder(currentFolder || { name: 'Unknown Folder' });
+    if (!currentFolder) {
+      setLoadError('This class no longer exists or you do not have access to it.');
+      return;
+    }
+    setFolder(currentFolder);
     setGuides(guidesData?.guides || []);
   }
 
@@ -92,6 +103,17 @@ export default function FolderPage() {
       }
     }
   }
+
+  if (loadError && !folder) return (
+    <div className="empty-state" role="alert">
+      <h2>Class unavailable</h2>
+      <p>{loadError}</p>
+      <div className="resource-load-actions">
+        <button type="button" className="btn" onClick={loadData}>Try again</button>
+        <button type="button" className="btn-outline" onClick={() => router.push('/dashboard?view=classes')}>Back to Classes</button>
+      </div>
+    </div>
+  );
 
   if (!folder) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
@@ -146,7 +168,7 @@ export default function FolderPage() {
               <div style={{ flex: 1 }}>
                 <h3>{guide.title}</h3>
                 <p>
-                  {guide.source_url && <span>{guide.source_url.substring(0, 50)}...</span>}
+                  {(guide.source_title || guide.source_url) && <span>Based on {guide.source_title || 'Original source'}</span>}
                   {' '}
                   <span className="timestamp">{formatDate(guide.created_at)}</span>
                   {guide.read_progress > 0 && (

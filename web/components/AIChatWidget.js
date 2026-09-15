@@ -1,77 +1,169 @@
 import { useEffect, useRef, useState } from 'react';
-import { apiFetch } from '../lib/api';
+import { useRouter } from 'next/router';
+import { apiErrorMessage, apiFetch, authOnlyHeaders, responseJson } from '../lib/api';
 
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const MAX_MESSAGES = 15;
 
-export default function AIChatWidget({ floating = false, guides: providedGuides = null }) {
+export default function AIChatWidget({ guides: providedGuides = null, preferredGuideId = '', preferredNoteId = '' }) {
+  const router = useRouter();
   const [loadedGuides, setLoadedGuides] = useState([]);
-  const [guideId, setGuideId] = useState('');
+  const [notes, setNotes] = useState([]);
+  const [contextKey, setContextKey] = useState('');
+  const [attachment, setAttachment] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const fileRef = useRef(null);
   const endRef = useRef(null);
+  const appliedPreferred = useRef('');
 
   useEffect(() => {
-    if (providedGuides) return;
-    apiFetch('/guides?limit=50').then(data => {
-      const next = data?.guides || [];
-      setLoadedGuides(next);
+    Promise.all([
+      providedGuides ? null : apiFetch('/guides?limit=50'),
+      apiFetch('/smart_notes'),
+    ]).then(([guideData, noteData]) => {
+      if (Array.isArray(guideData?.guides)) setLoadedGuides(guideData.guides);
+      if (Array.isArray(noteData?.notes)) setNotes(noteData.notes);
     });
   }, [providedGuides]);
 
   const guides = providedGuides || loadedGuides;
+  const materials = [
+    ...guides.map(item => ({ ...item, kind: 'guide', key: `guide:${item.id}` })),
+    ...notes.map(item => ({ ...item, kind: 'note', key: `note:${item.id}` })),
+    ...(attachment ? [{ ...attachment, kind: 'attachment', key: 'attachment' }] : []),
+  ];
 
   useEffect(() => {
-    if (!guides.some(item => String(item.id) === guideId)) {
-      setGuideId(String(guides[0]?.id || ''));
+    const preferred = preferredGuideId ? `guide:${preferredGuideId}` : preferredNoteId ? `note:${preferredNoteId}` : '';
+    if (preferred && preferred !== appliedPreferred.current && materials.some(item => item.key === preferred)) {
+      appliedPreferred.current = preferred;
+      setContextKey(preferred);
+      return;
     }
-  }, [guides, guideId]);
+    if (!materials.some(item => item.key === contextKey)) setContextKey(materials[0]?.key || '');
+  }, [materials.length, contextKey, preferredGuideId, preferredNoteId]);
+
+  useEffect(() => {
+    const prefill = event => {
+      const detail = event.detail || {};
+      if (detail.guideId) setContextKey(`guide:${detail.guideId}`);
+      if (detail.prompt) setInput(detail.prompt);
+    };
+    window.addEventListener('cordia:tutor-prompt', prefill);
+    return () => window.removeEventListener('cordia:tutor-prompt', prefill);
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  const guide = guides.find(item => String(item.id) === guideId);
+  const material = materials.find(item => item.key === contextKey);
   const remaining = MAX_MESSAGES - messages.filter(message => message.role === 'user').length;
 
-  function changeGuide(event) {
-    setGuideId(event.target.value);
+  function changeContext(event) {
+    setContextKey(event.target.value);
     setMessages([]);
+  }
+
+  async function attachFile(file) {
+    if (!file) return;
+    setExtracting(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const response = await fetch(API + '/extract-file-text', { method: 'POST', headers: authOnlyHeaders(), body: formData });
+      const data = await responseJson(response);
+      if (!response.ok || !data?.text) throw new Error(apiErrorMessage(data?.detail, 'Could not read this file.'));
+      setAttachment({ title: file.name, content: data.text });
+      setContextKey('attachment');
+      setMessages([]);
+    } catch (error) {
+      setMessages(current => [...current, { role: 'ai', text: error.message || 'Could not read this file.' }]);
+    } finally {
+      setExtracting(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   }
 
   async function sendMessage() {
     const question = input.trim();
-    if (!question || !guide || loading || remaining <= 0) return;
+    if (!question || !material || loading || remaining <= 0) return;
     setMessages(current => [...current, { role: 'user', text: question }]);
     setInput('');
     setLoading(true);
     const data = await apiFetch('/chat', {
       method: 'POST',
-      body: JSON.stringify({ question, content: guide.study_guide || guide.notes || '', mode: 'short' }),
+      body: JSON.stringify({
+        question,
+        content: material.kind === 'attachment' ? material.content : '',
+        ...(material.kind === 'guide' ? { guide_id: material.id } : {}),
+        ...(material.kind === 'note' ? { note_id: material.id } : {}),
+        ...(material.kind === 'attachment' ? { context_title: material.title } : {}),
+        mode: 'short',
+      }),
     });
+    if (data?.action === 'created_guide' && !providedGuides) {
+      const refreshed = await apiFetch('/guides?limit=50');
+      if (Array.isArray(refreshed?.guides)) {
+        setLoadedGuides(refreshed.guides);
+        setContextKey(`guide:${data.guide.id}`);
+      }
+    }
     setMessages(current => [...current, {
       role: 'ai',
       text: data?.answer || data?.detail || 'Cordia could not answer that yet.',
+      guide: data?.guide || null,
+      source: data?.source || null,
     }]);
     setLoading(false);
   }
 
+  function openSource(source) {
+    if (source?.type === 'study_guide') router.push('/guide/' + source.id);
+    if (source?.type === 'smartnote') router.push('/smartnotes?id=' + source.id);
+  }
+
   return (
-    <section className={`cordia-tutor${floating ? ' is-floating' : ''}`} aria-label="Cordia tutor">
+    <section className="cordia-tutor" aria-label="Cordia tutor">
       <header className="cordia-tutor-header">
         <strong>Cordia Tutor</strong>
-        <select value={guideId} onChange={changeGuide} aria-label="Study material">
-          {guides.length === 0 && <option value="">No guides yet</option>}
-          {guides.map(item => <option key={item.id} value={item.id}>{item.title || 'Untitled guide'}</option>)}
+        <select value={contextKey} onChange={changeContext} aria-label="Study material">
+          {materials.length === 0 && <option value="">Choose study material</option>}
+          {guides.length > 0 && <optgroup label="Study Guides">
+            {guides.map(item => <option key={item.id} value={`guide:${item.id}`}>{item.title || 'Untitled guide'}</option>)}
+          </optgroup>}
+          {notes.length > 0 && <optgroup label="SmartNotes">
+            {notes.map(item => <option key={item.id} value={`note:${item.id}`}>{item.title || 'Untitled note'}</option>)}
+          </optgroup>}
+          {attachment && <optgroup label="Attached file"><option value="attachment">{attachment.title}</option></optgroup>}
         </select>
+        <input ref={fileRef} type="file" accept=".pdf,.docx,.pptx,.txt,.md,.csv,.jpg,.jpeg,.png,.webp" onChange={event => attachFile(event.target.files?.[0])} hidden />
+        <button type="button" className="cordia-tutor-attach" onClick={() => fileRef.current?.click()} disabled={extracting}>
+          {extracting ? 'Reading file…' : 'Attach study material'}
+        </button>
       </header>
 
       <div className="cordia-tutor-messages" aria-live="polite">
         {messages.length === 0 && (
-          <p>{guide ? `Ask about ${guide.title || 'this guide'}.` : 'Your Canvas study guides will appear here.'}</p>
+          <p>{material ? `Ask about ${material.title || 'this material'}.` : 'Choose a guide, SmartNote, or file to begin.'}</p>
         )}
         {messages.map((message, index) => (
-          <div key={index} className={`cordia-tutor-message ${message.role}`}>{message.text}</div>
+          <div key={index} className={`cordia-tutor-message ${message.role}`}>
+            {message.source && (
+              <button type="button" className="cordia-tutor-source" onClick={() => openSource(message.source)} disabled={message.source.type === 'file'}>
+                Based on {message.source.title}
+              </button>
+            )}
+            {message.text}
+            {message.guide && (
+              <button type="button" className="cordia-tutor-guide-link" onClick={() => router.push('/guide/' + message.guide.id)}>
+                Open {message.guide.title}
+              </button>
+            )}
+          </div>
         ))}
         {loading && <div className="cordia-tutor-message ai">Thinking…</div>}
         <div ref={endRef} />
@@ -87,11 +179,11 @@ export default function AIChatWidget({ floating = false, guides: providedGuides 
               sendMessage();
             }
           }}
-          placeholder={guide ? 'Ask Cordia…' : 'Create or connect a guide first'}
-          disabled={!guide || loading || remaining <= 0}
+          placeholder={material ? 'Ask Cordia…' : 'Choose or attach study material'}
+          disabled={!material || loading || remaining <= 0}
           rows="2"
         />
-        <button type="button" onClick={sendMessage} disabled={!guide || loading || !input.trim() || remaining <= 0} aria-label="Send">
+        <button type="button" onClick={sendMessage} disabled={!material || loading || !input.trim() || remaining <= 0} aria-label="Send">
           ↑
         </button>
       </div>

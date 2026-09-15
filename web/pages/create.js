@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import { apiFetch, getToken } from '../lib/api';
+import { apiFetch, getToken, responseJson } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -155,7 +155,7 @@ export default function CreateGuidePage() {
       headers: { Authorization: 'Bearer ' + (getToken() || '') },
       body: formData,
     });
-    const data = await response.json();
+    const data = await responseJson(response);
     if (!response.ok || !data.text) throw new Error(data.detail || 'Could not read this file.');
     return data.text;
   }
@@ -196,6 +196,9 @@ export default function CreateGuidePage() {
           flashcards: generated.flashcards || null,
           source_url: sourceUrl || null,
           external_source_id: externalSourceId || null,
+          source_type: externalSourceId.startsWith('canvas:') ? 'canvas' : uploadFile ? 'file' : sourceUrl ? 'webpage' : 'pasted_text',
+          source_title: uploadFile?.name || resolvedTitle(),
+          source_id: externalSourceId || null,
           ...(selectedFolder ? { folder_id: selectedFolder } : {}),
         }),
       });
@@ -223,7 +226,6 @@ export default function CreateGuidePage() {
     <div className="fade-in create-page create-page-redesign">
       <button type="button" className="create-back-link" onClick={() => router.push('/dashboard?view=guides')}>Back to Study Guides</button>
       <header className="create-header create-hero">
-        <p className="editorial-kicker">New study guide</p>
         <h1 className="create-title">Turn material into something you can study.</h1>
         <p className="create-subtitle">Paste notes or add a file. CordiaClassroom handles the structure, title, and flashcards for you.</p>
       </header>

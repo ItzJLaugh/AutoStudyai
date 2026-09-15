@@ -15,7 +15,7 @@ from auth_utils import get_user_id
 from database import get_supabase
 from routers.billing import check_usage, record_usage
 from routers.stats import learning_profile_for_user
-from services.llm import generate_study_guide
+from services.llm import generate_study_guide, study_guide_is_complete, study_guide_to_flashcards
 from services.text_processing import chunk_text, clean_text
 
 router = APIRouter(prefix="/canvas", tags=["canvas"])
@@ -207,6 +207,56 @@ def _source_id(account_id: str, item: dict) -> str:
     ))
 
 
+def _course_source_id(account_id: str, course_id) -> str:
+    return f"canvas:{account_id}:course:{course_id}"
+
+
+def _sync_course_folders(courses: list, user_id: str, account_id: str, db) -> None:
+    rows = [
+        {
+            "user_id": user_id,
+            "name": course["name"],
+            "external_source_id": _course_source_id(account_id, course["id"]),
+        }
+        for course in courses
+        if course.get("id") is not None
+    ]
+    if not rows:
+        return
+    db.table("folders").upsert(
+        rows,
+        on_conflict="user_id,external_source_id",
+    ).execute()
+
+
+def _folder_id_for_course(db, user_id: str, account_id: str, course_id):
+    if course_id is None:
+        return None
+    result = (
+        db.table("folders")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("external_source_id", _course_source_id(account_id, course_id))
+        .limit(1)
+        .execute()
+    )
+    return result.data[0]["id"] if result.data else None
+
+
+def _auto_guide_candidates(items: list) -> list:
+    eligible = [
+        item
+        for item in items
+        if isinstance(item, dict)
+        and _normalize_planner_item(item)["type"] == "assignment"
+        and not _normalize_planner_item(item)["completed"]
+    ]
+    return sorted(
+        eligible,
+        key=lambda item: _normalize_planner_item(item).get("due_at") or "9999",
+    )[:AUTO_GUIDE_SCAN_LIMIT]
+
+
 @router.get("/status")
 def canvas_status(authorization: str = Header(default="")):
     user_id = get_user_id(authorization)
@@ -241,11 +291,7 @@ def connect_canvas(authorization: str = Header(default="")):
     return {"connect_url": f"{connect_url}{separator}app=canvas"}
 
 
-@router.get("/dashboard")
-def canvas_dashboard(authorization: str = Header(default="")):
-    user_id = get_user_id(authorization)
-    config = _config()
-    account = _canvas_account(user_id, config)
+def _dashboard_response(user_id: str, config: dict, account) -> dict:
     if not account:
         return {"connected": False, "courses": [], "items": []}
 
@@ -261,6 +307,25 @@ def canvas_dashboard(authorization: str = Header(default="")):
         "courses": [_normalize_course(course) for course in courses if isinstance(course, dict)],
         "items": [_normalize_planner_item(item) for item in items if isinstance(item, dict)],
     }
+
+
+@router.get("/dashboard")
+def canvas_dashboard(authorization: str = Header(default="")):
+    user_id = get_user_id(authorization)
+    config = _config()
+    return _dashboard_response(user_id, config, _canvas_account(user_id, config))
+
+
+@router.post("/sync")
+def canvas_sync(authorization: str = Header(default="")):
+    """Refresh Canvas and mirror active courses into the student's Classes."""
+    user_id = get_user_id(authorization)
+    config = _config()
+    account = _canvas_account(user_id, config)
+    data = _dashboard_response(user_id, config, account)
+    if account:
+        _sync_course_folders(data["courses"], user_id, account["id"], get_supabase())
+    return data
 
 
 @router.get("/file/{file_id}")
@@ -322,19 +387,13 @@ def canvas_auto_guides(authorization: str = Header(default="")):
     if remaining <= 0:
         return {"created": [], "count": 0}
     items = _proxy_get(_planner_path(), user_id, account["id"], config)
-    candidates = sorted(
-        (item for item in items if isinstance(item, dict)),
-        key=lambda item: _normalize_planner_item(item).get("due_at") or "9999",
-    )
+    candidates = _auto_guide_candidates(items)
     db = get_supabase()
     created = []
 
     # Canvas can return an entire semester of assignments. Keep the automatic
     # pass fast and inexpensive; students can explicitly build older items.
-    for item in candidates[:AUTO_GUIDE_SCAN_LIMIT]:
-        normalized = _normalize_planner_item(item)
-        if normalized["completed"] or normalized["type"] != "assignment":
-            continue
+    for item in candidates:
         external_source_id = _source_id(account["id"], item)
         existing = (
             db.table("study_guides")
@@ -361,6 +420,8 @@ def canvas_auto_guides(authorization: str = Header(default="")):
         )
         if not guide or guide.startswith("[Error"):
             raise HTTPException(status_code=502, detail="Automatic guide generation failed")
+        if not study_guide_to_flashcards(guide) or not study_guide_is_complete(guide):
+            raise HTTPException(status_code=502, detail="Automatic guide generation returned incomplete content")
         saved = db.table("study_guides").upsert(
             {
                 "user_id": user_id,
@@ -368,6 +429,15 @@ def canvas_auto_guides(authorization: str = Header(default="")):
                 "study_guide": guide,
                 "source_url": source["source_url"],
                 "external_source_id": external_source_id,
+                "source_type": "canvas",
+                "source_title": source["title"],
+                "source_id": external_source_id,
+                "folder_id": _folder_id_for_course(
+                    db,
+                    user_id,
+                    account["id"],
+                    item.get("course_id"),
+                ),
             },
             on_conflict="user_id,external_source_id",
         ).execute()

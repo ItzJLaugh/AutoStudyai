@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { authHeaders, authOnlyHeaders } from '../lib/api';
+import { authHeaders, authOnlyHeaders, responseJson } from '../lib/api';
 import StudyWorkspaceFrame from '../components/StudyWorkspaceFrame';
 import { organizeDashboardGuides } from '../lib/dashboardOrganization';
 
@@ -287,7 +287,7 @@ function FileViewer({ file, guideContent }) {
             return;
           }
 
-          const renderError = await renderResponse.json().catch(() => ({}));
+          const renderError = await responseJson(renderResponse).catch(() => ({}));
           if (renderError.detail) fallbackReason = `${renderError.detail} Showing extracted slide text instead.`;
         } catch {
           fallbackReason = 'Could not reach the visual renderer. Showing extracted slide text instead.';
@@ -303,7 +303,7 @@ function FileViewer({ file, guideContent }) {
           headers: authOnlyHeaders(),
           body: extractData,
         });
-        const data = await extractResponse.json().catch(() => ({}));
+        const data = await responseJson(extractResponse).catch(() => ({}));
         if (cancelled) return;
         if (!extractResponse.ok) throw new Error(data.detail || 'Could not read this presentation.');
         setExtractedText(data.text || '');
@@ -328,7 +328,7 @@ function FileViewer({ file, guideContent }) {
       fd.append('file', file);
       fetch(API + '/extract-file-text', { method: 'POST', headers: authOnlyHeaders(), body: fd })
         .then(async r => {
-          const data = await r.json().catch(() => ({}));
+          const data = await responseJson(r).catch(() => ({}));
           if (cancelled) return;
           if (!r.ok) {
             setExtractError(data.detail || 'Could not extract text from this file.');
@@ -414,9 +414,9 @@ function NotesIndex({ router, timerState, setTimerState }) {
 
   useEffect(() => {
     Promise.all([
-      fetch(API + '/smart_notes', { headers: authHeaders() }).then(r => r.json()).catch(() => ({ notes: [] })),
-      fetch(API + '/folders', { headers: authHeaders() }).then(r => r.json()).catch(() => ({ folders: [] })),
-      fetch(API + '/guides', { headers: authHeaders() }).then(r => r.json()).catch(() => ({ guides: [] })),
+      fetch(API + '/smart_notes', { headers: authHeaders() }).then(responseJson).catch(() => ({ notes: [] })),
+      fetch(API + '/folders', { headers: authHeaders() }).then(responseJson).catch(() => ({ folders: [] })),
+      fetch(API + '/guides', { headers: authHeaders() }).then(responseJson).catch(() => ({ guides: [] })),
     ]).then(([notesData, foldersData, guidesData]) => {
       setNotes(notesData.notes || []);
       setFolders(foldersData.folders || []);
@@ -435,7 +435,7 @@ function NotesIndex({ router, timerState, setTimerState }) {
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'Untitled Notes' }),
       });
-      const data = await resp.json();
+      const data = await responseJson(resp);
       if (data.note) router.push('/smartnotes?id=' + data.note.id);
     } catch {}
   }
@@ -450,7 +450,7 @@ function NotesIndex({ router, timerState, setTimerState }) {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       });
-      const data = await resp.json();
+      const data = await responseJson(resp);
       if (!resp.ok) {
         setGuidePreview({ title: '', study_guide: '', pairs: [] });
         setPreviewError(data?.detail || 'Failed to generate study guide');
@@ -488,9 +488,12 @@ function NotesIndex({ router, timerState, setTimerState }) {
           notes: guidePreview.notes_html || '',
           flashcards: flashcards.length ? flashcards : undefined,
           folder_id: selectedFolderId || null,
+          source_type: guidePreview.source?.type,
+          source_title: guidePreview.source?.title,
+          source_id: guidePreview.source?.id,
         }),
       });
-      const data = await resp.json();
+      const data = await responseJson(resp);
       if (resp.ok && data.guide?.id) {
         router.push('/guide/' + data.guide.id);
       } else {
@@ -713,7 +716,7 @@ function SmartNotesEditor() {
   // Load existing guides for picker
   useEffect(() => {
     fetch(API + '/guides?limit=50', { headers: authHeaders() })
-      .then(r => r.json())
+      .then(responseJson)
       .then(data => setGuideList(data.guides || []))
       .catch(() => {});
   }, []);
@@ -721,7 +724,7 @@ function SmartNotesEditor() {
   // Load classes/folders for assignment
   useEffect(() => {
     fetch(API + '/folders', { headers: authHeaders() })
-      .then(r => r.json())
+      .then(responseJson)
       .then(data => setFolders(data.folders || []))
       .catch(() => {});
   }, []);
@@ -729,7 +732,7 @@ function SmartNotesEditor() {
   // Load notes list (also callable after save to refresh titles)
   const fetchNotes = useCallback(() => {
     fetch(API + '/smart_notes', { headers: authHeaders() })
-      .then(r => r.json())
+      .then(responseJson)
       .then(data => setNotes(data.notes || []))
       .catch(() => {});
   }, []);
@@ -743,7 +746,7 @@ function SmartNotesEditor() {
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'Untitled Notes' }),
       });
-      const data = await resp.json();
+      const data = await responseJson(resp);
       if (data.note) {
         noteIdRef.current = data.note.id;
         setNoteId(data.note.id);
@@ -762,7 +765,7 @@ function SmartNotesEditor() {
     try {
       const resp = await fetch(API + '/smart_notes/' + id, { headers: authHeaders() });
       if (!resp.ok) { createNote(); return; }
-      const data = await resp.json();
+      const data = await responseJson(resp);
       noteIdRef.current = data.note.id;
       titleRef.current  = data.note.title || 'Untitled Notes';
       folderIdRef.current = data.note.folder_id || '';
@@ -893,7 +896,7 @@ function SmartNotesEditor() {
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: selectedText }),
       });
-      const data = await resp.json();
+      const data = await responseJson(resp);
       setMermaidCode(data.mermaid || null);
     } catch {}
     setDiagramLoading(false);
@@ -1329,7 +1332,7 @@ function SmartNotesEditor() {
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'Untitled Notes' }),
       });
-      const data = await resp.json();
+      const data = await responseJson(resp);
       if (data.note) router.push('/smartnotes?id=' + data.note.id);
     } catch {}
   }
@@ -1366,7 +1369,7 @@ function SmartNotesEditor() {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       });
-      const data = await resp.json();
+      const data = await responseJson(resp);
       if (!resp.ok) {
         setPreviewError(data?.detail || 'Failed to generate study guide');
         setGuidePreview({ title: '', study_guide: '', pairs: [] });
@@ -1402,9 +1405,12 @@ function SmartNotesEditor() {
           notes: guidePreview.notes_html || '',
           flashcards: flashcards.length ? flashcards : undefined,
           folder_id: folderIdRef.current || null,
+          source_type: guidePreview.source?.type,
+          source_title: guidePreview.source?.title,
+          source_id: guidePreview.source?.id,
         }),
       });
-      const data = await resp.json();
+      const data = await responseJson(resp);
       if (resp.ok && data.guide?.id) {
         router.push('/guide/' + data.guide.id);
       } else {

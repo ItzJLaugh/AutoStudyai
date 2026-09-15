@@ -1,6 +1,7 @@
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { responseJson } from '../lib/api';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -41,7 +42,7 @@ export default function ResetPasswordPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ access_token: accessToken, new_password: newPassword })
       });
-      const data = await resp.json();
+      const data = await responseJson(resp);
       if (resp.ok) {
         setSuccess(true);
         setTimeout(() => router.push('/'), 3000);

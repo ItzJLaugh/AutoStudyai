@@ -5,6 +5,7 @@ let lastNotes = '';
 let lastFlashcards = [];
 let lastPageUrl = '';
 let lastPageTitle = '';
+let lastSourceType = 'webpage';
 let chatHistory = [];
 let exampleModeEnabled = false;
 let pendingSections = [];
@@ -376,6 +377,7 @@ async function captureDocument(tabId, source) {
 }
 
 async function screenshotFallback() {
+  lastSourceType = 'screenshot';
   showProgress('The embedded viewer is protected; capturing the visible page instead...');
   const screenshot = await takeScreenshot();
   if (!screenshot) throw new Error('The page could not be captured');
@@ -389,10 +391,12 @@ async function runCaptureFlow(tabId) {
     return;
   }
   if (source.kind === 'file') {
+    lastSourceType = 'file';
     await captureDocument(tabId, source);
     return;
   }
   if (source.content?.trim() && (source.selected || source.content.trim().length > 50)) {
+    lastSourceType = source.selected ? 'selected_text' : 'webpage';
     showProgress(source.selected ? 'Selection captured' : 'Page content captured', true);
     sendToBackend(source.content);
     return;
@@ -435,6 +439,7 @@ captureBtn.addEventListener('click', async () => {
     const tabId = tabs[0].id;
     const tabUrl = tabs[0].url;
     lastPageUrl = tabUrl;
+    lastSourceType = 'webpage';
 
     const pageTitle = tabs[0].title || 'content';
     lastPageTitle = pageTitle.split(' - ')[0].split('|')[0].trim().substring(0, 60);
@@ -558,7 +563,9 @@ saveBtn.addEventListener('click', async () => {
         notes: lastNotes || null,
         study_guide: lastStudyGuide || null,
         flashcards: lastFlashcards.length > 0 ? lastFlashcards : null,
-        source_url: lastPageUrl || null
+        source_url: /^https?:\/\//i.test(lastPageUrl) ? lastPageUrl : null,
+        source_type: lastSourceType,
+        source_title: lastPageTitle || 'Captured webpage'
       })
     });
 

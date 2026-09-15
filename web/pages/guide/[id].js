@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { apiFetch } from '../../lib/api';
+import { apiErrorMessage, apiFetch } from '../../lib/api';
 import { useRequireAuth } from '../../lib/auth';
 import { parseQAPairs, parseNotes, formatDate } from '../../lib/formatters';
 import useSessionTracker from '../../lib/useSessionTracker';
@@ -8,12 +8,13 @@ import AILoadingSphere from '../../components/AILoadingSphere';
 import FlashcardViewer from '../../components/FlashcardViewer';
 import QuizMode from '../../components/QuizMode';
 
-export default function GuidePage({ setGuideContent, setGuideTitle }) {
+export default function GuidePage() {
   const router = useRouter();
   const { id } = router.query;
   const { ready } = useRequireAuth();
   useSessionTracker('read', id || null);
   const [guide, setGuide] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [activeTab, setActiveTab] = useState('guide');
   const [revealedQs, setRevealedQs] = useState(new Set());
   const [quizHistory, setQuizHistory] = useState([]);
@@ -44,11 +45,12 @@ export default function GuidePage({ setGuideContent, setGuideTitle }) {
   }, [revealedQs]);
 
   async function loadGuide() {
+    setLoadError('');
     const data = await apiFetch('/guides/' + id);
     if (data?.guide) {
       setGuide(data.guide);
-      if (setGuideContent) setGuideContent(data.guide.study_guide || '');
-      if (setGuideTitle) setGuideTitle(data.guide.title || '');
+    } else {
+      setLoadError(apiErrorMessage(data?.detail, 'This study guide could not be loaded.'));
     }
   }
 
@@ -71,6 +73,17 @@ export default function GuidePage({ setGuideContent, setGuideTitle }) {
     });
   }
 
+  if (loadError && !guide) return (
+    <div className="empty-state" role="alert">
+      <h2>Study guide unavailable</h2>
+      <p>{loadError}</p>
+      <div className="resource-load-actions">
+        <button type="button" className="btn" onClick={loadGuide}>Try again</button>
+        <button type="button" className="btn-outline" onClick={() => router.push('/dashboard?view=guides')}>Back to Study Guides</button>
+      </div>
+    </div>
+  );
+
   if (!guide) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
       <AILoadingSphere size={100} />
@@ -81,6 +94,11 @@ export default function GuidePage({ setGuideContent, setGuideTitle }) {
   const qaPairs = parseQAPairs(guide.study_guide);
   const notes = parseNotes(guide.notes);
   const flashcards = guide.flashcards || [];
+  const sourceTitle = guide.source_title || (guide.source_url ? 'Original source' : '');
+  const externalSourceUrl = /^https?:\/\//i.test(guide.source_url || '') ? guide.source_url : '';
+  const sourceHref = externalSourceUrl
+    || (guide.source_type === 'smartnote' && guide.source_id ? `/smartnotes?id=${guide.source_id}` : '')
+    || (guide.source_type === 'study_guide' && guide.source_id ? `/guide/${guide.source_id}` : '');
   const fcProgress = guide.flashcard_progress || {};
   const readPct = Math.round((guide.read_progress || 0) * 100);
   const fcPct = flashcards.length > 0 && fcProgress.known
@@ -134,7 +152,9 @@ export default function GuidePage({ setGuideContent, setGuideTitle }) {
             </h2>
           )}
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginTop: 4 }}>
-            {guide.source_url && <span>{guide.source_url.substring(0, 60)}{guide.source_url.length > 60 ? '...' : ''} | </span>}
+            {sourceTitle && <span className="guide-source">Based on {sourceHref
+              ? <a href={sourceHref} target={externalSourceUrl ? '_blank' : undefined} rel={externalSourceUrl ? 'noopener noreferrer' : undefined}>{sourceTitle}</a>
+              : sourceTitle} · </span>}
             <span className="timestamp">{formatDate(guide.created_at)}</span>
           </p>
         </div>

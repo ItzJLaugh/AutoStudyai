@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { apiFetch } from '../lib/api';
+import { apiErrorMessage, apiFetch } from '../lib/api';
 
 function dueLabel(value) {
   if (!value) return 'No due date';
@@ -118,40 +118,45 @@ function CanvasConnectionWizard({ onClose, onConnect, connecting }) {
   );
 }
 
-export default function CanvasDashboard({ onGuidesCreated }) {
+export default function CanvasDashboard({ onWorkspaceChanged }) {
   const [state, setState] = useState({ loading: true, connected: false, courses: [], items: [] });
   const [connecting, setConnecting] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [autoMessage, setAutoMessage] = useState('');
+  const [generation, setGeneration] = useState({ status: 'idle', message: '' });
   const autoBuildStarted = useRef(false);
+  const workspaceSynced = useRef(false);
 
   const load = useCallback(async () => {
-    const data = await apiFetch('/canvas/dashboard');
+    const data = await apiFetch('/canvas/sync', { method: 'POST' });
     if (!data || data.detail) {
-      setState({ loading: false, connected: false, courses: [], items: [], error: data?.detail || 'Canvas is unavailable' });
+      setState(current => ({ ...current, loading: false, error: apiErrorMessage(data?.detail, 'Canvas is unavailable') }));
       return;
     }
     setState({ loading: false, ...data });
+    if (data.connected && !workspaceSynced.current) {
+      workspaceSynced.current = true;
+      onWorkspaceChanged?.();
+    }
     if (data.connected && !autoBuildStarted.current) {
       autoBuildStarted.current = true;
       const today = new Date().toISOString().slice(0, 10);
       if (localStorage.getItem('canvasAutoBuildDate') === today) return;
-      setAutoMessage('Checking Canvas for study material…');
+      setGeneration({ status: 'building', message: 'Building your next Canvas study guide…' });
       apiFetch('/canvas/auto-guides', { method: 'POST', timeoutMs: 120000 }).then(result => {
         if (result?.count) {
           localStorage.setItem('canvasAutoBuildDate', today);
-          setAutoMessage('Your next Canvas study guide is ready.');
-          onGuidesCreated?.();
+          setGeneration({ status: 'ready', message: 'Your next Canvas study guide is ready.' });
+          onWorkspaceChanged?.();
         } else if (!result || result.detail) {
           autoBuildStarted.current = false;
-          setAutoMessage(result?.detail?.message || result?.detail || 'Automatic guide creation is unavailable.');
+          setGeneration({ status: 'failed', message: apiErrorMessage(result?.detail, 'Automatic guide creation failed. Try again later.') });
         } else {
           localStorage.setItem('canvasAutoBuildDate', today);
-          setAutoMessage('No new Canvas study material was ready.');
+          setGeneration({ status: 'idle', message: 'No new Canvas study material is ready.' });
         }
       });
     }
-  }, [onGuidesCreated]);
+  }, [onWorkspaceChanged]);
 
   useEffect(() => {
     load();
@@ -167,14 +172,14 @@ export default function CanvasDashboard({ onGuidesCreated }) {
       return;
     }
     setConnecting(false);
-    setState(current => ({ ...current, error: data?.detail || 'Canvas connection could not start' }));
+    setState(current => ({ ...current, error: apiErrorMessage(data?.detail, 'Canvas connection could not start') }));
   }
 
   async function prepareGuide(item) {
     const params = new URLSearchParams({ course_id: String(item.course_id), item_id: String(item.id) });
     const data = await apiFetch(`/canvas/study-source?${params}`);
     if (!data || data.detail) {
-      setState(current => ({ ...current, error: data?.detail || 'Study material could not be loaded' }));
+      setState(current => ({ ...current, error: apiErrorMessage(data?.detail, 'Study material could not be loaded') }));
       return;
     }
     localStorage.setItem('autostudy_text_draft', JSON.stringify(data));
@@ -191,7 +196,6 @@ export default function CanvasDashboard({ onGuidesCreated }) {
         <section className="canvas-dashboard canvas-connect-card">
           <div className="canvas-mark" aria-hidden="true">C</div>
           <div>
-            <p className="editorial-kicker">Canvas</p>
             <h2>Bring Canvas into CordiaClassroom</h2>
             <p>Connect once to see courses, assignments, and due dates in one study dashboard.</p>
             {state.error && <small className="canvas-error">{state.error}</small>}
@@ -231,16 +235,19 @@ export default function CanvasDashboard({ onGuidesCreated }) {
     <section className="canvas-dashboard">
       <header className="canvas-dashboard-header">
         <div>
-          <p className="editorial-kicker">Canvas · {state.institution}</p>
           <h2>What needs your attention</h2>
         </div>
         <div className="canvas-window-status">
-          <span className="canvas-connected">Connected</span>
+          <span className="canvas-connected" title={state.institution || 'Canvas'}>Canvas connected</span>
           <span className="window-resize-hint" title="Drag the corner to resize">↘</span>
         </div>
       </header>
       {reminder && <p className="canvas-reminder">{reminder}</p>}
-      {autoMessage && <p className="canvas-auto-status">{autoMessage}</p>}
+      {generation.message && (
+        <p className="canvas-auto-status" data-status={generation.status} role="status" aria-live="polite">
+          {generation.message}
+        </p>
+      )}
       {state.error && <div className="canvas-inline-error">{state.error}</div>}
       <div className="canvas-dashboard-grid">
         <div className="canvas-agenda">
@@ -256,7 +263,7 @@ export default function CanvasDashboard({ onGuidesCreated }) {
           ))}
         </div>
         <aside className="canvas-courses">
-          <span className="dashboard-rail-kicker">Courses</span>
+          <h3>Courses</h3>
           {state.courses.slice(0, 6).map(course => (
             <a key={course.id} href={course.url || undefined} target="_blank" rel="noreferrer">{course.name}</a>
           ))}

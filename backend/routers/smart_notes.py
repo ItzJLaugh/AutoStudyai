@@ -6,6 +6,7 @@ from typing import Optional
 from database import get_supabase
 from auth_utils import get_user_id
 from routers.billing import check_usage, record_usage
+from services.llm import study_guide_is_complete, study_guide_to_flashcards
 
 _UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 
@@ -221,20 +222,12 @@ def generate_study_guide_from_note(note_id: str, authorization: str = Header(def
         if study_guide.startswith("[Error"):
             raise HTTPException(status_code=502, detail=study_guide.strip("[]"))
 
-        # Parse Q&A pairs for the preview UI (saves the frontend a parse step)
-        pairs = []
-        lines = study_guide.split('\n')
-        current_q = None
-        for line in lines:
-            qm = re.match(r'^Q\d+:\s*(.+)', line)
-            am = re.match(r'^A\d+:\s*(.+)', line)
-            if qm:
-                current_q = qm.group(1).strip()
-            elif am and current_q is not None:
-                pairs.append({"question": current_q, "answer": am.group(1).strip()})
-                current_q = None
+        pairs = [
+            {"question": pair["front"], "answer": pair["back"]}
+            for pair in study_guide_to_flashcards(study_guide)
+        ]
 
-        if not pairs:
+        if not pairs or not study_guide_is_complete(study_guide):
             raise HTTPException(status_code=422, detail="No Q&A pairs could be generated from this note")
 
         title = (note.get("title") or "Untitled Notes").strip()
@@ -246,6 +239,7 @@ def generate_study_guide_from_note(note_id: str, authorization: str = Header(def
             "study_guide": study_guide,
             "pairs": pairs,
             "notes_html": html_content,  # passed back so frontend can save as the notes field
+            "source": {"type": "smartnote", "id": note["id"], "title": title},
         }
 
     except HTTPException:

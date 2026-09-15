@@ -1,12 +1,14 @@
 import Sidebar from './Sidebar';
 import StreakCounter from './StreakCounter';
 import StudyTimer from './StudyTimer';
-import AIChatWidget from './AIChatWidget';
+import TutorDrawer from './TutorDrawer';
 import { useRouter } from 'next/router';
 
 export default function Layout({ children, timerState, setTimerState }) {
   const router = useRouter();
   const pageOwnsTools = ['/dashboard', '/smartnotes', '/flashcards', '/create'].includes(router.pathname);
+  const activeGuideId = router.query.guideId || (router.pathname === '/guide/[id]' ? router.query.id : '');
+  const activeNoteId = router.pathname === '/smartnotes' ? router.query.id : '';
 
   return (
     <div className="app-shell">
@@ -20,7 +22,7 @@ export default function Layout({ children, timerState, setTimerState }) {
           </section>
         )}
       </main>
-      {!pageOwnsTools && <AIChatWidget floating />}
+      <TutorDrawer preferredGuideId={activeGuideId} preferredNoteId={activeNoteId} />
     </div>
   );
 }
