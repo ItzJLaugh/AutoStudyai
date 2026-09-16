@@ -27,20 +27,11 @@ create table if not exists public.tutor_sessions (
 alter table public.tutor_sessions enable row level security;
 
 drop policy if exists "Users read own tutor session" on public.tutor_sessions;
-create policy "Users read own tutor session"
-on public.tutor_sessions for select
-to authenticated
-using ((select auth.uid()) = user_id);
-
 drop policy if exists "Users create own tutor session" on public.tutor_sessions;
-create policy "Users create own tutor session"
-on public.tutor_sessions for insert
-to authenticated
-with check ((select auth.uid()) = user_id);
-
 drop policy if exists "Users update own tutor session" on public.tutor_sessions;
-create policy "Users update own tutor session"
-on public.tutor_sessions for update
-to authenticated
-using ((select auth.uid()) = user_id)
-with check ((select auth.uid()) = user_id);
+
+-- Both Tutor interfaces use the authenticated FastAPI endpoint. Keep the
+-- ordered conversation, permission checks, and browser-command validation
+-- server-side instead of exposing a second direct-write path to clients.
+revoke all on table public.tutor_sessions from public, anon, authenticated;
+grant select, insert, update, delete on table public.tutor_sessions to service_role;

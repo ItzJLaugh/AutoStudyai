@@ -264,10 +264,18 @@ class SharedTutorSessionContractTests(unittest.TestCase):
         migration = (ROOT / "supabase" / "migrations" / "20260917000000_shared_tutor_sessions.sql").read_text(encoding="utf-8")
         self.assertIn("unique (user_id)", migration)
         self.assertIn("enable row level security", migration)
-        self.assertIn("auth.uid()) = user_id", migration)
+        self.assertIn("revoke all on table public.tutor_sessions from public, anon, authenticated", migration)
+        self.assertIn("grant select, insert, update, delete on table public.tutor_sessions to service_role", migration)
+        self.assertNotIn("create policy", migration)
         self.assertIn("'waiting_browser'", migration)
         self.assertIn("browser_content text", migration)
         self.assertIn("action_history jsonb", migration)
+
+    def test_backend_prefers_an_explicit_service_role_environment_variable(self):
+        database = (ROOT / "backend" / "database.py").read_text(encoding="utf-8")
+        example = (ROOT / "backend" / ".env.example").read_text(encoding="utf-8")
+        self.assertIn('os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")', database)
+        self.assertIn("SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here", example)
 
     def test_browser_context_rejects_non_web_urls_and_unbounded_results(self):
         import sys
