@@ -7,8 +7,9 @@ ROOT = Path(__file__).resolve().parents[1]
 class ExtensionCaptureContractTests(unittest.TestCase):
     def test_capture_runs_one_source_resolution_flow(self):
         popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
-        handler = popup[popup.index("captureBtn.addEventListener"):popup.index("function sendToBackend")]
+        handler = popup[popup.index("async function captureActiveTab"):popup.index("function sendToBackend")]
         self.assertIn("runCaptureFlow(tabId)", handler)
+        self.assertIn("captureBtn.addEventListener('click', () => captureActiveTab())", popup)
         self.assertIn("action: 'extractSource'", popup)
         self.assertNotIn("captureSlideshowWithImages", popup)
         self.assertNotIn("capturePptx", popup)
@@ -83,6 +84,14 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("chrome.storage.local.set", bridge)
         self.assertIn("CORDIA_AUTH_UPDATED", bridge)
         self.assertIn('"run_at": "document_idle"', manifest)
+
+    def test_tutor_can_queue_the_same_user_approved_capture_flow(self):
+        popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+        worker = (ROOT / "extension" / "background.js").read_text(encoding="utf-8")
+        self.assertIn("command.type === 'capture_current_page'", popup)
+        self.assertIn("captureActiveTab(command.id)", popup)
+        self.assertIn("last_action_result: message.lastActionResult", worker)
+        self.assertNotIn("chrome.debugger", popup + worker)
 
 
 if __name__ == "__main__":

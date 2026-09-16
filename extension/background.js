@@ -3,6 +3,8 @@
 
 const API_URL = 'https://autostudy-ai.fly.dev';
 
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+
 // Helper to get auth token from storage
 function getAuthToken() {
   return new Promise((resolve) => {
@@ -74,14 +76,64 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: JSON.stringify({
             question: message.question,
             content: message.content,
-            mode: message.mode || 'short'
+            mode: message.mode || 'short',
+            context_title: message.contextTitle || null,
+            context_url: message.contextUrl || null,
+            session_id: message.sessionId,
+            conversation_version: message.conversationVersion,
+            skill: message.skill || null
           })
         });
         const data = await resp.json();
-        sendResponse({ answer: data.answer || 'No answer.' });
+        sendResponse(resp.ok ? data : { error: errorMessage(data, 'Tutor request failed'), status: resp.status });
       } catch (e) {
-        sendResponse({ answer: 'Error: ' + (e.message || 'Request failed') });
+        sendResponse({ error: e.message || 'Request failed' });
       }
+    })();
+    return true;
+  }
+
+  if (message.action === 'getTutorSession') {
+    (async () => {
+      try {
+        const response = await authedFetch('/tutor/session');
+        const data = await response.json();
+        sendResponse(response.ok ? data : { error: errorMessage(data, 'Tutor session unavailable'), status: response.status });
+      } catch (error) { sendResponse({ error: error.message || 'Request failed' }); }
+    })();
+    return true;
+  }
+
+  if (message.action === 'setTutorSkill') {
+    (async () => {
+      try {
+        const response = await authedFetch('/tutor/session/skill', {
+          method: 'PATCH',
+          body: JSON.stringify({ session_id: message.sessionId, skill: message.skill })
+        });
+        const data = await response.json();
+        sendResponse(response.ok ? data : { error: errorMessage(data, 'Tutor skill could not be changed'), status: response.status });
+      } catch (error) { sendResponse({ error: error.message || 'Request failed' }); }
+    })();
+    return true;
+  }
+
+  if (message.action === 'updateBrowserContext') {
+    (async () => {
+      try {
+        const response = await authedFetch('/tutor/session/browser', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            session_id: message.sessionId,
+            browser_available: true,
+            browser_observation: message.observation,
+            permission_scope: ['read_page'],
+            last_action_result: message.lastActionResult
+          })
+        });
+        const data = await response.json();
+        sendResponse(response.ok ? data : { error: errorMessage(data, 'Browser context could not be synchronized'), status: response.status });
+      } catch (error) { sendResponse({ error: error.message || 'Request failed' }); }
     })();
     return true;
   }

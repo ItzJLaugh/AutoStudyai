@@ -6,10 +6,13 @@ let lastFlashcards = [];
 let lastPageUrl = '';
 let lastPageTitle = '';
 let lastSourceType = 'webpage';
-let chatHistory = [];
+let tutorSession = null;
 let exampleModeEnabled = false;
 let pendingSections = [];
 let pendingImages = [];
+let activeBrowserCommandId = null;
+let pendingBrowserCommandId = null;
+let tutorSkillOverride = '';
 
 // DOM elements
 const statusDiv = document.getElementById('status');
@@ -25,6 +28,9 @@ const reviewDiv = document.getElementById('capture-review');
 const sectionList = document.getElementById('section-list');
 const generateSelectedBtn = document.getElementById('generate-selected-btn');
 const captureSource = document.getElementById('capture-source');
+const tutorSessionBar = document.getElementById('tutor-session-bar');
+const tutorSkill = document.getElementById('tutor-skill');
+const browserStatus = document.getElementById('browser-status');
 
 // Auth DOM elements
 const authLoginDiv = document.getElementById('auth-login');
@@ -41,6 +47,7 @@ async function initAuth() {
   if (token) {
     chrome.storage.local.get(['userEmail'], (result) => {
       showLoggedIn(result.userEmail || 'Logged in');
+      initTutorSession();
     });
   } else {
     // Both access and refresh tokens are expired/invalid
@@ -53,6 +60,8 @@ function showLoginForm() {
   authLoginDiv.style.display = 'block';
   authLoggedInDiv.style.display = 'none';
   authStatusDiv.textContent = 'Connect your CordiaClassroom account';
+  tutorSession = null;
+  if (tutorSessionBar) tutorSessionBar.style.display = 'none';
 }
 
 function showLoggedIn(email) {
@@ -66,6 +75,115 @@ authLogoutBtn.addEventListener('click', () => {
   chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
   showLoginForm();
 });
+
+function runtimeMessage(message) {
+  return new Promise(resolve => chrome.runtime.sendMessage(message, response => resolve(response || null)));
+}
+
+async function initTutorSession() {
+  const response = await runtimeMessage({ action: 'getTutorSession' });
+  if (!response?.id) {
+    if (browserStatus) browserStatus.textContent = response?.error || 'Tutor unavailable';
+    return;
+  }
+  renderTutorSession(response);
+  await publishBrowserPresence();
+}
+
+function renderTutorSession(next) {
+  tutorSession = next;
+  if (tutorSessionBar) tutorSessionBar.style.display = 'grid';
+  if (browserStatus) browserStatus.textContent = 'Browser available';
+  if (tutorSkill) {
+    const activeLabel = next.skills?.find(item => item.id === next.active_skill)?.label || 'Explain';
+    const automatic = document.createElement('option');
+    automatic.value = '';
+    automatic.textContent = 'Auto · ' + activeLabel;
+    tutorSkill.replaceChildren(automatic, ...(next.skills || []).map(item => {
+      const option = document.createElement('option');
+      option.value = item.id;
+      option.textContent = item.available ? item.label : item.label + ' — coming soon';
+      option.disabled = item.available === false;
+      return option;
+    }));
+    tutorSkill.value = tutorSkillOverride;
+  }
+  updateChatHistory();
+  maybeRunBrowserCommand(next);
+}
+
+async function publishBrowserPresence(contentRefs = null, lastActionResult = null) {
+  if (!tutorSession?.id) return;
+  let observation;
+  if (contentRefs) {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+    if (!tab || !/^https?:/.test(tab.url || '')) return;
+    observation = {
+      url: tab.url,
+      title: tab.title || '',
+      source_type: lastSourceType || 'webpage',
+      content_refs: contentRefs,
+    };
+  }
+  const response = await runtimeMessage({
+    action: 'updateBrowserContext',
+    sessionId: tutorSession.id,
+    observation,
+    lastActionResult,
+  });
+  if (response?.id) tutorSession = response;
+}
+
+function reportCaptureResult(status, error = '', contentRefs = null) {
+  const commandId = pendingBrowserCommandId;
+  pendingBrowserCommandId = null;
+  return publishBrowserPresence(contentRefs, commandId ? {
+    command_id: commandId,
+    status,
+    action: 'capture_current_page',
+    ...(error ? { error } : {}),
+    ...(contentRefs ? { section_count: contentRefs.length } : {}),
+  } : null);
+}
+
+function maybeRunBrowserCommand(session) {
+  const command = session?.browser_command;
+  if (!command?.id || command.status !== 'pending' || command.id === activeBrowserCommandId) return;
+  activeBrowserCommandId = command.id;
+  if (command.type === 'capture_current_page') {
+    captureActiveTab(command.id);
+    return;
+  }
+  publishBrowserPresence(null, {
+    command_id: command.id,
+    status: 'failed',
+    action: command.type,
+    error: 'Unsupported browser command',
+  });
+}
+
+tutorSkill?.addEventListener('change', async () => {
+  if (!tutorSession?.id) return;
+  tutorSkillOverride = tutorSkill.value;
+  if (!tutorSkillOverride) return;
+  const response = await runtimeMessage({
+    action: 'setTutorSkill',
+    sessionId: tutorSession.id,
+    skill: tutorSkillOverride,
+  });
+  if (response?.id) renderTutorSession(response);
+  else statusDiv.innerText = response?.error || 'Could not change Tutor skill.';
+});
+
+window.setInterval(async () => {
+  if (!tutorSession?.id) return;
+  const response = await runtimeMessage({ action: 'getTutorSession' });
+  if (response?.id) {
+    renderTutorSession(response);
+    await publishBrowserPresence();
+  }
+}, 5000);
 
 // Init auth on popup open
 initAuth();
@@ -236,8 +354,7 @@ function displayResults(response) {
 
     document.getElementById('chat-answer').innerHTML = '';
     document.getElementById('chat-input').value = '';
-    document.getElementById('chat-history').innerHTML = '';
-    chatHistory = [];
+    updateChatHistory();
 
     // Show save button only if logged in and has content
     chrome.storage.local.get(['authToken'], (result) => {
@@ -419,6 +536,7 @@ function rawPageFallback(tabId) {
     } else {
       statusDiv.innerText = 'Failed to capture content from this page.';
       showProgress('No content found', false);
+      reportCaptureResult('failed', statusDiv.innerText);
     }
   });
 }
@@ -428,20 +546,27 @@ function rawPageFallback(tabId) {
 // =====================
 const platformBanner = document.getElementById('platform-banner');
 
-captureBtn.addEventListener('click', async () => {
+async function captureActiveTab(commandId = null) {
   statusDiv.innerText = 'Capturing...';
   clearProgress();
   showProgress('Starting content capture...');
   if (saveBtn) saveBtn.style.display = 'none';
   if (platformBanner) platformBanner.style.display = 'none';
 
-  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-    const tabId = tabs[0].id;
-    const tabUrl = tabs[0].url;
+  pendingBrowserCommandId = commandId;
+  const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+  const tab = tabs[0];
+  if (!tab?.id || !/^https?:/.test(tab.url || '')) {
+    statusDiv.innerText = 'Open a study page in a normal browser tab first.';
+    await reportCaptureResult('failed', statusDiv.innerText);
+    return;
+  }
+    const tabId = tab.id;
+    const tabUrl = tab.url;
     lastPageUrl = tabUrl;
     lastSourceType = 'webpage';
 
-    const pageTitle = tabs[0].title || 'content';
+    const pageTitle = tab.title || 'content';
     lastPageTitle = pageTitle.split(' - ')[0].split('|')[0].trim().substring(0, 60);
 
     showProgress(`Analyzing page: "${lastPageTitle}"...`);
@@ -451,10 +576,12 @@ captureBtn.addEventListener('click', async () => {
       runCaptureFlow(tabId).catch((error) => {
         statusDiv.innerText = error.message || 'Failed to capture content.';
         showProgress(statusDiv.innerText, false);
+        reportCaptureResult('failed', statusDiv.innerText);
       });
     });
-  });
-});
+}
+
+captureBtn.addEventListener('click', () => captureActiveTab());
 
 function sendToBackend(content, images = []) {
   statusDiv.innerText = 'Processing...';
@@ -467,6 +594,8 @@ function sendToBackend(content, images = []) {
       pendingSections = response.sections || [];
       pendingImages = response.use_images ? images : [];
       renderCaptureReview(response);
+      const refs = pendingSections.map(section => section.heading).slice(0, 20);
+      reportCaptureResult('completed', '', refs);
     } else if (response && response.status === 402) {
       showGuideLimit();
     } else {
@@ -474,6 +603,7 @@ function sendToBackend(content, images = []) {
       showProgress('Processing failed: ' + errMsg, false);
       statusDiv.innerText = 'Error: ' + errMsg;
       if (saveBtn) saveBtn.style.display = 'none';
+      reportCaptureResult('failed', errMsg);
     }
   });
 }
@@ -598,60 +728,46 @@ saveBtn.addEventListener('click', async () => {
 // =====================
 // Chat functions
 // =====================
-function sendChat() {
+async function sendChat(forcedMode = null) {
   const question = chatInput.value.trim();
-  if (!question) return;
+  if (!question || !tutorSession?.id || tutorSession.status === 'running') return;
   chatInput.value = '';
 
-  const mode = exampleModeEnabled ? 'example' : 'short';
+  const mode = forcedMode || (exampleModeEnabled ? 'example' : 'short');
   chatAnswerDiv.innerText = exampleModeEnabled ? 'Getting example...' : 'Thinking...';
-  chatHistory.push({role: 'user', text: question});
+  tutorSession = {
+    ...tutorSession,
+    status: 'running',
+    messages: [...(tutorSession.messages || []), { role: 'user', text: question }],
+  };
   updateChatHistory();
 
-  chrome.runtime.sendMessage({
+  const response = await runtimeMessage({
     action: 'chatWithContent',
     question: question,
-    content: lastNotes || lastStudyGuide || '',
-    mode: mode
-  }, (response) => {
-    if (response && response.answer) {
-      const prefix = exampleModeEnabled ? '[Example] ' : '';
-      chatAnswerDiv.innerText = response.answer;
-      chatHistory.push({role: 'ai', text: prefix + response.answer});
-      updateChatHistory();
-    } else {
-      chatAnswerDiv.innerText = 'No answer.';
-    }
+    content: lastStudyGuide || lastNotes || pendingSections.map(section => section.text).join('\n\n'),
+    contextTitle: lastPageTitle || 'Current browser material',
+    contextUrl: lastPageUrl || null,
+    mode: mode,
+    sessionId: tutorSession.id,
+    conversationVersion: tutorSession.conversation_version,
+    skill: tutorSkillOverride || null,
   });
-}
-
-function sendExampleRequest() {
-  const lastUserMsg = [...chatHistory].reverse().find(msg => msg.role === 'user');
-  if (!lastUserMsg) {
-    chatAnswerDiv.innerText = 'Ask a question first to get an example.';
-    return;
+  if (response?.session?.id) {
+    chatAnswerDiv.innerText = response.answer || '';
+    renderTutorSession(response.session);
+  } else {
+    chatAnswerDiv.innerText = response?.error || 'Tutor request failed.';
+    const refreshed = await runtimeMessage({ action: 'getTutorSession' });
+    if (refreshed?.id) renderTutorSession(refreshed);
   }
-  chatAnswerDiv.innerText = 'Getting example...';
-  chrome.runtime.sendMessage({
-    action: 'chatWithContent',
-    question: lastUserMsg.text,
-    content: lastNotes || lastStudyGuide || '',
-    mode: 'example'
-  }, (response) => {
-    if (response && response.answer) {
-      chatAnswerDiv.innerText = response.answer;
-      chatHistory.push({role: 'ai', text: '[Example] ' + response.answer});
-      updateChatHistory();
-    } else {
-      chatAnswerDiv.innerText = 'No example found.';
-    }
-  });
 }
 
 function updateChatHistory() {
-  chatHistoryDiv.innerHTML = chatHistory.map(msg =>
-    `<div style="margin-bottom:4px;"><b>${msg.role === 'user' ? 'You' : 'AI'}:</b> ${escapeHtml(msg.text)}</div>`
+  chatHistoryDiv.innerHTML = (tutorSession?.messages || []).map(msg =>
+    `<div class="session-message ${msg.role === 'user' ? 'user' : 'ai'}"><b>${msg.role === 'user' ? 'You' : 'Cordia'}:</b> ${escapeHtml(msg.text)}</div>`
   ).join('');
+  chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
 }
 
 // Chat event listeners

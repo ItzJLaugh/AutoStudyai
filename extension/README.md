@@ -1,6 +1,6 @@
 # AutoStudyAI Chrome Extension
 
-Browser extension that captures educational content and sends it to the backend for study material generation.
+Chrome side-panel extension that captures student-approved educational content and shares one Cordia Tutor session with CordiaClassroom.
 
 ## Installation (Developer Mode)
 
@@ -37,14 +37,14 @@ The extension can extract from:
 ## Files
 
 - `manifest.json` - Extension configuration (Manifest V3)
-- `popup.html/js/css` - Extension popup UI
+- `popup.html/js/css` - Persistent Chrome side-panel UI (the legacy filenames are retained so existing capture tests and packaged updates keep one implementation)
 - `content.js` - Small source resolver for selections, documents, and LMS pages
 - `background.js` - Service worker for backend API calls
 - The backend is the single document extractor; the extension does not duplicate PDF or PowerPoint parsing
 
 ## Configuration
 
-The production backend URL is configured in `background.js` and `popup.js`:
+Clicking the pinned CordiaClassroom toolbar icon opens the side panel. The production backend URL is configured in `background.js` and `popup.js`:
 ```javascript
 const API_URL = 'https://autostudy-ai.fly.dev';
 ```

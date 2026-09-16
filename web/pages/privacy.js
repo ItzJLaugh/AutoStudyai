@@ -19,7 +19,7 @@ export default function PrivacyPolicy() {
           Privacy Policy
         </h1>
         <p style={{ color: 'var(--text-muted)', marginBottom: '40px', fontSize: '0.9rem' }}>
-          Effective Date: February 25, 2026 &nbsp;|&nbsp; Last Updated: February 25, 2026
+          Effective Date: February 25, 2026 &nbsp;|&nbsp; Last Updated: September 15, 2026
         </p>
 
         <p style={{ marginBottom: '32px' }}>
@@ -34,7 +34,7 @@ export default function PrivacyPolicy() {
           <p>When you create an account, we collect your email address and a hashed password. We do not store plaintext passwords.</p>
 
           <p style={{ marginTop: '16px' }}><strong style={{ color: 'var(--text-primary)' }}>b. Page Content</strong></p>
-          <p>When you use the Chrome extension to capture a page, the visible text content of that page is temporarily transmitted to our servers for AI processing. This content is used solely to generate your study materials and is not stored long-term on our servers after processing is complete.</p>
+          <p>When you ask the Chrome side panel to capture a page, the visible text content of that page is temporarily transmitted to our servers for AI processing. The page title and source URL may be saved with the resulting study material or current Tutor session so you can identify its source. Raw captured page content is not retained after processing unless you choose to save it as study material.</p>
 
           <p style={{ marginTop: '16px' }}><strong style={{ color: 'var(--text-primary)' }}>c. Generated Study Materials</strong></p>
           <p>Study guides, notes, and flashcards you generate are stored in our database associated with your account so you can access them through the platform.</p>
@@ -74,8 +74,9 @@ export default function PrivacyPolicy() {
         <Section title="4. Data Retention">
           <p>
             We retain your account information and generated study materials for as long as your account is active.
-            Page content submitted through the Chrome extension for AI processing is not retained on our servers
-            after the study material has been generated. If you delete your account, we will delete your personal
+            Raw page content submitted through the Chrome extension for AI processing is not retained on our servers
+            after processing unless you save it as study material. Source metadata associated with saved material or
+            the current Tutor session is retained with your account. If you delete your account, we will delete your personal
             data within 30 days, except where retention is required by law.
           </p>
         </Section>
@@ -83,11 +84,12 @@ export default function PrivacyPolicy() {
         <Section title="5. Chrome Extension — Data Practices">
           <p>The CordiaClassroom Chrome extension:</p>
           <ul style={{ paddingLeft: '20px', marginTop: '8px' }}>
-            <li>Reads page content <strong style={{ color: 'var(--text-primary)' }}>only</strong> when you explicitly click "Capture Page"</li>
-            <li>Does not run in the background or monitor your browsing activity</li>
-            <li>Does not collect your browsing history, URLs visited, or any data outside of the page you choose to capture</li>
+            <li>Reads page content <strong style={{ color: 'var(--text-primary)' }}>only</strong> when you start a capture or explicitly ask the Tutor to capture the current page</li>
+            <li>Sends a presence signal while the side panel is open so Classroom can show whether browser capture is available; that signal does not include the current URL or page title</li>
+            <li>Does not monitor or collect your browsing history. The title, source URL, and bounded page context are sent only for the page you choose to capture</li>
+            <li>Does not transmit browser cookies, passwords, form credentials, or unrestricted browser history</li>
             <li>Stores your authentication token locally using Chrome's storage API so you remain logged in between sessions</li>
-            <li>Transmits captured text only to <strong style={{ color: 'var(--text-primary)' }}>autostudy-ai.fly.dev</strong>, our own API — no data is sent to any other third-party host</li>
+            <li>Sends extension data only to <strong style={{ color: 'var(--text-primary)' }}>autostudy-ai.fly.dev</strong>, our API; the service providers listed above may process that data to provide the requested feature</li>
           </ul>
         </Section>
 

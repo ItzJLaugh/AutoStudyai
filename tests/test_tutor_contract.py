@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -126,6 +127,84 @@ class TutorContractTests(unittest.TestCase):
         self.assertEqual(payload["source_type"], "smartnote")
         self.assertEqual(payload["source_id"], note_id)
         self.assertNotIn("source_guide_id", payload)
+
+    @patch("main._learning_guidance", return_value="")
+    @patch("main.record_usage")
+    @patch("main.check_usage", return_value={"used": 0})
+    @patch("main.answer_question", return_value="Shared answer")
+    @patch("main.get_user_id", return_value="student-1")
+    def test_tutor_message_returns_the_same_shared_session(self, _auth, _answer, _usage, _record, _guidance):
+        db, _table = self.guide_db()
+        turn = {
+            "id": "session-1",
+            "run_id": "run-1",
+            "active_skill": "explain",
+            "conversation_version": 2,
+            "messages": [{"role": "user", "text": "Explain mitosis"}],
+        }
+        completed = {
+            **turn,
+            "status": "idle",
+            "conversation_version": 3,
+            "messages": turn["messages"] + [{"role": "ai", "text": "Shared answer"}],
+        }
+        with patch("main.get_supabase", return_value=db), \
+             patch("main.claim_tutor_turn", return_value=turn) as claim, \
+             patch("main.complete_tutor_turn", return_value=completed), \
+             patch("main.public_tutor_session", return_value={"id": "session-1", "conversation_version": 3}) as public:
+            response = self.client.post(
+                "/chat",
+                headers={"Authorization": "Bearer test"},
+                json={
+                    "question": "Explain mitosis",
+                    "content": "",
+                    "guide_id": self.guide_id,
+                    "session_id": "session-1",
+                    "conversation_version": 2,
+                    "skill": "explain",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["session"]["id"], "session-1")
+        self.assertEqual(response.json()["skill"], "explain")
+        claim.assert_called_once()
+        public.assert_called_once_with(completed)
+
+    @patch("main.get_user_id", return_value="student-1")
+    def test_capture_skill_queues_the_existing_extension_flow(self, _auth):
+        turn = {
+            "id": "session-1",
+            "run_id": "run-1",
+            "active_skill": "capture",
+            "conversation_version": 4,
+            "messages": [{"role": "user", "text": "Read this page"}],
+            "browser_available": True,
+            "browser_last_seen_at": datetime.now(timezone.utc).isoformat(),
+        }
+        completed = {**turn, "status": "idle", "conversation_version": 5}
+        with patch("main.claim_tutor_turn", return_value=turn), \
+             patch("main.queue_browser_command", return_value={"id": "command-1"}) as queue, \
+             patch("main.complete_tutor_turn", return_value=completed), \
+             patch("main.public_tutor_session", side_effect=[
+                 {"browser_available": True},
+                 {"id": "session-1", "conversation_version": 5},
+             ]):
+            response = self.client.post(
+                "/chat",
+                headers={"Authorization": "Bearer test"},
+                json={
+                    "question": "Read this page",
+                    "content": "",
+                    "session_id": "session-1",
+                    "conversation_version": 4,
+                    "skill": "capture",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["action"], "browser_command_queued")
+        queue.assert_called_once_with("student-1", turn, "capture_current_page", "Read this page")
 
 
 if __name__ == "__main__":

@@ -59,7 +59,7 @@ export default function InstallExtensionPage() {
           <span className="extension-install-number">4</span>
           <div>
             <h2>Capture and send it to CordiaClassroom</h2>
-            <p>Choose <strong>Capture Content</strong>. When the preview is ready, select <strong>Save to Platform</strong> to send the captured content to your CordiaClassroom workspace.</p>
+            <p>Click the pinned CordiaClassroom icon to open its side panel, then choose <strong>Capture study material</strong>. When the preview is ready, select <strong>Save to classroom</strong>.</p>
           </div>
         </li>
       </ol>

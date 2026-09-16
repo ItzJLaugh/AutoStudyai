@@ -36,7 +36,7 @@ from services.llm import (
     analyze_images_for_slides, generate_practice_guide,
     study_guide_is_complete, study_guide_to_flashcards,
 )
-from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes, canvas
+from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes, canvas, tutor
 from auth_utils import get_user_id
 from database import get_supabase
 from routers.billing import check_usage, record_usage
@@ -45,6 +45,15 @@ from services.pptx_rendering import (
     PptxRenderTimeout,
     PptxRenderUnavailable,
     render_pptx_to_pdf,
+)
+from services.tutor_sessions import (
+    claim_tutor_turn,
+    complete_tutor_turn,
+    fail_tutor_turn,
+    public_tutor_session,
+    queue_browser_command,
+    TUTOR_SAFETY_POLICY,
+    tutor_skill_instruction,
 )
 
 # Load environment variables
@@ -146,6 +155,7 @@ app.include_router(billing.router)
 app.include_router(feedback.router)
 app.include_router(smart_notes.router)
 app.include_router(canvas.router)
+app.include_router(tutor.router)
 
 def _learning_guidance(user_id: str) -> str:
     try:
@@ -590,6 +600,8 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
     Answer questions about the content.
     Requires authentication. Rate limited.
     """
+    user_id = None
+    session_turn = None
     try:
         user_id = get_user_id(authorization)
         logger.info(f"Chat from user={user_id[:8]}...")
@@ -633,16 +645,58 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             content = _sanitize_text(_plain_context(note.get("content") or ""), MAX_CONTENT_LENGTH)
             source = {"type": "smartnote", "id": note["id"], "title": note.get("title") or "SmartNote"}
         elif body.context_title and content:
-            source = {"type": "file", "title": body.context_title.strip() or "Attached file"}
+            source = {
+                "type": "browser" if body.context_url else "file",
+                "title": body.context_title.strip() or "Attached file",
+            }
+            if body.context_url:
+                source["url"] = body.context_url
+
+        if body.session_id:
+            session_turn = claim_tutor_turn(
+                user_id=user_id,
+                session_id=body.session_id,
+                expected_version=body.conversation_version,
+                message=question,
+                requested_skill=body.skill,
+                guide_id=body.guide_id,
+                class_id=body.class_id or (guide or note or {}).get("folder_id"),
+            )
+
+        def finish(response: ChatResponse):
+            if not session_turn:
+                return response
+            row = complete_tutor_turn(
+                user_id,
+                session_turn,
+                response.model_dump(exclude_none=True),
+            )
+            return response.model_copy(update={
+                "skill": session_turn["active_skill"],
+                "session": public_tutor_session(row),
+            })
+
+        active_skill = session_turn.get("active_skill") if session_turn else body.skill
+        if active_skill == "capture":
+            if not session_turn or not public_tutor_session(session_turn)["browser_available"]:
+                return finish(ChatResponse(
+                    answer="Open the CordiaClassroom browser side panel, then ask me to capture the page again.",
+                    action="browser_unavailable",
+                ))
+            queue_browser_command(user_id, session_turn, "capture_current_page", question)
+            return finish(ChatResponse(
+                answer="I sent the current page to the browser side panel for review.",
+                action="browser_command_queued",
+            ))
 
         if not content:
-            return ChatResponse(answer="Choose study material before asking Cordia.")
+            return finish(ChatResponse(answer="Choose study material before asking Cordia."))
 
         # Validate mode
         if body.mode not in ("short", "detailed", "example"):
             raise HTTPException(status_code=400, detail="Invalid mode")
 
-        wants_practice = bool(re.search(
+        wants_practice = active_skill == "practice" or bool(re.search(
             r'\b(create|make|generate|build)\b.*\bpractice\b.*\b(problems?|questions?|guide)\b',
             question,
             re.IGNORECASE,
@@ -674,27 +728,73 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             record_usage(user_id, "build", usage)
             saved = created.data[0]
             location = " in the same class" if saved.get("folder_id") else " in Study Guides"
-            return ChatResponse(
+            return finish(ChatResponse(
                 answer=f"Created {saved['title']}{location}.",
                 action="created_guide",
                 guide={"id": saved["id"], "title": saved["title"], "folder_id": saved.get("folder_id")},
                 source=source,
+            ))
+
+        if active_skill == "build_guide":
+            usage = check_usage(user_id, "build")
+            chunks = chunk_text(clean_text(content))
+            study_guide = generate_study_guide(
+                chunks,
+                learning_guidance=_learning_guidance(user_id),
             )
+            flashcards = study_guide_to_flashcards(study_guide or "")
+            if not study_guide or not flashcards or not study_guide_is_complete(study_guide):
+                raise HTTPException(status_code=502, detail="Cordia could not build a complete guide from this material")
+            source_title = (source or {}).get("title") or "Study Material"
+            payload = {
+                "user_id": user_id,
+                "folder_id": body.class_id or (guide or note or {}).get("folder_id"),
+                "title": f"{source_title} — Study Guide",
+                "study_guide": study_guide,
+                "flashcards": flashcards,
+                "source_type": (source or {}).get("type"),
+                "source_title": source_title,
+                "source_id": (source or {}).get("id"),
+                "source_url": (source or {}).get("url") or (guide or {}).get("source_url"),
+            }
+            if guide:
+                payload["source_guide_id"] = guide["id"]
+            created = get_supabase().table("study_guides").insert(payload).execute()
+            if not created.data:
+                raise HTTPException(status_code=500, detail="Study guide could not be saved")
+            record_usage(user_id, "build", usage)
+            saved = created.data[0]
+            location = " in the same class" if saved.get("folder_id") else " in Study Guides"
+            return finish(ChatResponse(
+                answer=f"Created {saved['title']}{location}.",
+                action="created_guide",
+                guide={"id": saved["id"], "title": saved["title"], "folder_id": saved.get("folder_id")},
+                source=source,
+            ))
 
         usage = check_usage(user_id, "lightweight")
+        guidance = "\n".join(filter(None, [
+            _learning_guidance(user_id),
+            tutor_skill_instruction(active_skill),
+            TUTOR_SAFETY_POLICY,
+        ]))
         answer = answer_question(
             question=question,
             context=content,
             mode=body.mode,
-            learning_guidance=_learning_guidance(user_id),
+            learning_guidance=guidance,
         )
 
         record_usage(user_id, "lightweight", usage)
-        return ChatResponse(answer=answer, source=source)
+        return finish(ChatResponse(answer=answer, source=source))
 
-    except HTTPException:
+    except HTTPException as error:
+        if user_id and session_turn:
+            fail_tutor_turn(user_id, session_turn, str(error.detail))
         raise
     except Exception as e:
+        if user_id and session_turn:
+            fail_tutor_turn(user_id, session_turn, "Unexpected Tutor error")
         logger.error(f"Error in /chat: {e}\n{traceback.format_exc()}")
         return JSONResponse(
             status_code=500,
