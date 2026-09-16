@@ -73,6 +73,8 @@ assert.match(tutor, /note_id: material\.id/);
 assert.match(tutor, /context_title: material\.title/);
 assert.match(tutor, /\/extract-file-text/);
 assert.match(tutor, /find_material: 'Finding Canvas material…'/);
+assert.match(tutor, /Browser unavailable\. Open the Chrome side panel/);
+assert.match(tutor, /choose an existing guide or SmartNote, or attach a file/);
 assert.match(tutor, /Based on \{message\.source\.title\}/);
 assert.match(createPage, /source_type: externalSourceId\.startsWith\('canvas:'\)/);
 assert.equal((smartnotes.match(/source_type: guidePreview\.source\?\.type/g) || []).length, 2);

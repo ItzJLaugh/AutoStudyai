@@ -240,6 +240,11 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
             {classes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         )}
+        {!session?.browser_available && ['capture', 'find_material'].includes(selectedSkillId) && (
+          <p className="cordia-browser-fallback">
+            Browser unavailable. Open the Chrome side panel, choose an existing guide or SmartNote, or attach a file below.
+          </p>
+        )}
         <input ref={fileRef} type="file" accept=".pdf,.docx,.pptx,.txt,.md,.csv,.jpg,.jpeg,.png,.webp" onChange={event => attachFile(event.target.files?.[0])} hidden />
         <button type="button" className="cordia-tutor-attach" onClick={() => fileRef.current?.click()} disabled={extracting}>
           {extracting ? 'Reading file…' : 'Attach study material'}

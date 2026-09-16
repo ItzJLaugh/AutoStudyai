@@ -1860,6 +1860,7 @@ input::placeholder { color: var(--text-muted); }
 .cordia-tutor-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cordia-browser-status { padding: 5px 8px; border-radius: 999px; background: var(--surface-muted, var(--bg-tertiary)); color: var(--muted-ink, var(--text-muted)); font-size: 0.62rem; font-weight: 700; }
 .cordia-browser-status.is-online { background: color-mix(in srgb, var(--olive) 13%, white); color: var(--olive); }
+.cordia-browser-fallback { margin: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--sand); color: var(--ink); font-size: 0.69rem; line-height: 1.4; }
 .cordia-tutor-header select,
 .cordia-tutor-input textarea {
   width: 100%;
