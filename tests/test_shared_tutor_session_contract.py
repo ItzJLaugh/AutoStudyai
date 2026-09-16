@@ -186,6 +186,22 @@ class SharedTutorSessionContractTests(unittest.TestCase):
         self.assertEqual(error.exception.status_code, 409)
         table.update.assert_not_called()
 
+    def test_browser_commands_require_an_explicit_supported_permission(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "backend"))
+        from fastapi import HTTPException
+        from services.tutor_sessions import queue_browser_command
+
+        turn = {"id": "session-1", "run_id": "run-1", "permission_scope": []}
+        with self.assertRaises(HTTPException) as denied:
+            queue_browser_command("student-1", turn, "capture_current_page", "Read this")
+        self.assertEqual(denied.exception.status_code, 403)
+
+        turn["permission_scope"] = ["read_page"]
+        with self.assertRaises(HTTPException) as unsupported:
+            queue_browser_command("student-1", turn, "submit_assignment", "Submit this")
+        self.assertEqual(unsupported.exception.status_code, 400)
+
     def test_find_material_result_is_shared_with_clickable_evidence(self):
         import sys
         sys.path.insert(0, str(ROOT / "backend"))

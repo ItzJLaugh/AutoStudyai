@@ -14,19 +14,18 @@ Chrome side-panel extension that captures student-approved educational content a
 1. Navigate to any educational webpage (LMS, article, documentation)
 2. Sign in once at **classroom.cordiacode.com**; the extension reuses that session
 3. Click the CordiaClassroom extension icon
-4. Click **Capture study material**
-5. Switch between tabs: **Notes**, **Study Guide**, **Flashcards**, **Chat**
+4. Ask the same **Cordia Tutor** used in Classroom, or open **Capture** and click **Read this study material**
+5. Review generated guides, notes, and cards without leaving the side panel
 
 ## Features
 
+- **Tutor Tab**: Primary shared conversation, skill, goal, and evidence from Classroom
+- **Capture Tab**: Explicit current-page capture; the visible tab is not sent until the student asks
 - **Notes Tab**: Bullet-point extraction of key content
 - **Study Guide Tab**: AI-generated Q&A pairs
 - **Flashcards Tab**: Review cards generated from the captured material
-- **Chat Tab**: Ask questions about captured content
-  - Send button: Quick answers
-  - Example button: Get concrete examples
 - **Shared Tutor**: Uses the same ordered conversation and active skill as CordiaClassroom
-- **Find Material**: Reads a bounded set of relevant same-origin course links, excludes graded quiz/submission/grade routes, and can hand the approved material to Build Guide
+- **Find Material**: Reads a bounded set of relevant same-origin course links and up to three linked documents, excludes graded quiz/submission/grade routes, and can hand the approved material to Build Guide
 
 ## Content Sources
 
@@ -35,6 +34,8 @@ The extension can extract from:
 - Selected text or the main content of an LMS page
 - Linked or embedded PDF, DOCX, PPTX, text, and common image files
 - A screenshot fallback when a protected viewer does not expose its source
+
+Canvas documents are read through the student's authenticated browser session first. The existing Canvas API proxy is only a fallback, so browser capture does not require a separate connector when Chrome can access the file directly.
 
 ## Files
 

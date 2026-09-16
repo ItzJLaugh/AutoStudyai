@@ -1,10 +1,13 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 
 const contentScript = path.join(__dirname, '..', 'extension', 'content.js');
 const bridgeScript = path.join(__dirname, '..', 'extension', 'asai-bridge.js');
-const popupSource = require('node:fs').readFileSync(path.join(__dirname, '..', 'extension', 'popup.js'), 'utf8');
+const popupSource = fs.readFileSync(path.join(__dirname, '..', 'extension', 'popup.js'), 'utf8');
+const popupHtml = fs.readFileSync(path.join(__dirname, '..', 'extension', 'popup.html'), 'utf8');
+const popupStyles = fs.readFileSync(path.join(__dirname, '..', 'extension', 'styles.css'), 'utf8');
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
@@ -101,6 +104,18 @@ async function main() {
   assert.match(found.evidence[0].url, /pages\/exam-review$/);
   assert.doesNotMatch(JSON.stringify(found), /quizzes\/8|other\.example/);
   assert.match(found.content, /Propositions have truth values/);
+
+  const panel = await browser.newPage({ viewport: { width: 360, height: 800 } });
+  await panel.setContent(
+    popupHtml
+      .replace('<link rel="stylesheet" href="styles.css">', `<style>${popupStyles}</style>`)
+      .replace('<script src="popup.js"></script>', ''),
+  );
+  assert.equal(await panel.locator('#chat-section').isVisible(), true);
+  assert.equal(await panel.locator('#capture-section').isVisible(), false);
+  assert.equal(await panel.locator('#page-context-domain').textContent(), 'Cordia only reads it when you ask.');
+  assert.equal(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  await panel.close();
 
   await page.goto('https://classroom.cordiacode.com/dashboard');
   await page.evaluate(() => {

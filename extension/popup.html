@@ -9,7 +9,7 @@
 <body>
   <header class="brand-bar">
     <img src="icon48.png" alt="">
-    <div><strong>CordiaClassroom</strong><span>Turn this into something you can learn.</span></div>
+    <div><strong>CordiaClassroom</strong><span>One Tutor, here and in Classroom.</span></div>
   </header>
 
   <section id="auth-section" class="surface auth-surface">
@@ -26,49 +26,57 @@
 
   <section id="tutor-session-bar" class="surface tutor-session-bar" style="display:none">
     <div>
-      <strong>Shared Tutor</strong>
+      <strong>Cordia Tutor</strong>
       <span id="browser-status">Browser available</span>
     </div>
     <label for="tutor-skill">Skill</label>
     <select id="tutor-skill" aria-label="Tutor skill"></select>
   </section>
 
-  <button id="capture-btn" class="primary capture">Capture study material <span aria-hidden="true">&#8593;</span></button>
-
-  <div id="progress-log" style="display:none"></div>
-  <div id="status" role="status"></div>
-
-  <section id="capture-review" class="surface" style="display:none">
-    <div id="capture-source"></div>
-    <div id="excluded-summary"></div>
-    <div id="section-list"></div>
-    <button id="generate-selected-btn" class="primary wide" disabled>Build study guide</button>
+  <section id="page-context" class="surface page-context" aria-live="polite">
+    <div>
+      <span class="eyebrow">Current tab</span>
+      <strong id="page-context-title">Open a study page</strong>
+      <small id="page-context-domain">Cordia only reads it when you ask.</small>
+    </div>
+    <span class="scope-badge">Current tab only</span>
   </section>
 
-  <button id="save-guide-btn" class="secondary wide" style="display:none">Save to classroom</button>
-  <div id="platform-banner" style="display:none">
-    Open your guide in <a href="https://classroom.cordiacode.com" target="_blank">CordiaClassroom</a>
-  </div>
-
   <nav class="tabs" aria-label="Study materials">
-    <button class="tab-btn active" data-tab="notes">Notes</button>
+    <button class="tab-btn active" data-tab="chat">Tutor</button>
+    <button class="tab-btn" data-tab="capture">Capture</button>
     <button class="tab-btn" data-tab="guide">Guide</button>
+    <button class="tab-btn" data-tab="notes">Notes</button>
     <button class="tab-btn" data-tab="flashcards">Cards</button>
-    <button class="tab-btn" data-tab="chat">Tutor</button>
   </nav>
   <main id="tab-content">
-    <div id="notes-section" class="tab-section active"></div>
-    <div id="guide-section" class="tab-section"></div>
-    <div id="flashcards-section" class="tab-section"></div>
-    <div id="chat-section" class="tab-section">
+    <div id="chat-section" class="tab-section active">
       <div id="chat-history"></div>
       <div class="chat-compose">
-        <input id="chat-input" type="text" placeholder="Ask about this material">
+        <input id="chat-input" type="text" placeholder="Ask Cordia about this page">
         <button id="chat-send-btn" class="primary">Ask</button>
         <button id="chat-example-btn" class="quiet">Example</button>
       </div>
       <div id="chat-answer"></div>
     </div>
+    <div id="capture-section" class="tab-section">
+      <button id="capture-btn" class="primary capture">Read this study material <span aria-hidden="true">&#8593;</span></button>
+      <div id="progress-log" style="display:none"></div>
+      <div id="status" role="status"></div>
+      <section id="capture-review" class="surface capture-review" style="display:none">
+        <div id="capture-source"></div>
+        <div id="excluded-summary"></div>
+        <div id="section-list"></div>
+        <button id="generate-selected-btn" class="primary wide" disabled>Build study guide</button>
+      </section>
+      <button id="save-guide-btn" class="secondary wide" style="display:none">Save to classroom</button>
+      <div id="platform-banner" style="display:none">
+        Open your guide in <a href="https://classroom.cordiacode.com" target="_blank">CordiaClassroom</a>
+      </div>
+    </div>
+    <div id="guide-section" class="tab-section"></div>
+    <div id="notes-section" class="tab-section"></div>
+    <div id="flashcards-section" class="tab-section"></div>
   </main>
   <script src="popup.js"></script>
 </body>

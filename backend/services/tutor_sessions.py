@@ -108,6 +108,10 @@ TUTOR_SAFETY_POLICY = (
     "Never take graded assessments, submit assignments, change grades, or impersonate the student. "
     "Require explicit confirmation before downloads, calendar changes, external messages, or Canvas writes."
 )
+BROWSER_COMMAND_PERMISSIONS = {
+    "capture_current_page": "read_page",
+    "find_material_current_page": "read_page",
+}
 
 
 def _history_entry(result: dict) -> dict:
@@ -327,10 +331,16 @@ def update_browser_context(user_id: str, session_id: str, update: dict):
 
 
 def queue_browser_command(user_id: str, turn: dict, command_type: str, goal: str):
+    required_permission = BROWSER_COMMAND_PERMISSIONS.get(command_type)
+    if not required_permission:
+        raise HTTPException(status_code=400, detail="Unsupported browser command")
+    if required_permission not in (turn.get("permission_scope") or []):
+        raise HTTPException(status_code=403, detail=f"Browser permission required: {required_permission}")
     command = {
         "id": str(uuid4()),
         "type": command_type,
         "goal": goal,
+        "required_permission": required_permission,
         "status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }

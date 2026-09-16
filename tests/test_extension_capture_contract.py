@@ -35,12 +35,15 @@ class ExtensionCaptureContractTests(unittest.TestCase):
 
     def test_documents_use_server_file_extractor_without_manual_content_type(self):
         popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+        extractor = popup[popup.index("async function extractDocumentText"):popup.index("async function readLinkedDocuments")]
         capture = popup[popup.index("async function captureDocument"):popup.index("async function screenshotFallback")]
-        self.assertIn("new FormData()", capture)
-        self.assertIn("'/extract-file-text'", capture)
-        self.assertIn("headers: { Authorization:", capture)
-        self.assertNotIn("Content-Type", capture)
-        self.assertIn("documentFilename(source, fetched)", capture)
+        self.assertIn("new FormData()", extractor)
+        self.assertIn("'/extract-file-text'", extractor)
+        self.assertIn("headers: { Authorization:", extractor)
+        self.assertNotIn("Content-Type", extractor)
+        self.assertIn("documentFilename(source, fetched)", extractor)
+        self.assertLess(capture.index("action: 'fetchFile'"), capture.index("API + '/canvas/file/'"))
+        self.assertIn("extractDocumentText(source, fetched, token, blob)", capture)
 
     def test_client_side_powerpoint_parsers_are_removed(self):
         popup_html = (ROOT / "extension" / "popup.html").read_text(encoding="utf-8")
@@ -93,6 +96,7 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("last_action_result: message.lastActionResult", worker)
         self.assertIn("browserContent", popup)
         self.assertIn("browser_content: message.browserContent", worker)
+        self.assertIn("session.permission_scope?.includes", popup)
         self.assertNotIn("chrome.debugger", popup + worker)
 
     def test_find_material_reads_only_links_from_the_active_page(self):
@@ -108,10 +112,20 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("credentials: 'include'", handler)
         self.assertIn("/\\/quizzes\\//i", handler)
         self.assertIn("buildGuideFromFoundMaterial", handler)
+        self.assertIn("readLinkedDocuments", handler)
         self.assertIn("skill: 'build_guide'", handler)
         self.assertNotIn("chrome.debugger", popup)
         self.assertNotIn('"history"', manifest)
         self.assertNotIn('"<all_urls>"', manifest)
+
+    def test_side_panel_is_tutor_first_and_keeps_tab_context_local_until_requested(self):
+        panel = (ROOT / "extension" / "popup.html").read_text(encoding="utf-8")
+        script = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+
+        self.assertIn('class="tab-btn active" data-tab="chat"', panel)
+        self.assertIn('id="page-context-title"', panel)
+        self.assertIn('Not sent until you ask', script)
+        self.assertIn('id="capture-section" class="tab-section"', panel)
 
 
 if __name__ == "__main__":

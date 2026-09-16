@@ -31,6 +31,8 @@ const captureSource = document.getElementById('capture-source');
 const tutorSessionBar = document.getElementById('tutor-session-bar');
 const tutorSkill = document.getElementById('tutor-skill');
 const browserStatus = document.getElementById('browser-status');
+const pageContextTitle = document.getElementById('page-context-title');
+const pageContextDomain = document.getElementById('page-context-domain');
 
 // Auth DOM elements
 const authLoginDiv = document.getElementById('auth-login');
@@ -87,7 +89,21 @@ async function initTutorSession() {
     return;
   }
   renderTutorSession(response);
+  await refreshPageContext();
   await publishBrowserPresence();
+}
+
+async function refreshPageContext() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !/^https?:/.test(tab.url || '')) {
+    pageContextTitle.textContent = 'Open a study page';
+    pageContextDomain.textContent = 'Cordia only reads it when you ask.';
+    return;
+  }
+  let host = '';
+  try { host = new URL(tab.url).host; } catch (_) { /* keep the privacy label */ }
+  pageContextTitle.textContent = tab.title || 'Current browser tab';
+  pageContextDomain.textContent = host ? `${host} · Not sent until you ask` : 'Not sent until you ask';
 }
 
 function renderTutorSession(next) {
@@ -153,6 +169,15 @@ function maybeRunBrowserCommand(session) {
   const command = session?.browser_command;
   if (!command?.id || command.status !== 'pending' || command.id === activeBrowserCommandId) return;
   activeBrowserCommandId = command.id;
+  if (!session.permission_scope?.includes(command.required_permission || 'read_page')) {
+    publishBrowserPresence(null, {
+      command_id: command.id,
+      status: 'failed',
+      action: command.type,
+      error: `Permission required: ${command.required_permission || 'read_page'}`,
+    });
+    return;
+  }
   if (command.type === 'capture_current_page') {
     captureActiveTab(command.id);
     return;
@@ -235,14 +260,16 @@ async function findMaterialInActiveTab(command) {
     if (!evidence.length) {
       throw new Error('No relevant study-material links were found on the current page.');
     }
+    const documentContent = await readLinkedDocuments(tab.id, evidence);
+    const foundContent = [result.content || '', documentContent].filter(Boolean).join('\n\n').slice(0, 100000);
     const updatedSession = await publishBrowserPresence(evidence.map(item => item.url), {
       command_id: command.id,
       status: 'completed',
       action: command.type,
       evidence,
-    }, result.content || null);
-    if (result.content && /\b(study guide|everything relevant|exam|quiz|test)\b/i.test(command.goal || '')) {
-      await buildGuideFromFoundMaterial(command, result.content, updatedSession);
+    }, foundContent || null);
+    if (foundContent && /\b(study guide|everything relevant|exam|quiz|test)\b/i.test(command.goal || '')) {
+      await buildGuideFromFoundMaterial(command, foundContent, updatedSession);
     }
   } catch (error) {
     await publishBrowserPresence(null, {
@@ -295,9 +322,15 @@ window.setInterval(async () => {
   const response = await runtimeMessage({ action: 'getTutorSession' });
   if (response?.id) {
     renderTutorSession(response);
+    await refreshPageContext();
     await publishBrowserPresence();
   }
 }, 5000);
+
+chrome.tabs.onActivated.addListener(() => refreshPageContext());
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (tab.active && (changeInfo.status === 'complete' || changeInfo.title)) refreshPageContext();
+});
 
 // Init auth on popup open
 initAuth();
@@ -536,6 +569,10 @@ function ensureContentScript(tabId, callback) {
   });
 }
 
+function ensureContentScriptReady(tabId) {
+  return new Promise(resolve => ensureContentScript(tabId, resolve));
+}
+
 function decodeFile(data, type) {
   const binary = atob(data);
   const bytes = new Uint8Array(binary.length);
@@ -565,34 +602,20 @@ function canvasFileId(url) {
   catch (_) { return ''; }
 }
 
-async function captureDocument(tabId, source) {
-  showProgress('Reading the attached document...');
-  const token = await getValidToken();
-  if (!token) throw new Error('Sign in to CordiaClassroom first');
-  const fileId = canvasFileId(source.url);
-  let blob;
-  let fetched;
-  if (fileId) {
-    const download = await fetch(API + '/canvas/file/' + fileId, {
-      headers: { Authorization: 'Bearer ' + token },
-    });
-    if (!download.ok) {
-      const error = await download.json().catch(() => ({}));
-      throw new Error(error.detail || 'Canvas could not download this file');
-    }
-    blob = await download.blob();
-    fetched = { contentType: blob.type, finalUrl: source.url };
-  } else {
-    fetched = await sendTabMessage(tabId, { action: 'fetchFile', url: source.url }, 60000);
-    if (!fetched?.success || !fetched.data) {
-      throw new Error(fetched?.error || 'The document could not be opened');
-    }
-    blob = decodeFile(fetched.data, fetched.contentType);
+function isLinkedDocument(url) {
+  try {
+    const path = new URL(url).pathname;
+    return /\/files\/\d+/i.test(path) || /\.(pdf|pptx|docx|txt|md|csv)$/i.test(path);
+  } catch (_) {
+    return false;
   }
+}
+
+async function extractDocumentText(source, fetched, token, suppliedBlob = null) {
+  const blob = suppliedBlob || decodeFile(fetched.data, fetched.contentType);
   const filename = documentFilename(source, fetched);
-  lastPageTitle = filename;
   const file = new File([blob], filename, {
-    type: fetched.contentType || 'application/octet-stream',
+    type: fetched.contentType || blob.type || 'application/octet-stream',
   });
   const form = new FormData();
   form.append('file', file);
@@ -603,8 +626,52 @@ async function captureDocument(tabId, source) {
   });
   const data = await response.json();
   if (!response.ok || !data.text?.trim()) throw new Error(data.detail || 'No readable study material was found');
+  return { text: data.text.trim(), filename };
+}
+
+async function readLinkedDocuments(tabId, evidence) {
+  const candidates = evidence.filter(item => isLinkedDocument(item.url)).slice(0, 3);
+  if (!candidates.length) return '';
+  const token = await getValidToken();
+  if (!token) return '';
+  await ensureContentScriptReady(tabId);
+  const sections = [];
+  for (const source of candidates) {
+    const fetched = await sendTabMessage(tabId, { action: 'fetchFile', url: source.url }, 60000);
+    if (!fetched?.success || !fetched.data) continue;
+    try {
+      const extracted = await extractDocumentText({ url: source.url, filename: source.title }, fetched, token);
+      sections.push(`Source: ${source.title}\nURL: ${source.url}\n${extracted.text}`);
+    } catch (_) {
+      // Keep the link as evidence even when a document cannot be parsed.
+    }
+  }
+  return sections.join('\n\n').slice(0, 60000);
+}
+
+async function captureDocument(tabId, source) {
+  showProgress('Reading the attached document...');
+  const token = await getValidToken();
+  if (!token) throw new Error('Sign in to CordiaClassroom first');
+  const fileId = canvasFileId(source.url);
+  let blob;
+  let fetched = await sendTabMessage(tabId, { action: 'fetchFile', url: source.url }, 60000);
+  if (!fetched?.success || !fetched.data) {
+    if (!fileId) throw new Error(fetched?.error || 'The document could not be opened');
+    const download = await fetch(API + '/canvas/file/' + fileId, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!download.ok) {
+      const error = await download.json().catch(() => ({}));
+      throw new Error(error.detail || 'Canvas could not download this file');
+    }
+    blob = await download.blob();
+    fetched = { contentType: blob.type, finalUrl: source.url };
+  }
+  const extracted = await extractDocumentText(source, fetched, token, blob);
+  lastPageTitle = extracted.filename;
   showProgress('Document ready', true);
-  sendToBackend(data.text);
+  sendToBackend(extracted.text);
 }
 
 async function screenshotFallback() {
