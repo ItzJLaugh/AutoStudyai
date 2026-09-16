@@ -33,7 +33,37 @@ function errorMessage(data, fallback) {
   return typeof detail === 'string' ? detail : (detail && detail.message) || fallback;
 }
 
+function safeSameOriginStudyUrl(currentUrl, requestedUrl) {
+  try {
+    const current = new URL(currentUrl);
+    const requested = new URL(requestedUrl);
+    if (!['http:', 'https:'].includes(requested.protocol) || requested.origin !== current.origin) return null;
+    if (/\/(quizzes|grades|submissions?)(?:\/|$)/i.test(requested.pathname)) return null;
+    return requested.href;
+  } catch (_) {
+    return null;
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'navigateActiveTab') {
+    (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const target = tab?.id && safeSameOriginStudyUrl(tab.url || '', message.url || '');
+        if (!target) {
+          sendResponse({ success: false, error: 'Cordia can only open safe study links from the current site.' });
+          return;
+        }
+        const updated = await chrome.tabs.update(tab.id, { url: target });
+        sendResponse({ success: true, url: updated?.url || target });
+      } catch (error) {
+        sendResponse({ success: false, error: error.message || 'The study link could not be opened.' });
+      }
+    })();
+    return true;
+  }
+
   // Screenshot handler for slide-by-slide capture with images
   if (message.action === 'screenshotTab') {
     chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 70 }, (dataUrl) => {

@@ -22,6 +22,8 @@ const createPage = read('web', 'pages', 'create.js');
 const smartnotes = read('web', 'pages', 'smartnotes.js');
 const nclex = read('web', 'components', 'NCLEXQuizMode.js');
 const extensionPopup = read('extension', 'popup.js');
+const extensionOnboarding = read('web', 'components', 'ExtensionOnboarding.js');
+const missionPage = read('web', 'pages', 'mission.js');
 const provenanceMigration = read('supabase', 'migrations', '20260916000000_guide_provenance.sql');
 const rlsMigration = read('supabase', 'migrations', '20260915035012_harden_classroom_rls.sql');
 const flashcardLibrary = read('web', 'pages', 'flashcards.js');
@@ -77,6 +79,10 @@ assert.equal((smartnotes.match(/source_type: guidePreview\.source\?\.type/g) || 
 assert.match(nclex, /source_type: 'study_guide'/);
 assert.match(extensionPopup, /source_type: lastSourceType/);
 assert.match(extensionPopup, /lastSourceType = source\.selected \? 'selected_text' : 'webpage'/);
+assert.match(extensionOnboarding, /Open the Tutor side panel/);
+assert.match(extensionOnboarding, /Read this study material/);
+assert.doesNotMatch(extensionOnboarding, /Capture Content|asai-popup/);
+assert.match(missionPage, /One Cordia Tutor/);
 assert.match(guidePage, /Based on \{sourceHref/);
 for (const column of ['source_type', 'source_title', 'source_id']) assert.ok(provenanceMigration.includes(column));
 for (const policy of [

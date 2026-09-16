@@ -105,6 +105,24 @@ async function main() {
   assert.doesNotMatch(JSON.stringify(found), /quizzes\/8|other\.example/);
   assert.match(found.content, /Propositions have truth values/);
 
+  await page.route('https://school.instructure.com/courses/4', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<main><p>Discrete Math course home with current learning resources for the term.</p><a href="/courses/4/modules">Modules</a></main>',
+  }));
+  await page.route('https://school.instructure.com/courses/4/modules', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<main><p>Course modules list for all weeks and assessment preparation.</p><a href="/courses/4/pages/exam-two-review">Exam 2 review</a><a href="/courses/4/quizzes/9">Graded Exam 2</a></main>',
+  }));
+  await page.route('https://school.instructure.com/courses/4/pages/exam-two-review', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<main><h1>Exam 2 review</h1><p>De Morgan laws transform the negation of a conjunction into the disjunction of each negated proposition.</p></main>',
+  }));
+  await page.setContent('<main><a href="https://school.instructure.com/courses/4">Discrete Math</a></main>');
+  const recursive = await page.evaluate(() => findStudyMaterialOnPage('Find everything relevant to Exam 2'));
+  assert.match(recursive.content, /De Morgan laws/);
+  assert.match(JSON.stringify(recursive.evidence), /exam-two-review/);
+  assert.doesNotMatch(JSON.stringify(recursive), /quizzes\/9/);
+
   const panel = await browser.newPage({ viewport: { width: 360, height: 800 } });
   await panel.setContent(
     popupHtml

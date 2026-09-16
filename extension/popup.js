@@ -213,29 +213,42 @@ async function findStudyMaterialOnPage(requestedQuery) {
   const studyTerms = ['module', 'slide', 'lecture', 'note', 'review', 'study', 'chapter', 'file', 'pdf', 'document', 'assignment'];
   const forbiddenPaths = [/\/quizzes\//i, /\/grades(?:\/|$)/i, /\/submissions?(?:\/|$)/i];
   const seen = new Set();
-  const candidates = [...document.querySelectorAll('a[href]')]
-    .map(link => {
-      const url = new URL(link.href, location.href);
-      const title = (link.innerText || link.textContent || link.getAttribute('aria-label') || url.pathname.split('/').pop() || 'Course material')
-        .replace(/\s+/g, ' ').trim().slice(0, 180);
-      const haystack = `${title} ${url.pathname}`.toLowerCase();
-      const score = queryTerms.filter(term => haystack.includes(term)).length * 3
-        + studyTerms.filter(term => haystack.includes(term)).length;
-      return { title, url: url.href, score };
-    })
-    .filter(item => {
-      const url = new URL(item.url);
-      return url.origin === location.origin
-        && item.title
-        && item.score > 0
-        && !forbiddenPaths.some(pattern => pattern.test(url.pathname))
-        && !seen.has(item.url)
-        && seen.add(item.url);
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8);
+  const queued = new Set();
+  const evidence = new Map();
   const sources = [];
-  for (const candidate of candidates) {
+
+  function linksFrom(root, baseUrl, depth) {
+    return [...root.querySelectorAll('a[href]')]
+      .map(link => {
+        const url = new URL(link.getAttribute('href'), baseUrl);
+        const title = (link.innerText || link.textContent || link.getAttribute('aria-label') || url.pathname.split('/').pop() || 'Course material')
+          .replace(/\s+/g, ' ').trim().slice(0, 180);
+        const haystack = `${title} ${url.pathname}`.toLowerCase();
+        const topicScore = queryTerms.filter(term => haystack.includes(term)).length * 3;
+        const materialScore = studyTerms.filter(term => haystack.includes(term)).length;
+        const courseEntry = /^\/courses\/\d+\/?$/i.test(url.pathname) ? 1 : 0;
+        return { title, url: url.href, score: topicScore + materialScore + courseEntry, depth };
+      })
+      .filter(item => {
+        const url = new URL(item.url);
+        return url.origin === location.origin
+          && item.title
+          && item.score > 0
+          && !forbiddenPaths.some(pattern => pattern.test(url.pathname))
+          && !queued.has(item.url)
+          && queued.add(item.url);
+      })
+      .sort((a, b) => b.score - a.score);
+  }
+
+  const queue = linksFrom(document, location.href, 0).slice(0, 8);
+  while (queue.length && seen.size < 12) {
+    const candidate = queue.shift();
+    if (!candidate || seen.has(candidate.url)) continue;
+    seen.add(candidate.url);
+    const candidateUrl = new URL(candidate.url);
+    const isDocument = /\/files\/\d+/i.test(candidateUrl.pathname) || /\.(pdf|pptx|docx|txt|md|csv)$/i.test(candidateUrl.pathname);
+    if (candidate.score >= 2 || isDocument) evidence.set(candidate.url, candidate);
     try {
       const response = await fetch(candidate.url, { credentials: 'include' });
       const type = response.headers.get('content-type') || '';
@@ -245,12 +258,19 @@ async function findStudyMaterialOnPage(requestedQuery) {
       const root = doc.querySelector('main, article, [role="main"], .ic-Layout-contentMain') || doc.body;
       const text = (root?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 12000);
       if (text.length >= 80) sources.push({ ...candidate, text });
+      if (candidate.depth < 2) {
+        const discovered = linksFrom(doc, candidate.url, candidate.depth + 1).slice(0, 8);
+        queue.push(...discovered);
+        queue.sort((a, b) => b.score - a.score);
+      }
     } catch (_) {
       // The link remains useful evidence even when Canvas protects its body.
     }
   }
+  const fallback = [...seen].slice(0, 8).map(url => ({ title: new URL(url).pathname.split('/').pop() || 'Course material', url }));
+  const found = [...evidence.values()];
   return {
-    evidence: candidates.map(({ title, url }) => ({ title, url, source_type: 'course_link', content_refs: [] })),
+    evidence: (found.length ? found : fallback).slice(0, 12).map(({ title, url }) => ({ title, url, source_type: 'course_link', content_refs: [] })),
     content: sources.map(source => `Source: ${source.title}\nURL: ${source.url}\n${source.text}`).join('\n\n').slice(0, 100000),
   };
 }
@@ -282,6 +302,7 @@ async function findMaterialInActiveTab(command) {
       action: command.type,
       evidence,
     }, foundContent || null);
+    await navigateToStudyMaterial(evidence[0]);
     if (foundContent && /\b(study guide|everything relevant|exam|quiz|test)\b/i.test(command.goal || '')) {
       const courseSourceUrl = evidence.find(item => /\/courses\/\d+(?:\/|$)/i.test(new URL(item.url).pathname))?.url;
       await buildGuideFromFoundMaterial(command, foundContent, updatedSession, courseSourceUrl || lastPageUrl);
@@ -294,6 +315,19 @@ async function findMaterialInActiveTab(command) {
       error: error?.message || 'The current page could not be searched.',
     });
   }
+}
+
+async function navigateToStudyMaterial(target) {
+  if (!target?.url) return;
+  statusDiv.innerText = `Opening ${target.title || 'the most relevant material'} in Canvas…`;
+  const result = await runtimeMessage({ action: 'navigateActiveTab', url: target.url });
+  if (!result?.success) {
+    statusDiv.innerText = result?.error || 'Material found, but the source could not be opened.';
+    return;
+  }
+  lastPageUrl = result.url || target.url;
+  lastPageTitle = target.title || 'Canvas course material';
+  await publishBrowserPresence([lastPageUrl]);
 }
 
 async function buildGuideFromFoundMaterial(command, content, session, sourceUrl) {

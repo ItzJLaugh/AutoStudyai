@@ -99,17 +99,20 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("session.permission_scope?.includes", popup)
         self.assertNotIn("chrome.debugger", popup + worker)
 
-    def test_find_material_reads_only_links_from_the_active_page(self):
+    def test_find_material_follows_only_bounded_links_from_the_active_site(self):
         popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
         manifest = (ROOT / "extension" / "manifest.json").read_text(encoding="utf-8")
         handler = popup[popup.index("async function findStudyMaterialOnPage"):popup.index("tutorSkill?.addEventListener")]
         self.assertIn("find_material_current_page", popup)
         self.assertIn("chrome.scripting.executeScript", handler)
-        self.assertIn("document.querySelectorAll('a[href]')", handler)
+        self.assertIn("root.querySelectorAll('a[href]')", handler)
         self.assertIn("command.goal", handler)
+        self.assertIn("navigateToStudyMaterial(evidence[0])", handler)
         self.assertIn("evidence,", handler)
         self.assertIn("url.origin === location.origin", handler)
         self.assertIn("credentials: 'include'", handler)
+        self.assertIn("candidate.depth < 2", handler)
+        self.assertIn("seen.size < 12", handler)
         self.assertIn("/\\/quizzes\\//i", handler)
         self.assertIn("buildGuideFromFoundMaterial", handler)
         self.assertIn("readLinkedDocuments", handler)
@@ -119,6 +122,13 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertNotIn("chrome.debugger", popup)
         self.assertNotIn('"history"', manifest)
         self.assertNotIn('"<all_urls>"', manifest)
+
+    def test_visible_navigation_is_same_origin_and_excludes_graded_routes(self):
+        background = (ROOT / "extension" / "background.js").read_text(encoding="utf-8")
+        self.assertIn("message.action === 'navigateActiveTab'", background)
+        self.assertIn("requested.origin !== current.origin", background)
+        self.assertRegex(background, r"quizzes\|grades\|submissions")
+        self.assertIn("chrome.tabs.update(tab.id, { url: target })", background)
 
     def test_side_panel_is_tutor_first_and_keeps_tab_context_local_until_requested(self):
         panel = (ROOT / "extension" / "popup.html").read_text(encoding="utf-8")

@@ -31,7 +31,7 @@ class SharedTutorSessionContractTests(unittest.TestCase):
             self.assertIn("confirm", definition)
             self.assertTrue(definition["instruction"])
         self.assertTrue(TUTOR_SKILLS["find_material"]["available"])
-        self.assertEqual(TUTOR_SKILLS["find_material"]["tools"], ["read_page"])
+        self.assertEqual(TUTOR_SKILLS["find_material"]["tools"], ["read_page", "navigate_same_origin"])
         self.assertTrue(TUTOR_SKILLS["plan"]["available"])
         self.assertTrue(TUTOR_SKILLS["organize"]["available"])
 

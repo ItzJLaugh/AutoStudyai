@@ -17,9 +17,21 @@ async function main() {
     if (!worker) worker = await context.waitForEvent('serviceworker');
     const extensionId = new URL(worker.url()).host;
     const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
-    assert.equal(manifest.version, '1.6.0');
+    assert.equal(manifest.version, '1.6.1');
     assert.equal(manifest.side_panel.default_path, 'popup.html');
     assert.equal(manifest.action.default_popup, undefined);
+    assert.equal(await worker.evaluate(() => safeSameOriginStudyUrl(
+      'https://school.instructure.com/courses/4/modules',
+      'https://school.instructure.com/courses/4/pages/exam-review',
+    )), 'https://school.instructure.com/courses/4/pages/exam-review');
+    assert.equal(await worker.evaluate(() => safeSameOriginStudyUrl(
+      'https://school.instructure.com/courses/4/modules',
+      'https://school.instructure.com/courses/4/quizzes/8',
+    )), null);
+    assert.equal(await worker.evaluate(() => safeSameOriginStudyUrl(
+      'https://school.instructure.com/courses/4/modules',
+      'https://other.example/material',
+    )), null);
 
     const panel = await context.newPage();
     await panel.setViewportSize({ width: 360, height: 800 });

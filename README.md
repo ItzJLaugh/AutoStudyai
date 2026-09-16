@@ -43,7 +43,7 @@ AutoStudyAI automatically detects and extracts content from slideshows:
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Chrome Extension                            │
 ├─────────────────────────────────────────────────────────────────┤
-│  popup.js            │  content.js          │  background.js    │
+│  Side panel UI       │  content.js          │  background.js    │
 │  - Side-panel UI     │  - Slideshow detect  │  - API calls      │
 │  - Display results   │  - PDF extraction    │  - Message router │
 │  - Chat interface    │  - LMS content grab  │                   │

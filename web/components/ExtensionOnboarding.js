@@ -10,26 +10,26 @@ const INSTALL_MARKER_ATTR = 'data-asai-extension';
 const STEPS = [
   {
     id: 1,
-    title: 'Open the extension',
-    body: 'On any lecture slideshow or course page, click the CordiaClassroom icon in your Chrome toolbar.',
+    title: 'Open the Tutor side panel',
+    body: 'On any lecture slideshow or course page, click the pinned CordiaClassroom icon. The Tutor stays beside your current tab.',
     scene: 'toolbar',
   },
   {
     id: 2,
-    title: 'Capture the content',
-    body: 'Hit “Capture Content” and let CordiaClassroom read the page. Sit tight for a few seconds while it works.',
+    title: 'Ask or capture',
+    body: 'Ask Cordia Tutor to explain, find, or build from the page—or open Capture and choose “Read this study material.”',
     scene: 'capture',
   },
   {
     id: 3,
-    title: 'Review & save',
-    body: 'Look over the generated study guide preview, then click “Save to platform” to keep it.',
+    title: 'Review and save',
+    body: 'Review the source-grounded result in the side panel, then save it to the matching Classroom class.',
     scene: 'preview',
   },
   {
     id: 4,
-    title: 'Open it here',
-    body: 'Head back to classroom.cordiacode.com and click your new study guide to start studying.',
+    title: 'Continue in Classroom',
+    body: 'The same Tutor conversation and new study material are waiting in CordiaClassroom.',
     scene: 'platform',
   },
 ];
@@ -293,10 +293,11 @@ function Scene({ scene }) {
 
           {scene === 'capture' && (
             <>
-              <div className="asai-popup">
-                <div className="asai-popup-title">CordiaClassroom</div>
-                <button className="asai-capture-btn">Capture Content</button>
-                <div className="asai-popup-status">Working… reading page</div>
+              <div className="asai-sidepanel">
+                <div className="asai-sidepanel-title">Cordia Tutor</div>
+                <div className="asai-sidepanel-skill">Capture</div>
+                <button className="asai-capture-btn">Read this study material</button>
+                <div className="asai-sidepanel-status">Reading current page…</div>
               </div>
               <span className="asai-cursor cursor-to-capture">▲</span>
             </>
@@ -361,20 +362,21 @@ function Scene({ scene }) {
         .asai-slide-line { width: 100%; height: 7px; border-radius: 4px; background: #e5e7eb; margin-bottom: 7px; }
         .asai-slide-line.short { width: 60%; }
 
-        /* Popup mock */
-        .asai-popup {
-          position: absolute; top: 6px; right: 10px; width: 160px;
-          background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
-          padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); text-align: center;
+        /* Chrome side-panel mock */
+        .asai-sidepanel {
+          position: absolute; inset: 0 0 0 auto; width: 185px;
+          background: #fff; border-left: 1px solid #e5e7eb;
+          padding: 12px; box-shadow: -8px 0 20px rgba(0,0,0,0.12); text-align: left;
         }
-        .asai-popup-title { font-size: 0.7em; font-weight: 800; color: #2563eb; margin-bottom: 8px; }
+        .asai-sidepanel-title { font-size: 0.72em; font-weight: 800; color: #111; margin-bottom: 4px; }
+        .asai-sidepanel-skill { font-size: 0.58em; color: #5b684e; margin-bottom: 10px; }
         .asai-capture-btn {
           width: 100%; background: #2563eb; color: #fff; border: none;
           border-radius: 7px; padding: 7px; font-size: 0.66em; font-weight: 700;
           animation: asai-glow 1.6s ease-in-out infinite;
         }
         @keyframes asai-glow { 0%,100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.4); } 50% { box-shadow: 0 0 0 6px rgba(37,99,235,0); } }
-        .asai-popup-status { font-size: 0.58em; color: #9ca3af; margin-top: 8px; }
+        .asai-sidepanel-status { font-size: 0.58em; color: #6b7280; margin-top: 8px; }
 
         /* Preview mock */
         .asai-preview { background: #fff; border-radius: 8px; padding: 11px; height: 100%; }

@@ -7,7 +7,7 @@ export default function MissionPage() {
   const features = [
     {
       title: 'Instant Extraction',
-      description: 'Unlike any other study platform, CordiaClassroom allows you to skip the copy and paste/upload process. Simply navigate to the material you want to extract and click the "Capture Content" button within the extension. That\'s it!',
+      description: 'Open your course material, click the CordiaClassroom icon, and use the Tutor side panel to capture the page or find related material. Cordia keeps the source attached to what it creates.',
     },
     {
       title: 'NCLEX Question Generation',
@@ -19,8 +19,8 @@ export default function MissionPage() {
       description: 'The main issue with simply asking an LLM to create a study guide is that the answers and questions are NOT DIRECTLY from your class material. CordiaClassroom makes this super simple and easy. It only uses the context that was captured as its knowledge! This way it is the exact material from your classes.',
     },
     {
-      title: 'AI Chat',
-      description: 'This allows the user to get a regular response about the study guide; a detailed (longer & in-depth) response; or an example response, which takes the users key word/concept in their AI chat prompt and provides an example that will help you better understand!',
+      title: 'One Cordia Tutor',
+      description: 'The Classroom Tutor and Chrome side panel share the same conversation, selected class, source material, learning guidance, and active skill so work can continue across both interfaces.',
     },
     {
       title: 'The Cost',
