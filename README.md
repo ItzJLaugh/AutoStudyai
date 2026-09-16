@@ -1,6 +1,6 @@
 # AutoStudyAI
 
-A production-grade Chrome extension that automatically generates study materials from any webpage. Designed for students at all levels (middle school, high school, college) to efficiently capture and learn from online educational content.
+A Chrome side-panel extension and Classroom web app that share one Cordia Tutor session for capturing and learning from student-approved educational content.
 
 ## Overview
 
@@ -43,14 +43,14 @@ AutoStudyAI automatically detects and extracts content from slideshows:
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Chrome Extension                            │
 ├─────────────────────────────────────────────────────────────────┤
-│  popup.js            │  content.js          │  background.js    │
-│  - UI/Tab control    │  - Slideshow detect  │  - API calls      │
+│  Side panel UI       │  content.js          │  background.js    │
+│  - Side-panel UI     │  - Slideshow detect  │  - API calls      │
 │  - Display results   │  - PDF extraction    │  - Message router │
 │  - Chat interface    │  - LMS content grab  │                   │
 │  - Flashcard view    │  - PPTX detection    │                   │
 └─────────────────────────────────────────────────────────────────┘
                                 │
-                                ▼ HTTP (localhost:8000)
+                                ▼ Authenticated HTTP
 ┌─────────────────────────────────────────────────────────────────┐
 │                      FastAPI Backend                             │
 ├─────────────────────────────────────────────────────────────────┤
@@ -59,9 +59,9 @@ AutoStudyAI automatically detects and extracts content from slideshows:
 │  - Detect slideshow  │  - AI flashcards                         │
 │  - Return metadata   │                                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  /chat               │  Text Processing     │  Stateless flow   │
-│  - Q&A modes         │  - LMS filtering     │  - No temp IDs    │
-│  - Context-aware     │  - Smart chunking    │  - Restart-safe   │
+│  /chat               │  Text Processing     │  Tutor session    │
+│  - Shared skills     │  - LMS filtering     │  - One writer     │
+│  - Context-aware     │  - Smart chunking    │  - Action evidence│
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
@@ -123,8 +123,8 @@ In `services/llm.py`:
 - [x] Slideshow detection (Canvas, Google Slides, PowerPoint)
 - [ ] Export to Anki/Quizlet format
 - [ ] Spaced repetition scheduling
-- [ ] Persistent storage (SQLite/PostgreSQL)
-- [ ] User accounts and saved study sets
+- [x] Persistent storage (Supabase Postgres)
+- [x] User accounts and saved study sets
 - [ ] Video transcript extraction (YouTube, Panopto)
 - [ ] OCR for scanned PDFs
 

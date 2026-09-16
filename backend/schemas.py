@@ -5,6 +5,7 @@ All inputs are constrained at the schema level (defense in depth).
 
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
+from urllib.parse import urlparse
 
 
 class ImageData(BaseModel):
@@ -72,6 +73,11 @@ class ChatRequest(BaseModel):
     guide_id: Optional[str] = Field(default=None, max_length=36)
     note_id: Optional[str] = Field(default=None, max_length=36)
     context_title: Optional[str] = Field(default=None, max_length=200)
+    context_url: Optional[str] = Field(default=None, max_length=2_048)
+    session_id: Optional[str] = Field(default=None, max_length=36)
+    conversation_version: Optional[int] = Field(default=None, ge=0)
+    skill: Optional[str] = Field(default=None, max_length=30)
+    class_id: Optional[str] = Field(default=None, max_length=36)
 
     @field_validator("mode")
     @classmethod
@@ -81,6 +87,13 @@ class ChatRequest(BaseModel):
             raise ValueError(f"mode must be one of: {allowed}")
         return v
 
+    @field_validator("context_url")
+    @classmethod
+    def validate_context_url(cls, value):
+        if value and urlparse(value).scheme not in {"http", "https"}:
+            raise ValueError("context_url must use http or https")
+        return value
+
 
 class ChatResponse(BaseModel):
     """Response from chat."""
@@ -88,3 +101,5 @@ class ChatResponse(BaseModel):
     action: Optional[str] = None
     guide: Optional[dict] = None
     source: Optional[dict] = None
+    skill: Optional[str] = None
+    session: Optional[dict] = None

@@ -1,9 +1,13 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 
 const contentScript = path.join(__dirname, '..', 'extension', 'content.js');
 const bridgeScript = path.join(__dirname, '..', 'extension', 'asai-bridge.js');
+const popupSource = fs.readFileSync(path.join(__dirname, '..', 'extension', 'popup.js'), 'utf8');
+const popupHtml = fs.readFileSync(path.join(__dirname, '..', 'extension', 'popup.html'), 'utf8');
+const popupStyles = fs.readFileSync(path.join(__dirname, '..', 'extension', 'styles.css'), 'utf8');
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
@@ -79,6 +83,57 @@ async function main() {
   assert.equal(selected.kind, 'text');
   assert.equal(selected.selected, true);
   assert.match(selected.content, /replicated chromosomes/);
+
+  const finderSource = popupSource.slice(
+    popupSource.indexOf('async function findStudyMaterialOnPage'),
+    popupSource.indexOf('async function findMaterialInActiveTab'),
+  );
+  await page.route('https://school.instructure.com/courses/4/pages/exam-review', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<main><h1>Exam 1 review</h1><p>Propositions have truth values and conjunction is true only when both propositions are true.</p></main>',
+  }));
+  await page.goto(lessonUrl);
+  await page.setContent(`<main>
+    <a href="https://school.instructure.com/courses/4/pages/exam-review">Exam 1 review slides</a>
+    <a href="https://school.instructure.com/courses/4/quizzes/8">Exam 1 graded quiz</a>
+    <a href="https://other.example/material">External review</a>
+  </main>`);
+  await page.addScriptTag({ content: finderSource });
+  const found = await page.evaluate(() => findStudyMaterialOnPage('Find everything relevant to Exam 1'));
+  assert.equal(found.evidence.length, 1);
+  assert.match(found.evidence[0].url, /pages\/exam-review$/);
+  assert.doesNotMatch(JSON.stringify(found), /quizzes\/8|other\.example/);
+  assert.match(found.content, /Propositions have truth values/);
+
+  await page.route('https://school.instructure.com/courses/4', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<main><p>Discrete Math course home with current learning resources for the term.</p><a href="/courses/4/modules">Modules</a></main>',
+  }));
+  await page.route('https://school.instructure.com/courses/4/modules', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<main><p>Course modules list for all weeks and assessment preparation.</p><a href="/courses/4/pages/exam-two-review">Exam 2 review</a><a href="/courses/4/quizzes/9">Graded Exam 2</a></main>',
+  }));
+  await page.route('https://school.instructure.com/courses/4/pages/exam-two-review', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<main><h1>Exam 2 review</h1><p>De Morgan laws transform the negation of a conjunction into the disjunction of each negated proposition.</p></main>',
+  }));
+  await page.setContent('<main><a href="https://school.instructure.com/courses/4">Discrete Math</a></main>');
+  const recursive = await page.evaluate(() => findStudyMaterialOnPage('Find everything relevant to Exam 2'));
+  assert.match(recursive.content, /De Morgan laws/);
+  assert.match(JSON.stringify(recursive.evidence), /exam-two-review/);
+  assert.doesNotMatch(JSON.stringify(recursive), /quizzes\/9/);
+
+  const panel = await browser.newPage({ viewport: { width: 360, height: 800 } });
+  await panel.setContent(
+    popupHtml
+      .replace('<link rel="stylesheet" href="styles.css">', `<style>${popupStyles}</style>`)
+      .replace('<script src="popup.js"></script>', ''),
+  );
+  assert.equal(await panel.locator('#chat-section').isVisible(), true);
+  assert.equal(await panel.locator('#capture-section').isVisible(), false);
+  assert.equal(await panel.locator('#page-context-domain').textContent(), 'Cordia only reads it when you ask.');
+  assert.equal(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  await panel.close();
 
   await page.goto('https://classroom.cordiacode.com/dashboard');
   await page.evaluate(() => {

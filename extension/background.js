@@ -3,6 +3,8 @@
 
 const API_URL = 'https://autostudy-ai.fly.dev';
 
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+
 // Helper to get auth token from storage
 function getAuthToken() {
   return new Promise((resolve) => {
@@ -31,7 +33,37 @@ function errorMessage(data, fallback) {
   return typeof detail === 'string' ? detail : (detail && detail.message) || fallback;
 }
 
+function safeSameOriginStudyUrl(currentUrl, requestedUrl) {
+  try {
+    const current = new URL(currentUrl);
+    const requested = new URL(requestedUrl);
+    if (!['http:', 'https:'].includes(requested.protocol) || requested.origin !== current.origin) return null;
+    if (/\/(quizzes|grades|submissions?)(?:\/|$)/i.test(requested.pathname)) return null;
+    return requested.href;
+  } catch (_) {
+    return null;
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'navigateActiveTab') {
+    (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const target = tab?.id && safeSameOriginStudyUrl(tab.url || '', message.url || '');
+        if (!target) {
+          sendResponse({ success: false, error: 'Cordia can only open safe study links from the current site.' });
+          return;
+        }
+        const updated = await chrome.tabs.update(tab.id, { url: target });
+        sendResponse({ success: true, url: updated?.url || target });
+      } catch (error) {
+        sendResponse({ success: false, error: error.message || 'The study link could not be opened.' });
+      }
+    })();
+    return true;
+  }
+
   // Screenshot handler for slide-by-slide capture with images
   if (message.action === 'screenshotTab') {
     chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 70 }, (dataUrl) => {
@@ -74,14 +106,65 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: JSON.stringify({
             question: message.question,
             content: message.content,
-            mode: message.mode || 'short'
+            mode: message.mode || 'short',
+            context_title: message.contextTitle || null,
+            context_url: message.contextUrl || null,
+            session_id: message.sessionId,
+            conversation_version: message.conversationVersion,
+            skill: message.skill || null
           })
         });
         const data = await resp.json();
-        sendResponse({ answer: data.answer || 'No answer.' });
+        sendResponse(resp.ok ? data : { error: errorMessage(data, 'Tutor request failed'), status: resp.status });
       } catch (e) {
-        sendResponse({ answer: 'Error: ' + (e.message || 'Request failed') });
+        sendResponse({ error: e.message || 'Request failed' });
       }
+    })();
+    return true;
+  }
+
+  if (message.action === 'getTutorSession') {
+    (async () => {
+      try {
+        const response = await authedFetch('/tutor/session');
+        const data = await response.json();
+        sendResponse(response.ok ? data : { error: errorMessage(data, 'Tutor session unavailable'), status: response.status });
+      } catch (error) { sendResponse({ error: error.message || 'Request failed' }); }
+    })();
+    return true;
+  }
+
+  if (message.action === 'setTutorSkill') {
+    (async () => {
+      try {
+        const response = await authedFetch('/tutor/session/skill', {
+          method: 'PATCH',
+          body: JSON.stringify({ session_id: message.sessionId, skill: message.skill })
+        });
+        const data = await response.json();
+        sendResponse(response.ok ? data : { error: errorMessage(data, 'Tutor skill could not be changed'), status: response.status });
+      } catch (error) { sendResponse({ error: error.message || 'Request failed' }); }
+    })();
+    return true;
+  }
+
+  if (message.action === 'updateBrowserContext') {
+    (async () => {
+      try {
+        const response = await authedFetch('/tutor/session/browser', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            session_id: message.sessionId,
+            browser_available: true,
+            browser_observation: message.observation,
+            browser_content: message.browserContent,
+            permission_scope: ['read_page'],
+            last_action_result: message.lastActionResult
+          })
+        });
+        const data = await response.json();
+        sendResponse(response.ok ? data : { error: errorMessage(data, 'Browser context could not be synchronized'), status: response.status });
+      } catch (error) { sendResponse({ error: error.message || 'Request failed' }); }
     })();
     return true;
   }

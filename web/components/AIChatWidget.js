@@ -3,18 +3,33 @@ import { useRouter } from 'next/router';
 import { apiErrorMessage, apiFetch, authOnlyHeaders, responseJson } from '../lib/api';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const MAX_MESSAGES = 15;
+const MAX_MESSAGES = 30;
+const SKILL_PROGRESS = {
+  explain: 'Explaining material…',
+  capture: 'Reading current page…',
+  build_guide: 'Building guide…',
+  practice: 'Creating practice problems…',
+  retain: 'Strengthening recall…',
+  plan: 'Planning study time…',
+  find_material: 'Finding Canvas material…',
+  organize: 'Organizing study material…',
+};
 
 export default function AIChatWidget({ guides: providedGuides = null, preferredGuideId = '', preferredNoteId = '' }) {
   const router = useRouter();
   const [loadedGuides, setLoadedGuides] = useState([]);
   const [notes, setNotes] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [contextKey, setContextKey] = useState('');
   const [attachment, setAttachment] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [browserMaterial, setBrowserMaterial] = useState(null);
+  const [session, setSession] = useState(null);
+  const [skillOverride, setSkillOverride] = useState('');
+  const [targetClassId, setTargetClassId] = useState('');
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [localError, setLocalError] = useState('');
   const fileRef = useRef(null);
   const endRef = useRef(null);
   const appliedPreferred = useRef('');
@@ -23,17 +38,53 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
     Promise.all([
       providedGuides ? null : apiFetch('/guides?limit=50'),
       apiFetch('/smart_notes'),
-    ]).then(([guideData, noteData]) => {
+      apiFetch('/folders'),
+    ]).then(([guideData, noteData, folderData]) => {
       if (Array.isArray(guideData?.guides)) setLoadedGuides(guideData.guides);
       if (Array.isArray(noteData?.notes)) setNotes(noteData.notes);
+      if (Array.isArray(folderData?.folders)) setClasses(folderData.folders);
     });
   }, [providedGuides]);
+
+  useEffect(() => {
+    let active = true;
+    async function refresh() {
+      const next = await apiFetch('/tutor/session');
+      if (!active || !next?.id) return;
+      setSession(next);
+    }
+    refresh();
+    const timer = window.setInterval(refresh, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const observation = session?.browser_observation || {};
+    if (!session?.browser_content_available) {
+      setBrowserMaterial(null);
+      return;
+    }
+    if (browserMaterial?.revision === session.browser_content_revision && browserMaterial?.content) return;
+    apiFetch('/tutor/session/browser-content').then(data => {
+      if (!data?.content) return;
+      setBrowserMaterial({
+        title: data.observation?.title || 'Captured browser material',
+        url: data.observation?.url || '',
+        content: data.content,
+        revision: data.revision,
+      });
+    });
+  }, [session?.browser_content_available, session?.browser_content_revision, session?.browser_observation?.url, browserMaterial?.revision, browserMaterial?.content]);
 
   const guides = providedGuides || loadedGuides;
   const materials = [
     ...guides.map(item => ({ ...item, kind: 'guide', key: `guide:${item.id}` })),
     ...notes.map(item => ({ ...item, kind: 'note', key: `note:${item.id}` })),
     ...(attachment ? [{ ...attachment, kind: 'attachment', key: 'attachment' }] : []),
+    ...(session?.browser_content_available ? [{ ...(browserMaterial || {}), title: browserMaterial?.title || 'Captured browser material', kind: 'browser', key: 'browser' }] : []),
   ];
 
   useEffect(() => {
@@ -56,21 +107,37 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
     return () => window.removeEventListener('cordia:tutor-prompt', prefill);
   }, []);
 
+  const messages = session?.messages || [];
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages.length, loading]);
 
   const material = materials.find(item => item.key === contextKey);
+  const selectedSkillId = skillOverride || session?.active_skill || 'explain';
+  const selectedSkill = session?.skills?.find(item => item.id === selectedSkillId);
+  const hasRequiredContext = (Boolean(material) && (material.kind !== 'browser' || Boolean(material.content))) || selectedSkill?.requires_context === false;
+  const needsTargetClass = selectedSkillId === 'organize';
+  const canSubmit = hasRequiredContext && (!needsTargetClass || Boolean(targetClassId));
   const remaining = MAX_MESSAGES - messages.filter(message => message.role === 'user').length;
+  const busy = loading || (session?.status && session.status !== 'idle');
+  const progressLabel = SKILL_PROGRESS[session?.active_skill] || 'Cordia is working…';
 
-  function changeContext(event) {
-    setContextKey(event.target.value);
-    setMessages([]);
+  async function changeSkill(event) {
+    const nextSkill = event.target.value;
+    setSkillOverride(nextSkill);
+    if (!session?.id || !nextSkill) return;
+    const next = await apiFetch('/tutor/session/skill', {
+      method: 'PATCH',
+      body: JSON.stringify({ session_id: session.id, skill: nextSkill }),
+    });
+    if (next?.id) setSession(next);
+    else setLocalError(next?.detail || 'Could not change Tutor skill.');
   }
 
   async function attachFile(file) {
     if (!file) return;
     setExtracting(true);
+    setLocalError('');
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -79,9 +146,8 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
       if (!response.ok || !data?.text) throw new Error(apiErrorMessage(data?.detail, 'Could not read this file.'));
       setAttachment({ title: file.name, content: data.text });
       setContextKey('attachment');
-      setMessages([]);
     } catch (error) {
-      setMessages(current => [...current, { role: 'ai', text: error.message || 'Could not read this file.' }]);
+      setLocalError(error.message || 'Could not read this file.');
     } finally {
       setExtracting(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -90,18 +156,29 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
 
   async function sendMessage() {
     const question = input.trim();
-    if (!question || !material || loading || remaining <= 0) return;
-    setMessages(current => [...current, { role: 'user', text: question }]);
+    if (!question || !canSubmit || busy || remaining <= 0 || !session?.id) return;
     setInput('');
+    setLocalError('');
     setLoading(true);
+    setSession(current => ({
+      ...current,
+      status: 'running',
+      messages: [...(current?.messages || []), { role: 'user', text: question }],
+    }));
     const data = await apiFetch('/chat', {
       method: 'POST',
+      timeoutMs: 120000,
       body: JSON.stringify({
         question,
-        content: material.kind === 'attachment' ? material.content : '',
-        ...(material.kind === 'guide' ? { guide_id: material.id } : {}),
-        ...(material.kind === 'note' ? { note_id: material.id } : {}),
-        ...(material.kind === 'attachment' ? { context_title: material.title } : {}),
+        content: ['attachment', 'browser'].includes(material?.kind) ? material.content : '',
+        ...(material?.kind === 'guide' ? { guide_id: material.id } : {}),
+        ...(material?.kind === 'note' ? { note_id: material.id } : {}),
+        ...(['attachment', 'browser'].includes(material?.kind) ? { context_title: material.title } : {}),
+        ...(material?.kind === 'browser' && material.url ? { context_url: material.url } : {}),
+        session_id: session.id,
+        conversation_version: session.conversation_version,
+        skill: skillOverride || null,
+        class_id: needsTargetClass ? targetClassId : material?.folder_id || undefined,
         mode: 'short',
       }),
     });
@@ -112,25 +189,41 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
         setContextKey(`guide:${data.guide.id}`);
       }
     }
-    setMessages(current => [...current, {
-      role: 'ai',
-      text: data?.answer || data?.detail || 'Cordia could not answer that yet.',
-      guide: data?.guide || null,
-      source: data?.source || null,
-    }]);
+    if (data?.session?.id) {
+      setSkillOverride('');
+      setSession(data.session);
+    } else {
+      setLocalError(data?.answer || data?.detail || 'Cordia could not answer that yet.');
+      const refreshed = await apiFetch('/tutor/session');
+      if (refreshed?.id) setSession(refreshed);
+    }
     setLoading(false);
   }
 
   function openSource(source) {
     if (source?.type === 'study_guide') router.push('/guide/' + source.id);
     if (source?.type === 'smartnote') router.push('/smartnotes?id=' + source.id);
+    if (source?.type === 'browser' && source.url) window.open(source.url, '_blank', 'noopener,noreferrer');
   }
 
   return (
     <section className="cordia-tutor" aria-label="Cordia tutor">
       <header className="cordia-tutor-header">
-        <strong>Cordia Tutor</strong>
-        <select value={contextKey} onChange={changeContext} aria-label="Study material">
+        <div className="cordia-tutor-title-row">
+          <strong>Cordia Tutor</strong>
+          <span className={`cordia-browser-status${session?.browser_available ? ' is-online' : ''}`}>
+            {session?.browser_available ? 'Browser available' : 'Browser unavailable'}
+          </span>
+        </div>
+        <select value={skillOverride} onChange={changeSkill} aria-label="Tutor skill" disabled={!session || busy}>
+          <option value="">Auto · {session?.skills?.find(item => item.id === session?.active_skill)?.label || 'Explain'}</option>
+          {(session?.skills || [{ id: 'explain', label: 'Explain' }]).map(item => (
+            <option key={item.id} value={item.id} disabled={item.available === false}>
+              {item.available === false ? `${item.label} — coming soon` : item.label}
+            </option>
+          ))}
+        </select>
+        <select value={contextKey} onChange={event => setContextKey(event.target.value)} aria-label="Study material">
           {materials.length === 0 && <option value="">Choose study material</option>}
           {guides.length > 0 && <optgroup label="Study Guides">
             {guides.map(item => <option key={item.id} value={`guide:${item.id}`}>{item.title || 'Untitled guide'}</option>)}
@@ -139,7 +232,19 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
             {notes.map(item => <option key={item.id} value={`note:${item.id}`}>{item.title || 'Untitled note'}</option>)}
           </optgroup>}
           {attachment && <optgroup label="Attached file"><option value="attachment">{attachment.title}</option></optgroup>}
+          {session?.browser_content_available && <optgroup label="Browser"><option value="browser">{browserMaterial?.title || 'Captured browser material'}</option></optgroup>}
         </select>
+        {needsTargetClass && (
+          <select value={targetClassId} onChange={event => setTargetClassId(event.target.value)} aria-label="Destination class">
+            <option value="">Choose destination class</option>
+            {classes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        )}
+        {!session?.browser_available && ['capture', 'find_material'].includes(selectedSkillId) && (
+          <p className="cordia-browser-fallback">
+            Browser unavailable. Open the Chrome side panel, choose an existing guide or SmartNote, or attach a file below.
+          </p>
+        )}
         <input ref={fileRef} type="file" accept=".pdf,.docx,.pptx,.txt,.md,.csv,.jpg,.jpeg,.png,.webp" onChange={event => attachFile(event.target.files?.[0])} hidden />
         <button type="button" className="cordia-tutor-attach" onClick={() => fileRef.current?.click()} disabled={extracting}>
           {extracting ? 'Reading file…' : 'Attach study material'}
@@ -148,16 +253,25 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
 
       <div className="cordia-tutor-messages" aria-live="polite">
         {messages.length === 0 && (
-          <p>{material ? `Ask about ${material.title || 'this material'}.` : 'Choose a guide, SmartNote, or file to begin.'}</p>
+          <p>{material
+            ? `Ask about ${material.title || 'this material'}.`
+            : selectedSkill?.requires_context === false
+              ? 'Ask Cordia to work with the current browser page.'
+              : 'Choose a guide, SmartNote, or file to begin.'}</p>
         )}
         {messages.map((message, index) => (
-          <div key={index} className={`cordia-tutor-message ${message.role}`}>
+          <div key={`${index}-${message.role}`} className={`cordia-tutor-message ${message.role}`}>
             {message.source && (
               <button type="button" className="cordia-tutor-source" onClick={() => openSource(message.source)} disabled={message.source.type === 'file'}>
                 Based on {message.source.title}
               </button>
             )}
             {message.text}
+            {(message.evidence || []).map(item => (
+              <button key={item.url} type="button" className="cordia-tutor-evidence" onClick={() => window.open(item.url, '_blank', 'noopener,noreferrer')}>
+                {item.title || item.url}
+              </button>
+            ))}
             {message.guide && (
               <button type="button" className="cordia-tutor-guide-link" onClick={() => router.push('/guide/' + message.guide.id)}>
                 Open {message.guide.title}
@@ -165,7 +279,8 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
             )}
           </div>
         ))}
-        {loading && <div className="cordia-tutor-message ai">Thinking…</div>}
+        {busy && messages.at(-1)?.role === 'user' && <div className="cordia-tutor-message ai" role="status">{progressLabel}</div>}
+        {localError && <div className="cordia-tutor-message error">{localError}</div>}
         <div ref={endRef} />
       </div>
 
@@ -179,11 +294,11 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
               sendMessage();
             }
           }}
-          placeholder={material ? 'Ask Cordia…' : 'Choose or attach study material'}
-          disabled={!material || loading || remaining <= 0}
+          placeholder={!hasRequiredContext ? 'Choose or attach study material' : needsTargetClass && !targetClassId ? 'Choose a destination class' : 'Ask Cordia…'}
+          disabled={!canSubmit || busy || remaining <= 0 || !session}
           rows="2"
         />
-        <button type="button" onClick={sendMessage} disabled={!material || loading || !input.trim() || remaining <= 0} aria-label="Send">
+        <button type="button" onClick={sendMessage} disabled={!canSubmit || busy || !input.trim() || remaining <= 0 || !session} aria-label="Send">
           ↑
         </button>
       </div>

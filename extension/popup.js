@@ -6,10 +6,23 @@ let lastFlashcards = [];
 let lastPageUrl = '';
 let lastPageTitle = '';
 let lastSourceType = 'webpage';
-let chatHistory = [];
+let tutorSession = null;
 let exampleModeEnabled = false;
 let pendingSections = [];
 let pendingImages = [];
+let activeBrowserCommandId = null;
+let pendingBrowserCommandId = null;
+let tutorSkillOverride = '';
+const SKILL_PROGRESS = {
+  explain: 'Explaining material…',
+  capture: 'Reading current page…',
+  build_guide: 'Building guide…',
+  practice: 'Creating practice problems…',
+  retain: 'Strengthening recall…',
+  plan: 'Planning study time…',
+  find_material: 'Finding Canvas material…',
+  organize: 'Organizing study material…',
+};
 
 // DOM elements
 const statusDiv = document.getElementById('status');
@@ -25,6 +38,11 @@ const reviewDiv = document.getElementById('capture-review');
 const sectionList = document.getElementById('section-list');
 const generateSelectedBtn = document.getElementById('generate-selected-btn');
 const captureSource = document.getElementById('capture-source');
+const tutorSessionBar = document.getElementById('tutor-session-bar');
+const tutorSkill = document.getElementById('tutor-skill');
+const browserStatus = document.getElementById('browser-status');
+const pageContextTitle = document.getElementById('page-context-title');
+const pageContextDomain = document.getElementById('page-context-domain');
 
 // Auth DOM elements
 const authLoginDiv = document.getElementById('auth-login');
@@ -41,6 +59,7 @@ async function initAuth() {
   if (token) {
     chrome.storage.local.get(['userEmail'], (result) => {
       showLoggedIn(result.userEmail || 'Logged in');
+      initTutorSession();
     });
   } else {
     // Both access and refresh tokens are expired/invalid
@@ -53,6 +72,8 @@ function showLoginForm() {
   authLoginDiv.style.display = 'block';
   authLoggedInDiv.style.display = 'none';
   authStatusDiv.textContent = 'Connect your CordiaClassroom account';
+  tutorSession = null;
+  if (tutorSessionBar) tutorSessionBar.style.display = 'none';
 }
 
 function showLoggedIn(email) {
@@ -65,6 +86,299 @@ function showLoggedIn(email) {
 authLogoutBtn.addEventListener('click', () => {
   chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
   showLoginForm();
+});
+
+function runtimeMessage(message) {
+  return new Promise(resolve => chrome.runtime.sendMessage(message, response => resolve(response || null)));
+}
+
+async function initTutorSession() {
+  const response = await runtimeMessage({ action: 'getTutorSession' });
+  if (!response?.id) {
+    if (browserStatus) browserStatus.textContent = response?.error || 'Tutor unavailable';
+    return;
+  }
+  renderTutorSession(response);
+  await refreshPageContext();
+  await publishBrowserPresence();
+}
+
+async function refreshPageContext() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !/^https?:/.test(tab.url || '')) {
+    pageContextTitle.textContent = 'Open a study page';
+    pageContextDomain.textContent = 'Cordia only reads it when you ask.';
+    return;
+  }
+  let host = '';
+  try { host = new URL(tab.url).host; } catch (_) { /* keep the privacy label */ }
+  pageContextTitle.textContent = tab.title || 'Current browser tab';
+  pageContextDomain.textContent = host ? `${host} · Not sent until you ask` : 'Not sent until you ask';
+}
+
+function renderTutorSession(next) {
+  tutorSession = next;
+  if (tutorSessionBar) tutorSessionBar.style.display = 'grid';
+  if (browserStatus) {
+    browserStatus.textContent = next.status === 'idle'
+      ? 'Browser available'
+      : (SKILL_PROGRESS[next.active_skill] || 'Cordia is working…');
+  }
+  if (tutorSkill) {
+    const activeLabel = next.skills?.find(item => item.id === next.active_skill)?.label || 'Explain';
+    const automatic = document.createElement('option');
+    automatic.value = '';
+    automatic.textContent = 'Auto · ' + activeLabel;
+    tutorSkill.replaceChildren(automatic, ...(next.skills || []).map(item => {
+      const option = document.createElement('option');
+      option.value = item.id;
+      option.textContent = item.available ? item.label : item.label + ' — coming soon';
+      option.disabled = item.available === false;
+      return option;
+    }));
+    tutorSkill.value = tutorSkillOverride;
+  }
+  updateChatHistory();
+  maybeRunBrowserCommand(next);
+}
+
+async function publishBrowserPresence(contentRefs = null, lastActionResult = null, browserContent = null) {
+  if (!tutorSession?.id) return;
+  let observation;
+  if (contentRefs) {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+    if (!tab || !/^https?:/.test(tab.url || '')) return;
+    observation = {
+      url: tab.url,
+      title: tab.title || '',
+      source_type: lastSourceType || 'webpage',
+      content_refs: contentRefs,
+    };
+  }
+  const response = await runtimeMessage({
+    action: 'updateBrowserContext',
+    sessionId: tutorSession.id,
+    observation,
+    browserContent,
+    lastActionResult,
+  });
+  if (response?.id) tutorSession = response;
+  return response;
+}
+
+function reportCaptureResult(status, error = '', contentRefs = null, browserContent = null) {
+  const commandId = pendingBrowserCommandId;
+  pendingBrowserCommandId = null;
+  return publishBrowserPresence(contentRefs, commandId ? {
+    command_id: commandId,
+    status,
+    action: 'capture_current_page',
+    ...(error ? { error } : {}),
+    ...(contentRefs ? { section_count: contentRefs.length } : {}),
+  } : null, browserContent);
+}
+
+function maybeRunBrowserCommand(session) {
+  const command = session?.browser_command;
+  if (!command?.id || command.status !== 'pending' || command.id === activeBrowserCommandId) return;
+  activeBrowserCommandId = command.id;
+  if (!session.permission_scope?.includes(command.required_permission || 'read_page')) {
+    publishBrowserPresence(null, {
+      command_id: command.id,
+      status: 'failed',
+      action: command.type,
+      error: `Permission required: ${command.required_permission || 'read_page'}`,
+    });
+    return;
+  }
+  if (command.type === 'capture_current_page') {
+    captureActiveTab(command.id);
+    return;
+  }
+  if (command.type === 'find_material_current_page') {
+    findMaterialInActiveTab(command);
+    return;
+  }
+  publishBrowserPresence(null, {
+    command_id: command.id,
+    status: 'failed',
+    action: command.type,
+    error: 'Unsupported browser command',
+  });
+}
+
+async function findStudyMaterialOnPage(requestedQuery) {
+  const queryTerms = requestedQuery.toLowerCase().match(/[a-z0-9]{3,}/g) || [];
+  const studyTerms = ['module', 'slide', 'lecture', 'note', 'review', 'study', 'chapter', 'file', 'pdf', 'document', 'assignment'];
+  const forbiddenPaths = [/\/quizzes\//i, /\/grades(?:\/|$)/i, /\/submissions?(?:\/|$)/i];
+  const seen = new Set();
+  const queued = new Set();
+  const evidence = new Map();
+  const sources = [];
+
+  function linksFrom(root, baseUrl, depth) {
+    return [...root.querySelectorAll('a[href]')]
+      .map(link => {
+        const url = new URL(link.getAttribute('href'), baseUrl);
+        const title = (link.innerText || link.textContent || link.getAttribute('aria-label') || url.pathname.split('/').pop() || 'Course material')
+          .replace(/\s+/g, ' ').trim().slice(0, 180);
+        const haystack = `${title} ${url.pathname}`.toLowerCase();
+        const topicScore = queryTerms.filter(term => haystack.includes(term)).length * 3;
+        const materialScore = studyTerms.filter(term => haystack.includes(term)).length;
+        const courseEntry = /^\/courses\/\d+\/?$/i.test(url.pathname) ? 1 : 0;
+        return { title, url: url.href, score: topicScore + materialScore + courseEntry, depth };
+      })
+      .filter(item => {
+        const url = new URL(item.url);
+        return url.origin === location.origin
+          && item.title
+          && item.score > 0
+          && !forbiddenPaths.some(pattern => pattern.test(url.pathname))
+          && !queued.has(item.url)
+          && queued.add(item.url);
+      })
+      .sort((a, b) => b.score - a.score);
+  }
+
+  const queue = linksFrom(document, location.href, 0).slice(0, 8);
+  while (queue.length && seen.size < 12) {
+    const candidate = queue.shift();
+    if (!candidate || seen.has(candidate.url)) continue;
+    seen.add(candidate.url);
+    const candidateUrl = new URL(candidate.url);
+    const isDocument = /\/files\/\d+/i.test(candidateUrl.pathname) || /\.(pdf|pptx|docx|txt|md|csv)$/i.test(candidateUrl.pathname);
+    if (candidate.score >= 2 || isDocument) evidence.set(candidate.url, candidate);
+    try {
+      const response = await fetch(candidate.url, { credentials: 'include' });
+      const type = response.headers.get('content-type') || '';
+      if (!response.ok || !type.includes('text/html')) continue;
+      const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      doc.querySelectorAll('script, style, nav, header, footer, form, input, textarea, select, button').forEach(node => node.remove());
+      const root = doc.querySelector('main, article, [role="main"], .ic-Layout-contentMain') || doc.body;
+      const text = (root?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 12000);
+      if (text.length >= 80) sources.push({ ...candidate, text });
+      if (candidate.depth < 2) {
+        const discovered = linksFrom(doc, candidate.url, candidate.depth + 1).slice(0, 8);
+        queue.push(...discovered);
+        queue.sort((a, b) => b.score - a.score);
+      }
+    } catch (_) {
+      // The link remains useful evidence even when Canvas protects its body.
+    }
+  }
+  const fallback = [...seen].slice(0, 8).map(url => ({ title: new URL(url).pathname.split('/').pop() || 'Course material', url }));
+  const found = [...evidence.values()];
+  return {
+    evidence: (found.length ? found : fallback).slice(0, 12).map(({ title, url }) => ({ title, url, source_type: 'course_link', content_refs: [] })),
+    content: sources.map(source => `Source: ${source.title}\nURL: ${source.url}\n${source.text}`).join('\n\n').slice(0, 100000),
+  };
+}
+
+async function findMaterialInActiveTab(command) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !/^https?:/.test(tab.url || '')) {
+      throw new Error('Open the course page you want Cordia to search, then try again.');
+    }
+    lastPageUrl = tab.url;
+    lastPageTitle = (tab.title || 'Canvas course material').slice(0, 120);
+    lastSourceType = 'canvas';
+    const query = String(command.goal || '');
+    const [{ result = {} } = {}] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: findStudyMaterialOnPage,
+      args: [query],
+    });
+    const evidence = result.evidence || [];
+    if (!evidence.length) {
+      throw new Error('No relevant study-material links were found on the current page.');
+    }
+    const documentContent = await readLinkedDocuments(tab.id, evidence);
+    const foundContent = [result.content || '', documentContent].filter(Boolean).join('\n\n').slice(0, 100000);
+    const updatedSession = await publishBrowserPresence(evidence.map(item => item.url), {
+      command_id: command.id,
+      status: 'completed',
+      action: command.type,
+      evidence,
+    }, foundContent || null);
+    await navigateToStudyMaterial(evidence[0]);
+    if (foundContent && /\b(study guide|everything relevant|exam|quiz|test)\b/i.test(command.goal || '')) {
+      const courseSourceUrl = evidence.find(item => /\/courses\/\d+(?:\/|$)/i.test(new URL(item.url).pathname))?.url;
+      await buildGuideFromFoundMaterial(command, foundContent, updatedSession, courseSourceUrl || lastPageUrl);
+    }
+  } catch (error) {
+    await publishBrowserPresence(null, {
+      command_id: command.id,
+      status: 'failed',
+      action: command.type,
+      error: error?.message || 'The current page could not be searched.',
+    });
+  }
+}
+
+async function navigateToStudyMaterial(target) {
+  if (!target?.url) return;
+  statusDiv.innerText = `Opening ${target.title || 'the most relevant material'} in Canvas…`;
+  const result = await runtimeMessage({ action: 'navigateActiveTab', url: target.url });
+  if (!result?.success) {
+    statusDiv.innerText = result?.error || 'Material found, but the source could not be opened.';
+    return;
+  }
+  lastPageUrl = result.url || target.url;
+  lastPageTitle = target.title || 'Canvas course material';
+  await publishBrowserPresence([lastPageUrl]);
+}
+
+async function buildGuideFromFoundMaterial(command, content, session, sourceUrl) {
+  if (!session?.id || session.status !== 'idle') return;
+  statusDiv.innerText = 'Building a study guide from the material Cordia found...';
+  const response = await runtimeMessage({
+    action: 'chatWithContent',
+    question: `Build a study guide from the material found for: ${command.goal || 'this course topic'}`,
+    content,
+    contextTitle: command.goal || 'Canvas course material',
+    contextUrl: sourceUrl || null,
+    mode: 'short',
+    sessionId: session.id,
+    conversationVersion: session.conversation_version,
+    skill: 'build_guide',
+  });
+  if (response?.session?.id) {
+    tutorSkillOverride = '';
+    renderTutorSession(response.session);
+    statusDiv.innerText = response.answer || 'Study guide created.';
+  } else {
+    statusDiv.innerText = response?.error || 'The material was found, but the study guide could not be created.';
+  }
+}
+
+tutorSkill?.addEventListener('change', async () => {
+  if (!tutorSession?.id) return;
+  tutorSkillOverride = tutorSkill.value;
+  if (!tutorSkillOverride) return;
+  const response = await runtimeMessage({
+    action: 'setTutorSkill',
+    sessionId: tutorSession.id,
+    skill: tutorSkillOverride,
+  });
+  if (response?.id) renderTutorSession(response);
+  else statusDiv.innerText = response?.error || 'Could not change Tutor skill.';
+});
+
+window.setInterval(async () => {
+  if (!tutorSession?.id) return;
+  const response = await runtimeMessage({ action: 'getTutorSession' });
+  if (response?.id) {
+    renderTutorSession(response);
+    await refreshPageContext();
+    await publishBrowserPresence();
+  }
+}, 5000);
+
+chrome.tabs.onActivated.addListener(() => refreshPageContext());
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (tab.active && (changeInfo.status === 'complete' || changeInfo.title)) refreshPageContext();
 });
 
 // Init auth on popup open
@@ -236,8 +550,7 @@ function displayResults(response) {
 
     document.getElementById('chat-answer').innerHTML = '';
     document.getElementById('chat-input').value = '';
-    document.getElementById('chat-history').innerHTML = '';
-    chatHistory = [];
+    updateChatHistory();
 
     // Show save button only if logged in and has content
     chrome.storage.local.get(['authToken'], (result) => {
@@ -305,6 +618,10 @@ function ensureContentScript(tabId, callback) {
   });
 }
 
+function ensureContentScriptReady(tabId) {
+  return new Promise(resolve => ensureContentScript(tabId, resolve));
+}
+
 function decodeFile(data, type) {
   const binary = atob(data);
   const bytes = new Uint8Array(binary.length);
@@ -334,34 +651,20 @@ function canvasFileId(url) {
   catch (_) { return ''; }
 }
 
-async function captureDocument(tabId, source) {
-  showProgress('Reading the attached document...');
-  const token = await getValidToken();
-  if (!token) throw new Error('Sign in to CordiaClassroom first');
-  const fileId = canvasFileId(source.url);
-  let blob;
-  let fetched;
-  if (fileId) {
-    const download = await fetch(API + '/canvas/file/' + fileId, {
-      headers: { Authorization: 'Bearer ' + token },
-    });
-    if (!download.ok) {
-      const error = await download.json().catch(() => ({}));
-      throw new Error(error.detail || 'Canvas could not download this file');
-    }
-    blob = await download.blob();
-    fetched = { contentType: blob.type, finalUrl: source.url };
-  } else {
-    fetched = await sendTabMessage(tabId, { action: 'fetchFile', url: source.url }, 60000);
-    if (!fetched?.success || !fetched.data) {
-      throw new Error(fetched?.error || 'The document could not be opened');
-    }
-    blob = decodeFile(fetched.data, fetched.contentType);
+function isLinkedDocument(url) {
+  try {
+    const path = new URL(url).pathname;
+    return /\/files\/\d+/i.test(path) || /\.(pdf|pptx|docx|txt|md|csv)$/i.test(path);
+  } catch (_) {
+    return false;
   }
+}
+
+async function extractDocumentText(source, fetched, token, suppliedBlob = null) {
+  const blob = suppliedBlob || decodeFile(fetched.data, fetched.contentType);
   const filename = documentFilename(source, fetched);
-  lastPageTitle = filename;
   const file = new File([blob], filename, {
-    type: fetched.contentType || 'application/octet-stream',
+    type: fetched.contentType || blob.type || 'application/octet-stream',
   });
   const form = new FormData();
   form.append('file', file);
@@ -372,8 +675,52 @@ async function captureDocument(tabId, source) {
   });
   const data = await response.json();
   if (!response.ok || !data.text?.trim()) throw new Error(data.detail || 'No readable study material was found');
+  return { text: data.text.trim(), filename };
+}
+
+async function readLinkedDocuments(tabId, evidence) {
+  const candidates = evidence.filter(item => isLinkedDocument(item.url)).slice(0, 3);
+  if (!candidates.length) return '';
+  const token = await getValidToken();
+  if (!token) return '';
+  await ensureContentScriptReady(tabId);
+  const sections = [];
+  for (const source of candidates) {
+    const fetched = await sendTabMessage(tabId, { action: 'fetchFile', url: source.url }, 60000);
+    if (!fetched?.success || !fetched.data) continue;
+    try {
+      const extracted = await extractDocumentText({ url: source.url, filename: source.title }, fetched, token);
+      sections.push(`Source: ${source.title}\nURL: ${source.url}\n${extracted.text}`);
+    } catch (_) {
+      // Keep the link as evidence even when a document cannot be parsed.
+    }
+  }
+  return sections.join('\n\n').slice(0, 60000);
+}
+
+async function captureDocument(tabId, source) {
+  showProgress('Reading the attached document...');
+  const token = await getValidToken();
+  if (!token) throw new Error('Sign in to CordiaClassroom first');
+  const fileId = canvasFileId(source.url);
+  let blob;
+  let fetched = await sendTabMessage(tabId, { action: 'fetchFile', url: source.url }, 60000);
+  if (!fetched?.success || !fetched.data) {
+    if (!fileId) throw new Error(fetched?.error || 'The document could not be opened');
+    const download = await fetch(API + '/canvas/file/' + fileId, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!download.ok) {
+      const error = await download.json().catch(() => ({}));
+      throw new Error(error.detail || 'Canvas could not download this file');
+    }
+    blob = await download.blob();
+    fetched = { contentType: blob.type, finalUrl: source.url };
+  }
+  const extracted = await extractDocumentText(source, fetched, token, blob);
+  lastPageTitle = extracted.filename;
   showProgress('Document ready', true);
-  sendToBackend(data.text);
+  sendToBackend(extracted.text);
 }
 
 async function screenshotFallback() {
@@ -419,6 +766,7 @@ function rawPageFallback(tabId) {
     } else {
       statusDiv.innerText = 'Failed to capture content from this page.';
       showProgress('No content found', false);
+      reportCaptureResult('failed', statusDiv.innerText);
     }
   });
 }
@@ -428,20 +776,27 @@ function rawPageFallback(tabId) {
 // =====================
 const platformBanner = document.getElementById('platform-banner');
 
-captureBtn.addEventListener('click', async () => {
+async function captureActiveTab(commandId = null) {
   statusDiv.innerText = 'Capturing...';
   clearProgress();
   showProgress('Starting content capture...');
   if (saveBtn) saveBtn.style.display = 'none';
   if (platformBanner) platformBanner.style.display = 'none';
 
-  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-    const tabId = tabs[0].id;
-    const tabUrl = tabs[0].url;
+  pendingBrowserCommandId = commandId;
+  const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+  const tab = tabs[0];
+  if (!tab?.id || !/^https?:/.test(tab.url || '')) {
+    statusDiv.innerText = 'Open a study page in a normal browser tab first.';
+    await reportCaptureResult('failed', statusDiv.innerText);
+    return;
+  }
+    const tabId = tab.id;
+    const tabUrl = tab.url;
     lastPageUrl = tabUrl;
     lastSourceType = 'webpage';
 
-    const pageTitle = tabs[0].title || 'content';
+    const pageTitle = tab.title || 'content';
     lastPageTitle = pageTitle.split(' - ')[0].split('|')[0].trim().substring(0, 60);
 
     showProgress(`Analyzing page: "${lastPageTitle}"...`);
@@ -451,10 +806,12 @@ captureBtn.addEventListener('click', async () => {
       runCaptureFlow(tabId).catch((error) => {
         statusDiv.innerText = error.message || 'Failed to capture content.';
         showProgress(statusDiv.innerText, false);
+        reportCaptureResult('failed', statusDiv.innerText);
       });
     });
-  });
-});
+}
+
+captureBtn.addEventListener('click', () => captureActiveTab());
 
 function sendToBackend(content, images = []) {
   statusDiv.innerText = 'Processing...';
@@ -467,6 +824,12 @@ function sendToBackend(content, images = []) {
       pendingSections = response.sections || [];
       pendingImages = response.use_images ? images : [];
       renderCaptureReview(response);
+      const refs = pendingSections.map(section => section.heading).slice(0, 20);
+      const normalizedContent = pendingSections
+        .map(section => `${section.heading}\n${section.text}`)
+        .join('\n\n')
+        .slice(0, 100000);
+      reportCaptureResult('completed', '', refs, normalizedContent);
     } else if (response && response.status === 402) {
       showGuideLimit();
     } else {
@@ -474,6 +837,7 @@ function sendToBackend(content, images = []) {
       showProgress('Processing failed: ' + errMsg, false);
       statusDiv.innerText = 'Error: ' + errMsg;
       if (saveBtn) saveBtn.style.display = 'none';
+      reportCaptureResult('failed', errMsg);
     }
   });
 }
@@ -598,60 +962,50 @@ saveBtn.addEventListener('click', async () => {
 // =====================
 // Chat functions
 // =====================
-function sendChat() {
+async function sendChat(forcedMode = null) {
   const question = chatInput.value.trim();
-  if (!question) return;
+  if (!question || !tutorSession?.id || tutorSession.status !== 'idle') return;
   chatInput.value = '';
 
-  const mode = exampleModeEnabled ? 'example' : 'short';
-  chatAnswerDiv.innerText = exampleModeEnabled ? 'Getting example...' : 'Thinking...';
-  chatHistory.push({role: 'user', text: question});
+  const mode = forcedMode || (exampleModeEnabled ? 'example' : 'short');
+  chatAnswerDiv.innerText = SKILL_PROGRESS[tutorSession.active_skill] || 'Cordia is working…';
+  tutorSession = {
+    ...tutorSession,
+    status: 'running',
+    messages: [...(tutorSession.messages || []), { role: 'user', text: question }],
+  };
   updateChatHistory();
 
-  chrome.runtime.sendMessage({
+  const response = await runtimeMessage({
     action: 'chatWithContent',
     question: question,
-    content: lastNotes || lastStudyGuide || '',
-    mode: mode
-  }, (response) => {
-    if (response && response.answer) {
-      const prefix = exampleModeEnabled ? '[Example] ' : '';
-      chatAnswerDiv.innerText = response.answer;
-      chatHistory.push({role: 'ai', text: prefix + response.answer});
-      updateChatHistory();
-    } else {
-      chatAnswerDiv.innerText = 'No answer.';
-    }
+    content: lastStudyGuide || lastNotes || pendingSections.map(section => section.text).join('\n\n'),
+    contextTitle: lastPageTitle || 'Current browser material',
+    contextUrl: lastPageUrl || null,
+    mode: mode,
+    sessionId: tutorSession.id,
+    conversationVersion: tutorSession.conversation_version,
+    skill: tutorSkillOverride || null,
   });
-}
-
-function sendExampleRequest() {
-  const lastUserMsg = [...chatHistory].reverse().find(msg => msg.role === 'user');
-  if (!lastUserMsg) {
-    chatAnswerDiv.innerText = 'Ask a question first to get an example.';
-    return;
+  if (response?.session?.id) {
+    tutorSkillOverride = '';
+    chatAnswerDiv.innerText = response.answer || '';
+    renderTutorSession(response.session);
+  } else {
+    chatAnswerDiv.innerText = response?.error || 'Tutor request failed.';
+    const refreshed = await runtimeMessage({ action: 'getTutorSession' });
+    if (refreshed?.id) renderTutorSession(refreshed);
   }
-  chatAnswerDiv.innerText = 'Getting example...';
-  chrome.runtime.sendMessage({
-    action: 'chatWithContent',
-    question: lastUserMsg.text,
-    content: lastNotes || lastStudyGuide || '',
-    mode: 'example'
-  }, (response) => {
-    if (response && response.answer) {
-      chatAnswerDiv.innerText = response.answer;
-      chatHistory.push({role: 'ai', text: '[Example] ' + response.answer});
-      updateChatHistory();
-    } else {
-      chatAnswerDiv.innerText = 'No example found.';
-    }
-  });
 }
 
 function updateChatHistory() {
-  chatHistoryDiv.innerHTML = chatHistory.map(msg =>
-    `<div style="margin-bottom:4px;"><b>${msg.role === 'user' ? 'You' : 'AI'}:</b> ${escapeHtml(msg.text)}</div>`
-  ).join('');
+  chatHistoryDiv.innerHTML = (tutorSession?.messages || []).map(msg => {
+    const evidence = (msg.evidence || []).map(item =>
+      `<a class="session-evidence" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">${escapeHtml(item.title || item.url)}</a>`
+    ).join('');
+    return `<div class="session-message ${msg.role === 'user' ? 'user' : 'ai'}"><b>${msg.role === 'user' ? 'You' : 'Cordia'}:</b> ${escapeHtml(msg.text)}${evidence}</div>`;
+  }).join('');
+  chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
 }
 
 // Chat event listeners

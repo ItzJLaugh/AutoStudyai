@@ -180,6 +180,27 @@ class CanvasContractTests(unittest.TestCase):
             on_conflict="user_id,external_source_id",
         )
 
+    def test_canvas_source_url_matches_only_an_existing_owned_class(self):
+        table = MagicMock()
+        table.select.return_value = table
+        table.eq.return_value = table
+        table.like.return_value = table
+        table.limit.return_value = table
+        table.execute.return_value = MagicMock(data=[{"id": "folder-4"}])
+        db = MagicMock()
+        db.table.return_value = table
+
+        with patch.object(canvas, "get_supabase", return_value=db):
+            folder_id = canvas.folder_id_from_source_url(
+                "student-1",
+                "https://school.instructure.com/courses/4/pages/exam-review",
+            )
+
+        self.assertEqual(folder_id, "folder-4")
+        table.eq.assert_any_call("user_id", "student-1")
+        table.like.assert_called_once_with("external_source_id", "canvas:%:course:4")
+        self.assertIsNone(canvas.folder_id_from_source_url("student-1", "https://example.test/notes"))
+
     def test_canvas_item_can_become_reviewed_guide_source(self):
         item = {
             "course_id": 4,
