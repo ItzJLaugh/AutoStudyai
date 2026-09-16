@@ -1,6 +1,7 @@
 """Shared Cordia Tutor session state for the web app and browser side panel."""
 
 from datetime import datetime, timezone
+from hashlib import sha256
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -67,29 +68,29 @@ TUTOR_SKILLS = {
     "plan": {
         "label": "Plan",
         "version": 1,
-        "available": False,
+        "available": True,
         "outcome": "Turn course deadlines and study material into a practical study plan.",
         "complete_when": "The plan covers known deadlines without claiming unconfirmed calendar writes.",
         "tools": ["read_context", "read_deadlines"],
-        "requires_context": True,
+        "requires_context": False,
         "confirm": ["calendar_write"],
         "instruction": "Produce a realistic study plan from known deadlines; do not claim calendar changes without confirmation.",
     },
     "find_material": {
         "label": "Find material",
         "version": 1,
-        "available": False,
-        "outcome": "Locate relevant material in the student-approved browser session.",
-        "complete_when": "Relevant sources are identified with their original course locations.",
-        "tools": ["navigate", "read_page"],
+        "available": True,
+        "outcome": "Locate relevant material linked from the student-approved active page.",
+        "complete_when": "Relevant links on the active page are identified with their original locations.",
+        "tools": ["read_page"],
         "requires_context": False,
         "confirm": [],
-        "instruction": "Use only the approved browser session and report exactly which relevant sources were found.",
+        "instruction": "Search only links on the approved active page and report exactly which relevant sources were found.",
     },
     "organize": {
         "label": "Organize",
         "version": 1,
-        "available": False,
+        "available": True,
         "outcome": "Place learning material in the appropriate existing class.",
         "complete_when": "The material is assigned once to the correct existing class.",
         "tools": ["read_context", "organize_material"],
@@ -100,12 +101,26 @@ TUTOR_SKILLS = {
 }
 DEFAULT_SKILL = "explain"
 MAX_SESSION_MESSAGES = 60
+MAX_ACTION_HISTORY = 30
 BROWSER_TTL_SECONDS = 45
 RUN_TTL_SECONDS = 180
 TUTOR_SAFETY_POLICY = (
     "Never take graded assessments, submit assignments, change grades, or impersonate the student. "
     "Require explicit confirmation before downloads, calendar changes, external messages, or Canvas writes."
 )
+
+
+def _history_entry(result: dict) -> dict:
+    entry = {
+        "status": result.get("status") or "completed",
+        "action": result.get("action") or "answered",
+        "at": datetime.now(timezone.utc).isoformat(),
+    }
+    if result.get("error"):
+        entry["error"] = str(result["error"])[:500]
+    if result.get("evidence"):
+        entry["evidence_count"] = len(result["evidence"])
+    return entry
 
 
 def infer_tutor_skill(message: str) -> str:
@@ -134,6 +149,26 @@ def validate_skill(skill: str | None, message: str = "") -> str:
     if not TUTOR_SKILLS[selected]["available"]:
         raise HTTPException(status_code=409, detail=f"{TUTOR_SKILLS[selected]['label']} is not available yet")
     return selected
+
+
+def build_deadline_plan(items: list[dict], limit: int = 6) -> str:
+    """Create a truthful, read-only plan from normalized Canvas deadlines."""
+    pending = sorted(
+        (item for item in items if item.get("due_at") and not item.get("completed")),
+        key=lambda item: item["due_at"],
+    )[:limit]
+    if not pending:
+        return "Canvas has no upcoming incomplete deadlines to plan from."
+    lines = ["Study plan from your current Canvas deadlines:"]
+    for item in pending:
+        try:
+            due = datetime.fromisoformat(str(item["due_at"]).replace("Z", "+00:00"))
+            due_label = due.astimezone().strftime("%b %d at %I:%M %p")
+        except (TypeError, ValueError):
+            due_label = str(item["due_at"])
+        lines.append(f"• {due_label} — {item.get('title') or 'Course item'}: review the source, practice it, then check your understanding.")
+    lines.append("No calendar events were created.")
+    return "\n".join(lines)
 
 
 def tutor_skill_instruction(skill: str | None) -> str:
@@ -180,7 +215,7 @@ def _browser_is_available(row: dict) -> bool:
 
 
 def _run_is_stale(row: dict) -> bool:
-    if row.get("status") != "running" or not row.get("run_started_at"):
+    if row.get("status") not in {"running", "waiting_browser"} or not row.get("run_started_at"):
         return False
     try:
         started = datetime.fromisoformat(str(row["run_started_at"]).replace("Z", "+00:00"))
@@ -190,6 +225,7 @@ def _run_is_stale(row: dict) -> bool:
 
 
 def public_tutor_session(row: dict) -> dict:
+    browser_content = row.get("browser_content") or ""
     return {
         "id": row["id"],
         "active_skill": row.get("active_skill") or DEFAULT_SKILL,
@@ -201,11 +237,24 @@ def public_tutor_session(row: dict) -> dict:
         "messages": row.get("messages") or [],
         "browser_available": _browser_is_available(row),
         "browser_observation": row.get("browser_observation") or {},
+        "browser_content_available": bool(browser_content),
+        "browser_content_revision": sha256(browser_content.encode()).hexdigest()[:12] if browser_content else "",
         "browser_command": row.get("browser_command") or {},
         "permission_scope": row.get("permission_scope") or [],
         "last_action_result": row.get("last_action_result") or {},
+        "action_history": row.get("action_history") or [],
         "skills": [{"id": key, **definition} for key, definition in TUTOR_SKILLS.items()],
         "updated_at": row.get("updated_at"),
+    }
+
+
+def tutor_browser_content(user_id: str) -> dict:
+    row = get_or_create_tutor_session(user_id)
+    content = row.get("browser_content") or ""
+    return {
+        "content": content,
+        "observation": row.get("browser_observation") or {},
+        "revision": sha256(content.encode()).hexdigest()[:12] if content else "",
     }
 
 
@@ -219,14 +268,36 @@ def update_browser_context(user_id: str, session_id: str, update: dict):
     }
     if update.get("browser_observation") is not None:
         payload["browser_observation"] = update["browser_observation"]
+    if update.get("browser_content") is not None:
+        payload["browser_content"] = update["browser_content"]
     if update.get("last_action_result") is not None:
-        payload["last_action_result"] = update["last_action_result"]
+        action_result = update["last_action_result"]
+        payload["last_action_result"] = action_result
         command = row.get("browser_command") or {}
-        if command.get("id") == update["last_action_result"].get("command_id"):
+        if command.get("id") == action_result.get("command_id") and command.get("status") == "pending":
             payload["browser_command"] = {
                 **command,
-                "status": update["last_action_result"].get("status") or "completed",
+                "status": action_result.get("status") or "completed",
             }
+            if row.get("status") == "waiting_browser":
+                count = action_result.get("section_count") or 0
+                evidence = action_result.get("evidence") or []
+                if action_result.get("status") == "failed":
+                    text = f"Browser action failed: {action_result.get('error') or 'The current page could not be read.'}"
+                elif action_result.get("action") == "find_material_current_page":
+                    text = f"Found {len(evidence)} relevant source{'s' if len(evidence) != 1 else ''} on the current page."
+                else:
+                    text = f"Captured {count} study section{'s' if count != 1 else ''} from the current page."
+                messages = list(row.get("messages") or [])
+                messages.append({"role": "ai", "text": text, "evidence": evidence})
+                payload.update({
+                    "status": "idle",
+                    "run_id": None,
+                    "run_started_at": None,
+                    "messages": messages[-MAX_SESSION_MESSAGES:],
+                    "conversation_version": (row.get("conversation_version") or 0) + 1,
+                    "action_history": [*(row.get("action_history") or []), _history_entry(action_result)][-MAX_ACTION_HISTORY:],
+                })
     result = (
         get_supabase().table("tutor_sessions")
         .update(payload)
@@ -261,6 +332,27 @@ def queue_browser_command(user_id: str, turn: dict, command_type: str, goal: str
     return command
 
 
+def wait_for_browser_result(user_id: str, turn: dict, answer: str):
+    messages = list(turn.get("messages") or [])
+    messages.append({"role": "ai", "text": answer})
+    result = (
+        get_supabase().table("tutor_sessions")
+        .update({
+            "status": "waiting_browser",
+            "messages": messages[-MAX_SESSION_MESSAGES:],
+            "last_action_result": {"status": "pending", "action": "browser_command_queued"},
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", turn["id"])
+        .eq("user_id", user_id)
+        .eq("run_id", turn["run_id"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=409, detail="Browser action could not be synchronized")
+    return result.data[0]
+
+
 def update_tutor_skill(user_id: str, session_id: str, skill: str):
     _owned_session(user_id, session_id)
     selected = validate_skill(skill)
@@ -293,7 +385,7 @@ def claim_tutor_turn(
     version = row.get("conversation_version") or 0
     if expected_version is not None and expected_version != version:
         raise HTTPException(status_code=409, detail="Tutor conversation changed. Refresh and try again.")
-    if row.get("status") == "running":
+    if row.get("status") in {"running", "waiting_browser"}:
         if not _run_is_stale(row):
             raise HTTPException(status_code=409, detail="Cordia Tutor is already working on a request.")
         recovered = (
@@ -363,6 +455,7 @@ def complete_tutor_turn(user_id: str, turn: dict, response: dict):
             "messages": messages[-MAX_SESSION_MESSAGES:],
             "conversation_version": next_version,
             "last_action_result": action_result,
+            "action_history": [*(turn.get("action_history") or []), _history_entry(action_result)][-MAX_ACTION_HISTORY:],
             "updated_at": datetime.now(timezone.utc).isoformat(),
         })
         .eq("id", turn["id"])
@@ -378,13 +471,15 @@ def complete_tutor_turn(user_id: str, turn: dict, response: dict):
 def fail_tutor_turn(user_id: str, turn: dict | None, detail: str):
     if not turn:
         return
+    action_result = {"status": "failed", "error": detail[:500]}
     (
         get_supabase().table("tutor_sessions")
         .update({
             "status": "idle",
             "run_id": None,
             "run_started_at": None,
-            "last_action_result": {"status": "failed", "error": detail[:500]},
+            "last_action_result": action_result,
+            "action_history": [*(turn.get("action_history") or []), _history_entry(action_result)][-MAX_ACTION_HISTORY:],
             "updated_at": datetime.now(timezone.utc).isoformat(),
         })
         .eq("id", turn["id"])

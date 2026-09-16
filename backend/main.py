@@ -47,6 +47,7 @@ from services.pptx_rendering import (
     render_pptx_to_pdf,
 )
 from services.tutor_sessions import (
+    build_deadline_plan,
     claim_tutor_turn,
     complete_tutor_turn,
     fail_tutor_turn,
@@ -54,6 +55,7 @@ from services.tutor_sessions import (
     queue_browser_command,
     TUTOR_SAFETY_POLICY,
     tutor_skill_instruction,
+    wait_for_browser_result,
 )
 
 # Load environment variables
@@ -677,16 +679,54 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             })
 
         active_skill = session_turn.get("active_skill") if session_turn else body.skill
-        if active_skill == "capture":
+        if active_skill in {"capture", "find_material"}:
             if not session_turn or not public_tutor_session(session_turn)["browser_available"]:
                 return finish(ChatResponse(
-                    answer="Open the CordiaClassroom browser side panel, then ask me to capture the page again.",
+                    answer="Open the CordiaClassroom browser side panel, then try the browser request again.",
                     action="browser_unavailable",
                 ))
-            queue_browser_command(user_id, session_turn, "capture_current_page", question)
-            return finish(ChatResponse(
-                answer="I sent the current page to the browser side panel for review.",
+            command_type = "capture_current_page" if active_skill == "capture" else "find_material_current_page"
+            queue_browser_command(user_id, session_turn, command_type, question)
+            answer = (
+                "Working in the browser side panel now. Keep it open while I read the current page."
+                if active_skill == "capture"
+                else "Looking for relevant study material linked from the current page."
+            )
+            row = wait_for_browser_result(user_id, session_turn, answer)
+            return ChatResponse(
+                answer=answer,
                 action="browser_command_queued",
+                skill=active_skill,
+                session=public_tutor_session(row),
+            )
+
+        if active_skill == "plan":
+            return finish(ChatResponse(
+                answer=build_deadline_plan(canvas.tutor_deadlines(user_id)),
+                action="created_plan",
+            ))
+
+        if active_skill == "organize":
+            if not (guide or note):
+                return finish(ChatResponse(answer="Choose a study guide or SmartNote to organize."))
+            if not body.class_id:
+                return finish(ChatResponse(answer="Choose the destination class before organizing this material."))
+            if guide:
+                guides.move_guide(
+                    guide["id"],
+                    guides.MoveGuideRequest(folder_id=body.class_id),
+                    authorization,
+                )
+            else:
+                smart_notes.update_note(
+                    note["id"],
+                    smart_notes.UpdateNoteRequest(folder_id=body.class_id),
+                    authorization,
+                )
+            return finish(ChatResponse(
+                answer=f"Moved {(source or {}).get('title') or 'the material'} to the selected class.",
+                action="organized_material",
+                source=source,
             ))
 
         if not content:

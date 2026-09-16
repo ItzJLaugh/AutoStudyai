@@ -323,6 +323,16 @@ def _dashboard_response(user_id: str, config: dict, account) -> dict:
     }
 
 
+def tutor_deadlines(user_id: str) -> list[dict]:
+    """Return the same normalized Canvas planner items used by the dashboard."""
+    config = _config()
+    account = _canvas_account(user_id, config)
+    if not account:
+        raise HTTPException(status_code=409, detail="Connect Canvas before asking Cordia to plan deadlines")
+    items = _proxy_get(_planner_path(), user_id, account["id"], config)
+    return [_normalize_planner_item(item) for item in items if isinstance(item, dict)]
+
+
 @router.get("/dashboard")
 def canvas_dashboard(authorization: str = Header(default="")):
     user_id = get_user_id(authorization)

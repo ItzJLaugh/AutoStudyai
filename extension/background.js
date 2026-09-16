@@ -127,6 +127,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             session_id: message.sessionId,
             browser_available: true,
             browser_observation: message.observation,
+            browser_content: message.browserContent,
             permission_scope: ['read_page'],
             last_action_result: message.lastActionResult
           })

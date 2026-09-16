@@ -1,5 +1,6 @@
 """Shared Tutor session endpoints used by Classroom and the Chrome side panel."""
 
+import re
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -12,6 +13,7 @@ from services.tutor_sessions import (
     public_tutor_session,
     update_browser_context,
     update_tutor_skill,
+    tutor_browser_content,
 )
 
 
@@ -38,12 +40,14 @@ class BrowserActionResult(BaseModel):
     action: str = Field(..., max_length=40)
     error: str = Field(default="", max_length=500)
     section_count: Optional[int] = Field(default=None, ge=0, le=100)
+    evidence: list[BrowserObservation] = Field(default_factory=list, max_length=20)
 
 
 class BrowserContextUpdate(BaseModel):
     session_id: str = Field(..., max_length=36)
     browser_available: bool = True
     browser_observation: Optional[BrowserObservation] = None
+    browser_content: Optional[str] = Field(default=None, max_length=100_000)
     permission_scope: list[str] = Field(default_factory=lambda: ["read_page"], max_length=10)
     last_action_result: Optional[BrowserActionResult] = None
 
@@ -55,6 +59,17 @@ class BrowserContextUpdate(BaseModel):
             raise ValueError("Unsupported browser permission")
         return sorted(set(value))
 
+    @field_validator("browser_content")
+    @classmethod
+    def redact_secrets(cls, value):
+        if value is None:
+            return value
+        return re.sub(
+            r"(?i)\b(password|access[ _-]?token|api[ _-]?key|client[ _-]?secret)\b\s*[:=]\s*\S+",
+            r"\1: [redacted]",
+            value,
+        ).strip()
+
 
 class TutorSkillUpdate(BaseModel):
     session_id: str = Field(..., max_length=36)
@@ -65,6 +80,12 @@ class TutorSkillUpdate(BaseModel):
 def current_tutor_session(authorization: str = Header(default="")):
     user_id = get_user_id(authorization)
     return public_tutor_session(get_or_create_tutor_session(user_id))
+
+
+@router.get("/session/browser-content")
+def current_browser_content(authorization: str = Header(default="")):
+    user_id = get_user_id(authorization)
+    return tutor_browser_content(user_id)
 
 
 @router.patch("/session/browser")

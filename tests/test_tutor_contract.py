@@ -182,13 +182,13 @@ class TutorContractTests(unittest.TestCase):
             "browser_available": True,
             "browser_last_seen_at": datetime.now(timezone.utc).isoformat(),
         }
-        completed = {**turn, "status": "idle", "conversation_version": 5}
+        waiting = {**turn, "status": "waiting_browser", "conversation_version": 4}
         with patch("main.claim_tutor_turn", return_value=turn), \
              patch("main.queue_browser_command", return_value={"id": "command-1"}) as queue, \
-             patch("main.complete_tutor_turn", return_value=completed), \
+             patch("main.wait_for_browser_result", return_value=waiting) as wait, \
              patch("main.public_tutor_session", side_effect=[
                  {"browser_available": True},
-                 {"id": "session-1", "conversation_version": 5},
+                 {"id": "session-1", "status": "waiting_browser", "conversation_version": 4},
              ]):
             response = self.client.post(
                 "/chat",
@@ -204,7 +204,115 @@ class TutorContractTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["action"], "browser_command_queued")
+        self.assertEqual(response.json()["session"]["status"], "waiting_browser")
         queue.assert_called_once_with("student-1", turn, "capture_current_page", "Read this page")
+        wait.assert_called_once()
+
+    @patch("main.get_user_id", return_value="student-1")
+    def test_find_material_searches_only_the_approved_active_page(self, _auth):
+        turn = {
+            "id": "session-1",
+            "run_id": "run-1",
+            "active_skill": "find_material",
+            "conversation_version": 7,
+            "messages": [{"role": "user", "text": "Find Exam 1 review material"}],
+            "browser_available": True,
+            "browser_last_seen_at": datetime.now(timezone.utc).isoformat(),
+        }
+        waiting = {**turn, "status": "waiting_browser"}
+        with patch("main.claim_tutor_turn", return_value=turn), \
+             patch("main.queue_browser_command", return_value={"id": "command-2"}) as queue, \
+             patch("main.wait_for_browser_result", return_value=waiting), \
+             patch("main.public_tutor_session", side_effect=[
+                 {"browser_available": True},
+                 {"id": "session-1", "status": "waiting_browser", "conversation_version": 7},
+             ]):
+            response = self.client.post(
+                "/chat",
+                headers={"Authorization": "Bearer test"},
+                json={
+                    "question": "Find Exam 1 review material",
+                    "content": "",
+                    "session_id": "session-1",
+                    "conversation_version": 7,
+                    "skill": "find_material",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["action"], "browser_command_queued")
+        queue.assert_called_once_with(
+            "student-1", turn, "find_material_current_page", "Find Exam 1 review material"
+        )
+
+    @patch("main.get_user_id", return_value="student-1")
+    def test_plan_reads_existing_canvas_deadlines_without_calendar_write(self, _auth):
+        turn = {
+            "id": "session-1",
+            "run_id": "run-3",
+            "active_skill": "plan",
+            "conversation_version": 9,
+            "messages": [{"role": "user", "text": "Plan my week"}],
+        }
+        completed = {**turn, "status": "idle", "conversation_version": 10}
+        deadlines = [{"title": "Exam 1", "due_at": "2026-09-20T23:59:00Z", "completed": False}]
+        with patch("main.claim_tutor_turn", return_value=turn), \
+             patch("main.canvas.tutor_deadlines", return_value=deadlines) as read_deadlines, \
+             patch("main.complete_tutor_turn", return_value=completed), \
+             patch("main.public_tutor_session", return_value={"id": "session-1", "status": "idle"}):
+            response = self.client.post(
+                "/chat",
+                headers={"Authorization": "Bearer test"},
+                json={
+                    "question": "Plan my week",
+                    "content": "",
+                    "session_id": "session-1",
+                    "conversation_version": 9,
+                    "skill": "plan",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["action"], "created_plan")
+        self.assertIn("Exam 1", response.json()["answer"])
+        self.assertIn("No calendar events were created", response.json()["answer"])
+        read_deadlines.assert_called_once_with("student-1")
+
+    @patch("main.get_user_id", return_value="student-1")
+    def test_organize_requires_and_uses_explicit_destination_class(self, _auth):
+        target_class = "55555555-5555-4555-8555-555555555555"
+        db, _table = self.guide_db()
+        turn = {
+            "id": "session-1",
+            "run_id": "run-4",
+            "active_skill": "organize",
+            "conversation_version": 11,
+            "messages": [{"role": "user", "text": "Move this guide"}],
+        }
+        completed = {**turn, "status": "idle", "conversation_version": 12}
+        with patch("main.get_supabase", return_value=db), \
+             patch("main.claim_tutor_turn", return_value=turn), \
+             patch("main.guides.move_guide", return_value={"updated": True}) as move, \
+             patch("main.complete_tutor_turn", return_value=completed), \
+             patch("main.public_tutor_session", return_value={"id": "session-1", "status": "idle"}):
+            response = self.client.post(
+                "/chat",
+                headers={"Authorization": "Bearer test"},
+                json={
+                    "question": "Move this guide",
+                    "content": "",
+                    "guide_id": self.guide_id,
+                    "class_id": target_class,
+                    "session_id": "session-1",
+                    "conversation_version": 11,
+                    "skill": "organize",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["action"], "organized_material")
+        self.assertEqual(move.call_args.args[0], self.guide_id)
+        self.assertEqual(move.call_args.args[1].folder_id, target_class)
 
 
 if __name__ == "__main__":

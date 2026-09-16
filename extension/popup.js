@@ -112,7 +112,7 @@ function renderTutorSession(next) {
   maybeRunBrowserCommand(next);
 }
 
-async function publishBrowserPresence(contentRefs = null, lastActionResult = null) {
+async function publishBrowserPresence(contentRefs = null, lastActionResult = null, browserContent = null) {
   if (!tutorSession?.id) return;
   let observation;
   if (contentRefs) {
@@ -130,12 +130,13 @@ async function publishBrowserPresence(contentRefs = null, lastActionResult = nul
     action: 'updateBrowserContext',
     sessionId: tutorSession.id,
     observation,
+    browserContent,
     lastActionResult,
   });
   if (response?.id) tutorSession = response;
 }
 
-function reportCaptureResult(status, error = '', contentRefs = null) {
+function reportCaptureResult(status, error = '', contentRefs = null, browserContent = null) {
   const commandId = pendingBrowserCommandId;
   pendingBrowserCommandId = null;
   return publishBrowserPresence(contentRefs, commandId ? {
@@ -144,7 +145,7 @@ function reportCaptureResult(status, error = '', contentRefs = null) {
     action: 'capture_current_page',
     ...(error ? { error } : {}),
     ...(contentRefs ? { section_count: contentRefs.length } : {}),
-  } : null);
+  } : null, browserContent);
 }
 
 function maybeRunBrowserCommand(session) {
@@ -155,12 +156,65 @@ function maybeRunBrowserCommand(session) {
     captureActiveTab(command.id);
     return;
   }
+  if (command.type === 'find_material_current_page') {
+    findMaterialInActiveTab(command);
+    return;
+  }
   publishBrowserPresence(null, {
     command_id: command.id,
     status: 'failed',
     action: command.type,
     error: 'Unsupported browser command',
   });
+}
+
+async function findMaterialInActiveTab(command) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !/^https?:/.test(tab.url || '')) {
+      throw new Error('Open the course page you want Cordia to search, then try again.');
+    }
+    const query = String(command.goal || '');
+    const [{ result = [] } = {}] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (requestedQuery) => {
+        const queryTerms = requestedQuery.toLowerCase().match(/[a-z0-9]{3,}/g) || [];
+        const studyTerms = ['module', 'slide', 'lecture', 'note', 'review', 'study', 'chapter', 'file', 'pdf', 'document', 'assignment'];
+        const seen = new Set();
+        return [...document.querySelectorAll('a[href]')]
+          .map(link => {
+            const url = new URL(link.href, location.href);
+            const title = (link.innerText || link.textContent || link.getAttribute('aria-label') || url.pathname.split('/').pop() || 'Course material')
+              .replace(/\s+/g, ' ').trim().slice(0, 180);
+            const haystack = `${title} ${url.pathname}`.toLowerCase();
+            const score = queryTerms.filter(term => haystack.includes(term)).length * 3
+              + studyTerms.filter(term => haystack.includes(term)).length;
+            return { title, url: url.href, score };
+          })
+          .filter(item => item.url.startsWith('http') && item.title && item.score > 0 && !seen.has(item.url) && seen.add(item.url))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 12)
+          .map(({ title, url }) => ({ title, url, source_type: 'course_link', content_refs: [] }));
+      },
+      args: [query],
+    });
+    if (!result.length) {
+      throw new Error('No relevant study-material links were found on the current page.');
+    }
+    await publishBrowserPresence(result.map(item => item.url), {
+      command_id: command.id,
+      status: 'completed',
+      action: command.type,
+      evidence: result,
+    });
+  } catch (error) {
+    await publishBrowserPresence(null, {
+      command_id: command.id,
+      status: 'failed',
+      action: command.type,
+      error: error?.message || 'The current page could not be searched.',
+    });
+  }
 }
 
 tutorSkill?.addEventListener('change', async () => {
@@ -595,7 +649,11 @@ function sendToBackend(content, images = []) {
       pendingImages = response.use_images ? images : [];
       renderCaptureReview(response);
       const refs = pendingSections.map(section => section.heading).slice(0, 20);
-      reportCaptureResult('completed', '', refs);
+      const normalizedContent = pendingSections
+        .map(section => `${section.heading}\n${section.text}`)
+        .join('\n\n')
+        .slice(0, 100000);
+      reportCaptureResult('completed', '', refs, normalizedContent);
     } else if (response && response.status === 402) {
       showGuideLimit();
     } else {
@@ -730,7 +788,7 @@ saveBtn.addEventListener('click', async () => {
 // =====================
 async function sendChat(forcedMode = null) {
   const question = chatInput.value.trim();
-  if (!question || !tutorSession?.id || tutorSession.status === 'running') return;
+  if (!question || !tutorSession?.id || tutorSession.status !== 'idle') return;
   chatInput.value = '';
 
   const mode = forcedMode || (exampleModeEnabled ? 'example' : 'short');
@@ -764,9 +822,12 @@ async function sendChat(forcedMode = null) {
 }
 
 function updateChatHistory() {
-  chatHistoryDiv.innerHTML = (tutorSession?.messages || []).map(msg =>
-    `<div class="session-message ${msg.role === 'user' ? 'user' : 'ai'}"><b>${msg.role === 'user' ? 'You' : 'Cordia'}:</b> ${escapeHtml(msg.text)}</div>`
-  ).join('');
+  chatHistoryDiv.innerHTML = (tutorSession?.messages || []).map(msg => {
+    const evidence = (msg.evidence || []).map(item =>
+      `<a class="session-evidence" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">${escapeHtml(item.title || item.url)}</a>`
+    ).join('');
+    return `<div class="session-message ${msg.role === 'user' ? 'user' : 'ai'}"><b>${msg.role === 'user' ? 'You' : 'Cordia'}:</b> ${escapeHtml(msg.text)}${evidence}</div>`;
+  }).join('');
   chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
 }
 

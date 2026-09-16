@@ -107,3 +107,5 @@ button:disabled { opacity: 0.45; }
 .session-message { width: fit-content; max-width: 92%; margin: 0 0 6px; padding: 8px 10px; border-radius: 12px; }
 .session-message.user { margin-left: auto; background: var(--olive); color: #fff; }
 .session-message.ai { border: 1px solid var(--line); background: #fff; }
+.session-evidence { display: block; margin-top: 6px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--canvas); color: var(--olive); font-weight: 700; text-decoration: none; }
+.session-evidence:hover { transform: translateY(-1px); box-shadow: var(--shadow-soft); }

@@ -91,7 +91,22 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("command.type === 'capture_current_page'", popup)
         self.assertIn("captureActiveTab(command.id)", popup)
         self.assertIn("last_action_result: message.lastActionResult", worker)
+        self.assertIn("browserContent", popup)
+        self.assertIn("browser_content: message.browserContent", worker)
         self.assertNotIn("chrome.debugger", popup + worker)
+
+    def test_find_material_reads_only_links_from_the_active_page(self):
+        popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+        manifest = (ROOT / "extension" / "manifest.json").read_text(encoding="utf-8")
+        handler = popup[popup.index("async function findMaterialInActiveTab"):popup.index("tutorSkill?.addEventListener")]
+        self.assertIn("find_material_current_page", popup)
+        self.assertIn("chrome.scripting.executeScript", handler)
+        self.assertIn("document.querySelectorAll('a[href]')", handler)
+        self.assertIn("command.goal", handler)
+        self.assertIn("evidence: result", handler)
+        self.assertNotIn("chrome.debugger", popup)
+        self.assertNotIn('"history"', manifest)
+        self.assertNotIn('"<all_urls>"', manifest)
 
 
 if __name__ == "__main__":
