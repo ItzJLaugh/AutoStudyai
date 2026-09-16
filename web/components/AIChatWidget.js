@@ -179,6 +179,7 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
       }
     }
     if (data?.session?.id) {
+      setSkillOverride('');
       setSession(data.session);
     } else {
       setLocalError(data?.answer || data?.detail || 'Cordia could not answer that yet.');

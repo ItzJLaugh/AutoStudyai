@@ -260,6 +260,18 @@ def tutor_browser_content(user_id: str) -> dict:
 
 def update_browser_context(user_id: str, session_id: str, update: dict):
     row = _owned_session(user_id, session_id)
+    action_result = update.get("last_action_result")
+    completes_command = False
+    if action_result is not None:
+        command = row.get("browser_command") or {}
+        if command.get("id") != action_result.get("command_id"):
+            raise HTTPException(status_code=409, detail="Browser command is no longer active")
+        if command.get("status") != "pending":
+            return row
+        if row.get("status") != "waiting_browser" or not row.get("run_id"):
+            raise HTTPException(status_code=409, detail="Tutor is no longer waiting for this browser result")
+        completes_command = True
+
     payload = {
         "browser_available": bool(update.get("browser_available")),
         "permission_scope": update.get("permission_scope") or ["read_page"],
@@ -270,41 +282,45 @@ def update_browser_context(user_id: str, session_id: str, update: dict):
         payload["browser_observation"] = update["browser_observation"]
     if update.get("browser_content") is not None:
         payload["browser_content"] = update["browser_content"]
-    if update.get("last_action_result") is not None:
-        action_result = update["last_action_result"]
+    if action_result is not None:
         payload["last_action_result"] = action_result
         command = row.get("browser_command") or {}
-        if command.get("id") == action_result.get("command_id") and command.get("status") == "pending":
-            payload["browser_command"] = {
-                **command,
-                "status": action_result.get("status") or "completed",
-            }
-            if row.get("status") == "waiting_browser":
-                count = action_result.get("section_count") or 0
-                evidence = action_result.get("evidence") or []
-                if action_result.get("status") == "failed":
-                    text = f"Browser action failed: {action_result.get('error') or 'The current page could not be read.'}"
-                elif action_result.get("action") == "find_material_current_page":
-                    text = f"Found {len(evidence)} relevant source{'s' if len(evidence) != 1 else ''} on the current page."
-                else:
-                    text = f"Captured {count} study section{'s' if count != 1 else ''} from the current page."
-                messages = list(row.get("messages") or [])
-                messages.append({"role": "ai", "text": text, "evidence": evidence})
-                payload.update({
-                    "status": "idle",
-                    "run_id": None,
-                    "run_started_at": None,
-                    "messages": messages[-MAX_SESSION_MESSAGES:],
-                    "conversation_version": (row.get("conversation_version") or 0) + 1,
-                    "action_history": [*(row.get("action_history") or []), _history_entry(action_result)][-MAX_ACTION_HISTORY:],
-                })
-    result = (
+        payload["browser_command"] = {
+            **command,
+            "status": action_result.get("status") or "completed",
+        }
+        count = action_result.get("section_count") or 0
+        evidence = action_result.get("evidence") or []
+        if action_result.get("status") == "failed":
+            text = f"Browser action failed: {action_result.get('error') or 'The current page could not be read.'}"
+        elif action_result.get("action") == "find_material_current_page":
+            text = f"Found {len(evidence)} relevant source{'s' if len(evidence) != 1 else ''} on the current page."
+        else:
+            text = f"Captured {count} study section{'s' if count != 1 else ''} from the current page."
+        messages = list(row.get("messages") or [])
+        messages.append({"role": "ai", "text": text, "evidence": evidence})
+        payload.update({
+            "status": "idle",
+            "run_id": None,
+            "run_started_at": None,
+            "messages": messages[-MAX_SESSION_MESSAGES:],
+            "conversation_version": (row.get("conversation_version") or 0) + 1,
+            "action_history": [*(row.get("action_history") or []), _history_entry(action_result)][-MAX_ACTION_HISTORY:],
+        })
+
+    query = (
         get_supabase().table("tutor_sessions")
         .update(payload)
         .eq("id", session_id)
         .eq("user_id", user_id)
-        .execute()
     )
+    if completes_command:
+        query = (
+            query.eq("conversation_version", row.get("conversation_version") or 0)
+            .eq("run_id", row["run_id"])
+            .eq("status", "waiting_browser")
+        )
+    result = query.execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Tutor session not found")
     return result.data[0]

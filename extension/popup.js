@@ -134,6 +134,7 @@ async function publishBrowserPresence(contentRefs = null, lastActionResult = nul
     lastActionResult,
   });
   if (response?.id) tutorSession = response;
+  return response;
 }
 
 function reportCaptureResult(status, error = '', contentRefs = null, browserContent = null) {
@@ -168,45 +169,81 @@ function maybeRunBrowserCommand(session) {
   });
 }
 
+async function findStudyMaterialOnPage(requestedQuery) {
+  const queryTerms = requestedQuery.toLowerCase().match(/[a-z0-9]{3,}/g) || [];
+  const studyTerms = ['module', 'slide', 'lecture', 'note', 'review', 'study', 'chapter', 'file', 'pdf', 'document', 'assignment'];
+  const forbiddenPaths = [/\/quizzes\//i, /\/grades(?:\/|$)/i, /\/submissions?(?:\/|$)/i];
+  const seen = new Set();
+  const candidates = [...document.querySelectorAll('a[href]')]
+    .map(link => {
+      const url = new URL(link.href, location.href);
+      const title = (link.innerText || link.textContent || link.getAttribute('aria-label') || url.pathname.split('/').pop() || 'Course material')
+        .replace(/\s+/g, ' ').trim().slice(0, 180);
+      const haystack = `${title} ${url.pathname}`.toLowerCase();
+      const score = queryTerms.filter(term => haystack.includes(term)).length * 3
+        + studyTerms.filter(term => haystack.includes(term)).length;
+      return { title, url: url.href, score };
+    })
+    .filter(item => {
+      const url = new URL(item.url);
+      return url.origin === location.origin
+        && item.title
+        && item.score > 0
+        && !forbiddenPaths.some(pattern => pattern.test(url.pathname))
+        && !seen.has(item.url)
+        && seen.add(item.url);
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
+  const sources = [];
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate.url, { credentials: 'include' });
+      const type = response.headers.get('content-type') || '';
+      if (!response.ok || !type.includes('text/html')) continue;
+      const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      doc.querySelectorAll('script, style, nav, header, footer, form, input, textarea, select, button').forEach(node => node.remove());
+      const root = doc.querySelector('main, article, [role="main"], .ic-Layout-contentMain') || doc.body;
+      const text = (root?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 12000);
+      if (text.length >= 80) sources.push({ ...candidate, text });
+    } catch (_) {
+      // The link remains useful evidence even when Canvas protects its body.
+    }
+  }
+  return {
+    evidence: candidates.map(({ title, url }) => ({ title, url, source_type: 'course_link', content_refs: [] })),
+    content: sources.map(source => `Source: ${source.title}\nURL: ${source.url}\n${source.text}`).join('\n\n').slice(0, 100000),
+  };
+}
+
 async function findMaterialInActiveTab(command) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !/^https?:/.test(tab.url || '')) {
       throw new Error('Open the course page you want Cordia to search, then try again.');
     }
+    lastPageUrl = tab.url;
+    lastPageTitle = (tab.title || 'Canvas course material').slice(0, 120);
+    lastSourceType = 'canvas';
     const query = String(command.goal || '');
-    const [{ result = [] } = {}] = await chrome.scripting.executeScript({
+    const [{ result = {} } = {}] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: (requestedQuery) => {
-        const queryTerms = requestedQuery.toLowerCase().match(/[a-z0-9]{3,}/g) || [];
-        const studyTerms = ['module', 'slide', 'lecture', 'note', 'review', 'study', 'chapter', 'file', 'pdf', 'document', 'assignment'];
-        const seen = new Set();
-        return [...document.querySelectorAll('a[href]')]
-          .map(link => {
-            const url = new URL(link.href, location.href);
-            const title = (link.innerText || link.textContent || link.getAttribute('aria-label') || url.pathname.split('/').pop() || 'Course material')
-              .replace(/\s+/g, ' ').trim().slice(0, 180);
-            const haystack = `${title} ${url.pathname}`.toLowerCase();
-            const score = queryTerms.filter(term => haystack.includes(term)).length * 3
-              + studyTerms.filter(term => haystack.includes(term)).length;
-            return { title, url: url.href, score };
-          })
-          .filter(item => item.url.startsWith('http') && item.title && item.score > 0 && !seen.has(item.url) && seen.add(item.url))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 12)
-          .map(({ title, url }) => ({ title, url, source_type: 'course_link', content_refs: [] }));
-      },
+      func: findStudyMaterialOnPage,
       args: [query],
     });
-    if (!result.length) {
+    const evidence = result.evidence || [];
+    if (!evidence.length) {
       throw new Error('No relevant study-material links were found on the current page.');
     }
-    await publishBrowserPresence(result.map(item => item.url), {
+    const updatedSession = await publishBrowserPresence(evidence.map(item => item.url), {
       command_id: command.id,
       status: 'completed',
       action: command.type,
-      evidence: result,
-    });
+      evidence,
+    }, result.content || null);
+    if (result.content && /\b(study guide|everything relevant|exam|quiz|test)\b/i.test(command.goal || '')) {
+      await buildGuideFromFoundMaterial(command, result.content, updatedSession);
+    }
   } catch (error) {
     await publishBrowserPresence(null, {
       command_id: command.id,
@@ -214,6 +251,29 @@ async function findMaterialInActiveTab(command) {
       action: command.type,
       error: error?.message || 'The current page could not be searched.',
     });
+  }
+}
+
+async function buildGuideFromFoundMaterial(command, content, session) {
+  if (!session?.id || session.status !== 'idle') return;
+  statusDiv.innerText = 'Building a study guide from the material Cordia found...';
+  const response = await runtimeMessage({
+    action: 'chatWithContent',
+    question: `Build a study guide from the material found for: ${command.goal || 'this course topic'}`,
+    content,
+    contextTitle: command.goal || 'Canvas course material',
+    contextUrl: lastPageUrl || null,
+    mode: 'short',
+    sessionId: session.id,
+    conversationVersion: session.conversation_version,
+    skill: 'build_guide',
+  });
+  if (response?.session?.id) {
+    tutorSkillOverride = '';
+    renderTutorSession(response.session);
+    statusDiv.innerText = response.answer || 'Study guide created.';
+  } else {
+    statusDiv.innerText = response?.error || 'The material was found, but the study guide could not be created.';
   }
 }
 
@@ -812,6 +872,7 @@ async function sendChat(forcedMode = null) {
     skill: tutorSkillOverride || null,
   });
   if (response?.session?.id) {
+    tutorSkillOverride = '';
     chatAnswerDiv.innerText = response.answer || '';
     renderTutorSession(response.session);
   } else {

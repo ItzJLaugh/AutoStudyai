@@ -25,6 +25,8 @@ Chrome side-panel extension that captures student-approved educational content a
 - **Chat Tab**: Ask questions about captured content
   - Send button: Quick answers
   - Example button: Get concrete examples
+- **Shared Tutor**: Uses the same ordered conversation and active skill as CordiaClassroom
+- **Find Material**: Reads a bounded set of relevant same-origin course links, excludes graded quiz/submission/grade routes, and can hand the approved material to Build Guide
 
 ## Content Sources
 

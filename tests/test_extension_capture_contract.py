@@ -98,12 +98,17 @@ class ExtensionCaptureContractTests(unittest.TestCase):
     def test_find_material_reads_only_links_from_the_active_page(self):
         popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
         manifest = (ROOT / "extension" / "manifest.json").read_text(encoding="utf-8")
-        handler = popup[popup.index("async function findMaterialInActiveTab"):popup.index("tutorSkill?.addEventListener")]
+        handler = popup[popup.index("async function findStudyMaterialOnPage"):popup.index("tutorSkill?.addEventListener")]
         self.assertIn("find_material_current_page", popup)
         self.assertIn("chrome.scripting.executeScript", handler)
         self.assertIn("document.querySelectorAll('a[href]')", handler)
         self.assertIn("command.goal", handler)
-        self.assertIn("evidence: result", handler)
+        self.assertIn("evidence,", handler)
+        self.assertIn("url.origin === location.origin", handler)
+        self.assertIn("credentials: 'include'", handler)
+        self.assertIn("/\\/quizzes\\//i", handler)
+        self.assertIn("buildGuideFromFoundMaterial", handler)
+        self.assertIn("skill: 'build_guide'", handler)
         self.assertNotIn("chrome.debugger", popup)
         self.assertNotIn('"history"', manifest)
         self.assertNotIn('"<all_urls>"', manifest)

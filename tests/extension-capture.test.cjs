@@ -4,6 +4,7 @@ const { chromium } = require('playwright');
 
 const contentScript = path.join(__dirname, '..', 'extension', 'content.js');
 const bridgeScript = path.join(__dirname, '..', 'extension', 'asai-bridge.js');
+const popupSource = require('node:fs').readFileSync(path.join(__dirname, '..', 'extension', 'popup.js'), 'utf8');
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
@@ -79,6 +80,27 @@ async function main() {
   assert.equal(selected.kind, 'text');
   assert.equal(selected.selected, true);
   assert.match(selected.content, /replicated chromosomes/);
+
+  const finderSource = popupSource.slice(
+    popupSource.indexOf('async function findStudyMaterialOnPage'),
+    popupSource.indexOf('async function findMaterialInActiveTab'),
+  );
+  await page.route('https://school.instructure.com/courses/4/pages/exam-review', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<main><h1>Exam 1 review</h1><p>Propositions have truth values and conjunction is true only when both propositions are true.</p></main>',
+  }));
+  await page.goto(lessonUrl);
+  await page.setContent(`<main>
+    <a href="https://school.instructure.com/courses/4/pages/exam-review">Exam 1 review slides</a>
+    <a href="https://school.instructure.com/courses/4/quizzes/8">Exam 1 graded quiz</a>
+    <a href="https://other.example/material">External review</a>
+  </main>`);
+  await page.addScriptTag({ content: finderSource });
+  const found = await page.evaluate(() => findStudyMaterialOnPage('Find everything relevant to Exam 1'));
+  assert.equal(found.evidence.length, 1);
+  assert.match(found.evidence[0].url, /pages\/exam-review$/);
+  assert.doesNotMatch(JSON.stringify(found), /quizzes\/8|other\.example/);
+  assert.match(found.content, /Propositions have truth values/);
 
   await page.goto('https://classroom.cordiacode.com/dashboard');
   await page.evaluate(() => {

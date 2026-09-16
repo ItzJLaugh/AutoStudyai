@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -147,6 +147,44 @@ class SharedTutorSessionContractTests(unittest.TestCase):
         self.assertEqual(payload["browser_command"]["status"], "completed")
         self.assertEqual(payload["messages"][-1]["text"], "Captured 3 study sections from the current page.")
         self.assertEqual(payload["action_history"][-1]["action"], "capture_current_page")
+        self.assertIn(call("conversation_version", 4), table.eq.call_args_list)
+        self.assertIn(call("run_id", "run-1"), table.eq.call_args_list)
+        self.assertIn(call("status", "waiting_browser"), table.eq.call_args_list)
+
+    def test_stale_browser_result_cannot_write_to_a_newer_turn(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "backend"))
+        from fastapi import HTTPException
+        from services.tutor_sessions import update_browser_context
+
+        row = {
+            "id": "session-1",
+            "user_id": "student-1",
+            "status": "waiting_browser",
+            "run_id": "run-2",
+            "conversation_version": 5,
+            "browser_command": {"id": "command-2", "status": "pending", "type": "capture_current_page"},
+        }
+        table = MagicMock()
+        table.select.return_value = table
+        table.eq.return_value = table
+        table.limit.return_value = table
+        table.execute.return_value = MagicMock(data=[row])
+        db = MagicMock()
+        db.table.return_value = table
+
+        with patch("services.tutor_sessions.get_supabase", return_value=db), self.assertRaises(HTTPException) as error:
+            update_browser_context("student-1", "session-1", {
+                "browser_available": True,
+                "last_action_result": {
+                    "command_id": "command-1",
+                    "status": "completed",
+                    "action": "capture_current_page",
+                },
+            })
+
+        self.assertEqual(error.exception.status_code, 409)
+        table.update.assert_not_called()
 
     def test_find_material_result_is_shared_with_clickable_evidence(self):
         import sys

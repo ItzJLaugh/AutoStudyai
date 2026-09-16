@@ -654,6 +654,10 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             if body.context_url:
                 source["url"] = body.context_url
 
+        context_class_id = body.class_id or (guide or note or {}).get("folder_id")
+        if not context_class_id and source and source.get("type") == "browser":
+            context_class_id = canvas.folder_id_from_source_url(user_id, source.get("url"))
+
         if body.session_id:
             session_turn = claim_tutor_turn(
                 user_id=user_id,
@@ -662,7 +666,7 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
                 message=question,
                 requested_skill=body.skill,
                 guide_id=body.guide_id,
-                class_id=body.class_id or (guide or note or {}).get("folder_id"),
+                class_id=context_class_id,
             )
 
         def finish(response: ChatResponse):
@@ -752,7 +756,7 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             source_title = (source or {}).get("title") or "Study Material"
             payload = {
                 "user_id": user_id,
-                "folder_id": (guide or note or {}).get("folder_id"),
+                "folder_id": context_class_id,
                 "title": f"{source_title} — Practice Problems",
                 "study_guide": practice,
                 "flashcards": practice_cards,
@@ -788,7 +792,7 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             source_title = (source or {}).get("title") or "Study Material"
             payload = {
                 "user_id": user_id,
-                "folder_id": body.class_id or (guide or note or {}).get("folder_id"),
+                "folder_id": context_class_id,
                 "title": f"{source_title} — Study Guide",
                 "study_guide": study_guide,
                 "flashcards": flashcards,

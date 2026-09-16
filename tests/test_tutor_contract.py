@@ -314,6 +314,57 @@ class TutorContractTests(unittest.TestCase):
         self.assertEqual(move.call_args.args[0], self.guide_id)
         self.assertEqual(move.call_args.args[1].folder_id, target_class)
 
+    @patch("main.get_user_id", return_value="student-1")
+    def test_browser_material_guide_is_saved_to_matching_canvas_class(self, _auth):
+        class_id = "66666666-6666-4666-8666-666666666666"
+        turn = {
+            "id": "session-1",
+            "run_id": "run-5",
+            "active_skill": "build_guide",
+            "conversation_version": 13,
+            "messages": [{"role": "user", "text": "Build the Exam 1 guide"}],
+        }
+        completed = {**turn, "status": "idle", "conversation_version": 14}
+        table = MagicMock()
+        table.insert.return_value = table
+        table.execute.return_value = MagicMock(data=[{
+            "id": "77777777-7777-4777-8777-777777777777",
+            "title": "Exam 1 material — Study Guide",
+            "folder_id": class_id,
+        }])
+        db = MagicMock()
+        db.table.return_value = table
+
+        with patch("main.get_supabase", return_value=db), \
+             patch("main.canvas.folder_id_from_source_url", return_value=class_id) as match_class, \
+             patch("main.claim_tutor_turn", return_value=turn), \
+             patch("main.complete_tutor_turn", return_value=completed), \
+             patch("main.public_tutor_session", return_value={"id": "session-1", "status": "idle"}), \
+             patch("main.check_usage", return_value={"used": 0}), \
+             patch("main.record_usage"), \
+             patch("main._learning_guidance", return_value=""), \
+             patch("main.generate_study_guide", return_value="Q1: What is a proposition?\nA1: A declarative statement."), \
+             patch("main.study_guide_to_flashcards", return_value=[{"front": "What is a proposition?", "back": "A declarative statement."}]), \
+             patch("main.study_guide_is_complete", return_value=True):
+            response = self.client.post(
+                "/chat",
+                headers={"Authorization": "Bearer test"},
+                json={
+                    "question": "Build the Exam 1 guide",
+                    "content": "Source: Exam review\nA proposition is a declarative statement.",
+                    "context_title": "Exam 1 material",
+                    "context_url": "https://school.instructure.com/courses/4/pages/exam-review",
+                    "session_id": "session-1",
+                    "conversation_version": 13,
+                    "skill": "build_guide",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["action"], "created_guide")
+        self.assertEqual(table.insert.call_args.args[0]["folder_id"], class_id)
+        match_class.assert_called_once_with("student-1", "https://school.instructure.com/courses/4/pages/exam-review")
+
 
 if __name__ == "__main__":
     unittest.main()
