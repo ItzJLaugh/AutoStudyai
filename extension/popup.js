@@ -269,7 +269,8 @@ async function findMaterialInActiveTab(command) {
       evidence,
     }, foundContent || null);
     if (foundContent && /\b(study guide|everything relevant|exam|quiz|test)\b/i.test(command.goal || '')) {
-      await buildGuideFromFoundMaterial(command, foundContent, updatedSession);
+      const courseSourceUrl = evidence.find(item => /\/courses\/\d+(?:\/|$)/i.test(new URL(item.url).pathname))?.url;
+      await buildGuideFromFoundMaterial(command, foundContent, updatedSession, courseSourceUrl || lastPageUrl);
     }
   } catch (error) {
     await publishBrowserPresence(null, {
@@ -281,7 +282,7 @@ async function findMaterialInActiveTab(command) {
   }
 }
 
-async function buildGuideFromFoundMaterial(command, content, session) {
+async function buildGuideFromFoundMaterial(command, content, session, sourceUrl) {
   if (!session?.id || session.status !== 'idle') return;
   statusDiv.innerText = 'Building a study guide from the material Cordia found...';
   const response = await runtimeMessage({
@@ -289,7 +290,7 @@ async function buildGuideFromFoundMaterial(command, content, session) {
     question: `Build a study guide from the material found for: ${command.goal || 'this course topic'}`,
     content,
     contextTitle: command.goal || 'Canvas course material',
-    contextUrl: lastPageUrl || null,
+    contextUrl: sourceUrl || null,
     mode: 'short',
     sessionId: session.id,
     conversationVersion: session.conversation_version,

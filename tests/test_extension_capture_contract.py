@@ -113,6 +113,8 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("/\\/quizzes\\//i", handler)
         self.assertIn("buildGuideFromFoundMaterial", handler)
         self.assertIn("readLinkedDocuments", handler)
+        self.assertIn("courseSourceUrl", handler)
+        self.assertIn("contextUrl: sourceUrl", handler)
         self.assertIn("skill: 'build_guide'", handler)
         self.assertNotIn("chrome.debugger", popup)
         self.assertNotIn('"history"', manifest)
