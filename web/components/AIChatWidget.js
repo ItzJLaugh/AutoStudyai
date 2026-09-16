@@ -4,6 +4,16 @@ import { apiErrorMessage, apiFetch, authOnlyHeaders, responseJson } from '../lib
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const MAX_MESSAGES = 30;
+const SKILL_PROGRESS = {
+  explain: 'Explaining material…',
+  capture: 'Reading current page…',
+  build_guide: 'Building guide…',
+  practice: 'Creating practice problems…',
+  retain: 'Strengthening recall…',
+  plan: 'Planning study time…',
+  find_material: 'Finding Canvas material…',
+  organize: 'Organizing study material…',
+};
 
 export default function AIChatWidget({ guides: providedGuides = null, preferredGuideId = '', preferredNoteId = '' }) {
   const router = useRouter();
@@ -110,6 +120,7 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
   const canSubmit = hasRequiredContext && (!needsTargetClass || Boolean(targetClassId));
   const remaining = MAX_MESSAGES - messages.filter(message => message.role === 'user').length;
   const busy = loading || (session?.status && session.status !== 'idle');
+  const progressLabel = SKILL_PROGRESS[session?.active_skill] || 'Cordia is working…';
 
   async function changeSkill(event) {
     const nextSkill = event.target.value;
@@ -263,7 +274,7 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
             )}
           </div>
         ))}
-        {busy && messages.at(-1)?.role === 'user' && <div className="cordia-tutor-message ai">Thinking…</div>}
+        {busy && messages.at(-1)?.role === 'user' && <div className="cordia-tutor-message ai" role="status">{progressLabel}</div>}
         {localError && <div className="cordia-tutor-message error">{localError}</div>}
         <div ref={endRef} />
       </div>

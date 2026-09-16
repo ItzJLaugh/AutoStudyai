@@ -13,6 +13,16 @@ let pendingImages = [];
 let activeBrowserCommandId = null;
 let pendingBrowserCommandId = null;
 let tutorSkillOverride = '';
+const SKILL_PROGRESS = {
+  explain: 'Explaining material…',
+  capture: 'Reading current page…',
+  build_guide: 'Building guide…',
+  practice: 'Creating practice problems…',
+  retain: 'Strengthening recall…',
+  plan: 'Planning study time…',
+  find_material: 'Finding Canvas material…',
+  organize: 'Organizing study material…',
+};
 
 // DOM elements
 const statusDiv = document.getElementById('status');
@@ -109,7 +119,11 @@ async function refreshPageContext() {
 function renderTutorSession(next) {
   tutorSession = next;
   if (tutorSessionBar) tutorSessionBar.style.display = 'grid';
-  if (browserStatus) browserStatus.textContent = 'Browser available';
+  if (browserStatus) {
+    browserStatus.textContent = next.status === 'idle'
+      ? 'Browser available'
+      : (SKILL_PROGRESS[next.active_skill] || 'Cordia is working…');
+  }
   if (tutorSkill) {
     const activeLabel = next.skills?.find(item => item.id === next.active_skill)?.label || 'Explain';
     const automatic = document.createElement('option');
@@ -920,7 +934,7 @@ async function sendChat(forcedMode = null) {
   chatInput.value = '';
 
   const mode = forcedMode || (exampleModeEnabled ? 'example' : 'short');
-  chatAnswerDiv.innerText = exampleModeEnabled ? 'Getting example...' : 'Thinking...';
+  chatAnswerDiv.innerText = SKILL_PROGRESS[tutorSession.active_skill] || 'Cordia is working…';
   tutorSession = {
     ...tutorSession,
     status: 'running',

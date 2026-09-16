@@ -127,6 +127,7 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn('class="tab-btn active" data-tab="chat"', panel)
         self.assertIn('id="page-context-title"', panel)
         self.assertIn('Not sent until you ask', script)
+        self.assertIn("find_material: 'Finding Canvas material…'", script)
         self.assertIn('id="capture-section" class="tab-section"', panel)
 
 

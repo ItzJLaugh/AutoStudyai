@@ -70,6 +70,7 @@ assert.match(tutor, /guide_id: material\.id/);
 assert.match(tutor, /note_id: material\.id/);
 assert.match(tutor, /context_title: material\.title/);
 assert.match(tutor, /\/extract-file-text/);
+assert.match(tutor, /find_material: 'Finding Canvas material…'/);
 assert.match(tutor, /Based on \{message\.source\.title\}/);
 assert.match(createPage, /source_type: externalSourceId\.startsWith\('canvas:'\)/);
 assert.equal((smartnotes.match(/source_type: guidePreview\.source\?\.type/g) || []).length, 2);
