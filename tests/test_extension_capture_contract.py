@@ -87,6 +87,30 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("chrome.storage.local.set", bridge)
         self.assertIn("CORDIA_AUTH_UPDATED", bridge)
         self.assertIn('"run_at": "document_idle"', manifest)
+        self.assertIn("message.action !== 'syncCordiaAuth'", bridge)
+        self.assertIn("message.action === 'syncClassroomAuth'", (ROOT / "extension" / "background.js").read_text(encoding="utf-8"))
+        self.assertIn('"https://classroom.cordiacode.com/*"', manifest)
+
+    def test_side_panel_resolves_the_real_active_tab_in_the_service_worker(self):
+        worker = (ROOT / "extension" / "background.js").read_text(encoding="utf-8")
+        popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+
+        self.assertIn("async function resolveActiveStudyTab", worker)
+        self.assertIn("lastFocusedWindow: true", worker)
+        self.assertIn("windows.getLastFocused", worker)
+        self.assertIn("message.action === 'getActiveStudyTab'", worker)
+        self.assertNotIn("currentWindow: true", popup)
+        self.assertIn("Click the Cordia extension icon while your study page is active", worker)
+        self.assertNotIn("'Browser available'", popup)
+        self.assertIn("'Current tab ready'", popup)
+
+    def test_tutor_ask_reports_missing_auth_instead_of_silently_returning(self):
+        popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+        handler = popup[popup.index("async function sendChat"):popup.index("function updateChatHistory")]
+
+        self.assertIn("const authenticated = await initAuth()", handler)
+        self.assertIn("Sign in to CordiaClassroom in this browser profile", handler)
+        self.assertNotIn("!tutorSession?.id || tutorSession.status !== 'idle') return", handler)
 
     def test_tutor_can_queue_the_same_user_approved_capture_flow(self):
         popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")

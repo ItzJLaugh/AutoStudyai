@@ -17,7 +17,7 @@ async function main() {
     if (!worker) worker = await context.waitForEvent('serviceworker');
     const extensionId = new URL(worker.url()).host;
     const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
-    assert.equal(manifest.version, '1.6.1');
+    assert.equal(manifest.version, '1.6.2');
     assert.equal(manifest.side_panel.default_path, 'popup.html');
     assert.equal(manifest.action.default_popup, undefined);
     assert.equal(await worker.evaluate(() => safeSameOriginStudyUrl(

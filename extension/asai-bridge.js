@@ -9,21 +9,32 @@
       window.postMessage({ type: 'ASAI_EXTENSION_READY' }, window.location.origin);
     }
 
-    function syncAuth() {
+    async function syncAuth() {
       const authToken = localStorage.getItem('authToken') || '';
       const refreshToken = localStorage.getItem('refreshToken') || '';
       const userEmail = localStorage.getItem('userEmail') || '';
       if (authToken) {
-        chrome.storage.local.set({ authToken, refreshToken, userEmail });
+        await chrome.storage.local.set({ authToken, refreshToken, userEmail });
       } else {
-        chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
+        await chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
       }
+      return { success: true, authenticated: Boolean(authToken), userEmail };
     }
 
     function onMessage(event) {
       if (event.source === window && event.origin === window.location.origin && event.data?.type === 'CORDIA_AUTH_UPDATED') {
         syncAuth();
       }
+    }
+
+    if (chrome.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+        if (message.action !== 'syncCordiaAuth') return false;
+        syncAuth()
+          .then(sendResponse)
+          .catch(error => sendResponse({ success: false, authenticated: false, error: error.message }));
+        return true;
+      });
     }
 
     syncAuth();

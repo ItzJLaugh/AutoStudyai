@@ -45,11 +45,70 @@ function safeSameOriginStudyUrl(currentUrl, requestedUrl) {
   }
 }
 
+function isWebTab(tab) {
+  return Boolean(tab?.id && /^https?:/i.test(tab.url || ''));
+}
+
+async function resolveActiveStudyTab() {
+  const [focusedTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (isWebTab(focusedTab)) return focusedTab;
+
+  const focusedWindow = await chrome.windows.getLastFocused({ populate: true, windowTypes: ['normal'] });
+  const windowTab = (focusedWindow?.tabs || []).find(tab => tab.active);
+  if (isWebTab(windowTab)) return windowTab;
+
+  const tab = focusedTab || windowTab || null;
+  if (tab?.id && !tab.url) {
+    throw new Error('Click the Cordia extension icon while your study page is active, then try again.');
+  }
+  throw new Error('Open an http or https study page, then click the Cordia extension icon.');
+}
+
+function publicTab(tab) {
+  return { id: tab.id, windowId: tab.windowId, url: tab.url, title: tab.title || '' };
+}
+
+async function requestClassroomAuthSync() {
+  const tabs = await chrome.tabs.query({ url: 'https://classroom.cordiacode.com/*' });
+  for (const tab of tabs) {
+    if (!tab.id) continue;
+    try {
+      return await chrome.tabs.sendMessage(tab.id, { action: 'syncCordiaAuth' });
+    } catch (_) {
+      try {
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['asai-bridge.js'] });
+        return await chrome.tabs.sendMessage(tab.id, { action: 'syncCordiaAuth' });
+      } catch (_) {
+        // Try another open Classroom tab before asking the student to sign in.
+      }
+    }
+  }
+  return {
+    success: false,
+    authenticated: false,
+    error: 'Sign in to CordiaClassroom in this browser profile, then return here.'
+  };
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'getActiveStudyTab') {
+    resolveActiveStudyTab()
+      .then(tab => sendResponse({ success: true, tab: publicTab(tab) }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  if (message.action === 'syncClassroomAuth') {
+    requestClassroomAuthSync()
+      .then(sendResponse)
+      .catch(error => sendResponse({ success: false, authenticated: false, error: error.message }));
+    return true;
+  }
+
   if (message.action === 'navigateActiveTab') {
     (async () => {
       try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const tab = await resolveActiveStudyTab();
         const target = tab?.id && safeSameOriginStudyUrl(tab.url || '', message.url || '');
         if (!target) {
           sendResponse({ success: false, error: 'Cordia can only open safe study links from the current site.' });
