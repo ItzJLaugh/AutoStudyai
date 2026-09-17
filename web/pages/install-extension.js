@@ -58,8 +58,8 @@ export default function InstallExtensionPage() {
         <li className="extension-install-step">
           <span className="extension-install-number">4</span>
           <div>
-            <h2>Capture and send it to CordiaClassroom</h2>
-            <p>Click the pinned CordiaClassroom icon to open its side panel, then choose <strong>Capture study material</strong>. When the preview is ready, select <strong>Save to classroom</strong>.</p>
+            <h2>Use four direct actions</h2>
+            <p>Open the side panel, then choose <strong>Capture screen</strong>, <strong>Scrape page</strong>, <strong>Get educational content</strong>, or <strong>Make study guide</strong>. Making a guide saves it to CordiaClassroom automatically.</p>
           </div>
         </li>
       </ol>

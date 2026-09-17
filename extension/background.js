@@ -1,258 +1,174 @@
-// AutoStudyAI Background Service Worker
-// All API calls include auth token for security
-
-const API_URL = 'https://autostudy-ai.fly.dev';
+const API = 'https://autostudy-ai.fly.dev';
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
-// Helper to get auth token from storage
-function getAuthToken() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(['authToken'], (result) => {
-      resolve(result.authToken || '');
-    });
+function storageGet(keys) {
+  return new Promise(resolve => chrome.storage.local.get(keys, resolve));
+}
+
+function storageSet(values) {
+  return new Promise(resolve => chrome.storage.local.set(values, resolve));
+}
+
+async function refreshAccessToken(refreshToken) {
+  if (!refreshToken) return '';
+  const response = await fetch(API + '/auth/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken }),
   });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) return '';
+  await storageSet({ authToken: data.access_token, refreshToken: data.refresh_token || refreshToken });
+  return data.access_token;
 }
 
-// Helper to make authenticated API requests
-async function authedFetch(path, options = {}) {
-  const token = await getAuthToken();
-  if (!token) {
-    throw new Error('Not authenticated');
+async function apiFetch(path, options = {}, retry = true) {
+  const auth = await storageGet(['authToken', 'refreshToken']);
+  if (!auth.authToken) throw new Error('Sign in to CordiaClassroom first.');
+  const headers = { Authorization: `Bearer ${auth.authToken}`, ...(options.headers || {}) };
+  if (options.body && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  let response = await fetch(API + path, { ...options, headers });
+  if (response.status === 401 && retry) {
+    const token = await refreshAccessToken(auth.refreshToken);
+    if (token) response = await fetch(API + path, { ...options, headers: { ...headers, Authorization: `Bearer ${token}` } });
   }
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer ' + token,
-    ...(options.headers || {})
-  };
-  return fetch(API_URL + path, { ...options, headers });
+  return response;
 }
 
-function errorMessage(data, fallback) {
-  const detail = data && data.detail;
-  return typeof detail === 'string' ? detail : (detail && detail.message) || fallback;
+async function responseData(response, fallback) {
+  const data = await response.json().catch(() => ({}));
+  if (response.ok) return data;
+  const detail = data?.detail;
+  const error = new Error((typeof detail === 'string' ? detail : detail?.message) || fallback);
+  error.status = response.status;
+  throw error;
 }
 
-function safeSameOriginStudyUrl(currentUrl, requestedUrl) {
-  try {
-    const current = new URL(currentUrl);
-    const requested = new URL(requestedUrl);
-    if (!['http:', 'https:'].includes(requested.protocol) || requested.origin !== current.origin) return null;
-    if (/\/(quizzes|grades|submissions?)(?:\/|$)/i.test(requested.pathname)) return null;
-    return requested.href;
-  } catch (_) {
-    return null;
-  }
+async function activeWebTab() {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (!tab?.id || !/^https?:/i.test(tab.url || '')) throw new Error('Open an HTTP or HTTPS study page first.');
+  return tab;
 }
 
-function isWebTab(tab) {
-  return Boolean(tab?.id && /^https?:/i.test(tab.url || ''));
-}
-
-async function resolveActiveTabCandidate() {
-  const [focusedTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (focusedTab?.id) return focusedTab;
-
-  const focusedWindow = await chrome.windows.getLastFocused({ populate: true, windowTypes: ['normal'] });
-  const windowTab = (focusedWindow?.tabs || []).find(tab => tab.active);
-  if (windowTab?.id) return windowTab;
-  throw new Error('Open an http or https study page first.');
-}
-
-async function resolveActiveStudyTab() {
-  const tab = await resolveActiveTabCandidate();
-  if (isWebTab(tab)) return tab;
-  if (tab?.id && !tab.url) {
-    throw new Error('Allow Cordia to read this site, then try again.');
-  }
-  throw new Error('Open an http or https study page first.');
-}
-
-async function requestActiveTabAccess() {
-  const tab = await resolveActiveTabCandidate();
-  if (isWebTab(tab)) return { success: true, tab: publicTab(tab) };
-  if (tab.url && !/^https?:/i.test(tab.url)) {
-    return { success: false, error: 'Open an http or https study page first.' };
-  }
-  if (!chrome.permissions?.addHostAccessRequest) {
-    return { success: false, error: 'Click the Cordia extension icon while this study page is active, then try again.' };
-  }
-  await chrome.permissions.addHostAccessRequest({ tabId: tab.id });
-  return {
-    success: false,
-    requested: true,
-    error: 'Choose Allow for Cordia in the extension menu, then try again.'
-  };
-}
-
-function publicTab(tab) {
-  return { id: tab.id, windowId: tab.windowId, url: tab.url, title: tab.title || '' };
-}
-
-async function requestClassroomAuthSync() {
+async function syncClassroomAuth() {
   const tabs = await chrome.tabs.query({ url: 'https://classroom.cordiacode.com/*' });
   for (const tab of tabs) {
-    if (!tab.id) continue;
     try {
       return await chrome.tabs.sendMessage(tab.id, { action: 'syncCordiaAuth' });
     } catch (_) {
       try {
         await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['asai-bridge.js'] });
         return await chrome.tabs.sendMessage(tab.id, { action: 'syncCordiaAuth' });
-      } catch (_) {
-        // Try another open Classroom tab before asking the student to sign in.
-      }
+      } catch (_) { /* Try the next Classroom tab. */ }
     }
   }
+  return { authenticated: false, error: 'Sign in to CordiaClassroom, then reopen this panel.' };
+}
+
+async function ensureScraper(tabId) {
+  try {
+    const ready = await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+    if (ready?.scraperVersion === 1) return;
+  } catch (_) { /* Inject below. */ }
+  await chrome.scripting.executeScript({ target: { tabId }, files: ['vendor/Readability.js', 'content.js'] });
+}
+
+async function captureScreen() {
+  const tab = await activeWebTab();
+  const image = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 82 });
+  if (!image) throw new Error('Chrome could not capture the visible page.');
+  return { image, title: tab.title || 'Study material', url: tab.url, sourceType: 'screenshot' };
+}
+
+function safeDocumentUrl(value) {
+  const url = new URL(value);
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('The document URL is not supported.');
+  return url.href;
+}
+
+function filenameFor(source, response) {
+  const disposition = response.headers.get('content-disposition') || '';
+  const headerName = disposition.match(/filename\*?=(?:UTF-8''|\")?([^\";]+)/i)?.[1];
+  if (headerName) return decodeURIComponent(headerName.replace(/\"/g, '').trim());
+  if (source.filename) return source.filename;
+  return decodeURIComponent(new URL(response.url || source.url).pathname.split('/').pop() || 'study-material');
+}
+
+async function extractDocument(source) {
+  const response = await fetch(safeDocumentUrl(source.url), { credentials: 'include', redirect: 'follow' });
+  if (!response.ok) throw new Error(`Document download failed (${response.status}).`);
+  const size = Number(response.headers.get('content-length') || 0);
+  if (size > MAX_FILE_BYTES) throw new Error('The document is larger than 20 MB.');
+  const blob = await response.blob();
+  if (!blob.size || blob.size > MAX_FILE_BYTES) throw new Error('The document is empty or larger than 20 MB.');
+  const form = new FormData();
+  form.append('file', new File([blob], filenameFor(source, response), {
+    type: blob.type || response.headers.get('content-type') || 'application/octet-stream',
+  }));
+  return responseData(await apiFetch('/extract-file-text', { method: 'POST', body: form }), 'Document extraction failed.');
+}
+
+async function scrapePage() {
+  const tab = await activeWebTab();
+  await ensureScraper(tab.id);
+  const source = await chrome.tabs.sendMessage(tab.id, { action: 'scrapePage' });
+  if (!source) throw new Error('The page scraper returned no content.');
+  if (source.kind === 'file') {
+    const extracted = await extractDocument(source);
+    return { text: extracted.text, title: source.filename || tab.title || 'Study document', url: source.url, sourceType: 'file' };
+  }
+  if (!source.text?.trim()) throw new Error('No readable page content was found.');
   return {
-    success: false,
-    authenticated: false,
-    error: 'Sign in to CordiaClassroom in this browser profile, then return here.'
+    text: source.text.trim(),
+    title: source.title || tab.title || 'Study page',
+    url: tab.url,
+    sourceType: source.selected ? 'selected_text' : 'webpage',
   };
 }
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'getActiveStudyTab') {
-    resolveActiveStudyTab()
-      .then(tab => sendResponse({ success: true, tab: publicTab(tab) }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
+async function extractEducationalContent(message) {
+  return responseData(await apiFetch('/ingest', {
+    method: 'POST',
+    body: JSON.stringify({ content: message.content, images: message.images || [] }),
+  }), 'Educational-content extraction failed.');
+}
 
-  if (message.action === 'requestActiveTabAccess') {
-    requestActiveTabAccess()
-      .then(sendResponse)
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
+async function createStudyGuide(message) {
+  const generated = await responseData(await apiFetch('/generate', {
+    method: 'POST',
+    body: JSON.stringify({ content: message.content, images: message.images || [], notes: true, study_guide: true, flashcards: true }),
+  }), 'Study-guide generation failed.');
+  let savedGuide = null;
+  if (generated.study_guide) {
+    savedGuide = await responseData(await apiFetch('/guides', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: message.title || 'Study Guide',
+        notes: generated.notes || null,
+        study_guide: generated.study_guide,
+        flashcards: generated.flashcards || null,
+        source_url: /^https?:/i.test(message.url || '') ? message.url : null,
+        source_type: message.sourceType || 'webpage',
+        source_title: message.title || 'Captured study material',
+      }),
+    }), 'The guide was generated but could not be saved.');
   }
+  return { ...generated, savedGuide };
+}
 
+const ACTIONS = { captureScreen, scrapePage, extractEducationalContent, createStudyGuide };
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'syncClassroomAuth') {
-    requestClassroomAuthSync()
-      .then(sendResponse)
-      .catch(error => sendResponse({ success: false, authenticated: false, error: error.message }));
+    syncClassroomAuth().then(sendResponse).catch(error => sendResponse({ error: error.message }));
     return true;
   }
-
-  if (message.action === 'navigateActiveTab') {
-    (async () => {
-      try {
-        const tab = await resolveActiveStudyTab();
-        const target = tab?.id && safeSameOriginStudyUrl(tab.url || '', message.url || '');
-        if (!target) {
-          sendResponse({ success: false, error: 'Cordia can only open safe study links from the current site.' });
-          return;
-        }
-        const updated = await chrome.tabs.update(tab.id, { url: target });
-        sendResponse({ success: true, url: updated?.url || target });
-      } catch (error) {
-        sendResponse({ success: false, error: error.message || 'The study link could not be opened.' });
-      }
-    })();
-    return true;
-  }
-
-  // Screenshot handler for slide-by-slide capture with images
-  if (message.action === 'screenshotTab') {
-    chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 70 }, (dataUrl) => {
-      sendResponse({ screenshot: dataUrl || null });
-    });
-    return true;
-  }
-
-  if (message.action === 'ingestContent') {
-    (async () => {
-      try {
-        const response = await authedFetch('/ingest', { method: 'POST', body: JSON.stringify({
-          content: message.content, images: message.images || []
-        }) });
-        const data = await response.json();
-        sendResponse(response.ok ? { success: true, ...data } : { success: false, error: errorMessage(data, 'Ingest failed'), status: response.status });
-      } catch (error) { sendResponse({ success: false, error: error.message || 'Request failed' }); }
-    })();
-    return true;
-  }
-
-  if (message.action === 'generateContent') {
-    (async () => {
-      try {
-        const response = await authedFetch('/generate', { method: 'POST', body: JSON.stringify({
-          content: message.content, images: message.images || [], notes: true, study_guide: true, flashcards: true
-        }) });
-        const data = await response.json();
-        sendResponse(response.ok ? { success: true, ...data } : { success: false, error: errorMessage(data, 'Generation failed'), status: response.status });
-      } catch (error) { sendResponse({ success: false, error: error.message || 'Request failed' }); }
-    })();
-    return true;
-  }
-
-  if (message.action === 'chatWithContent') {
-    (async () => {
-      try {
-        const resp = await authedFetch('/chat', {
-          method: 'POST',
-          body: JSON.stringify({
-            question: message.question,
-            content: message.content,
-            mode: message.mode || 'short',
-            context_title: message.contextTitle || null,
-            context_url: message.contextUrl || null,
-            session_id: message.sessionId,
-            conversation_version: message.conversationVersion,
-            skill: message.skill || null
-          })
-        });
-        const data = await resp.json();
-        sendResponse(resp.ok ? data : { error: errorMessage(data, 'Tutor request failed'), status: resp.status });
-      } catch (e) {
-        sendResponse({ error: e.message || 'Request failed' });
-      }
-    })();
-    return true;
-  }
-
-  if (message.action === 'getTutorSession') {
-    (async () => {
-      try {
-        const response = await authedFetch('/tutor/session');
-        const data = await response.json();
-        sendResponse(response.ok ? data : { error: errorMessage(data, 'Tutor session unavailable'), status: response.status });
-      } catch (error) { sendResponse({ error: error.message || 'Request failed' }); }
-    })();
-    return true;
-  }
-
-  if (message.action === 'setTutorSkill') {
-    (async () => {
-      try {
-        const response = await authedFetch('/tutor/session/skill', {
-          method: 'PATCH',
-          body: JSON.stringify({ session_id: message.sessionId, skill: message.skill })
-        });
-        const data = await response.json();
-        sendResponse(response.ok ? data : { error: errorMessage(data, 'Tutor skill could not be changed'), status: response.status });
-      } catch (error) { sendResponse({ error: error.message || 'Request failed' }); }
-    })();
-    return true;
-  }
-
-  if (message.action === 'updateBrowserContext') {
-    (async () => {
-      try {
-        const response = await authedFetch('/tutor/session/browser', {
-          method: 'PATCH',
-          body: JSON.stringify({
-            session_id: message.sessionId,
-            browser_available: message.browserAvailable !== false,
-            browser_observation: message.observation,
-            browser_content: message.browserContent,
-            permission_scope: ['read_page'],
-            last_action_result: message.lastActionResult
-          })
-        });
-        const data = await response.json();
-        sendResponse(response.ok ? data : { error: errorMessage(data, 'Browser context could not be synchronized'), status: response.status });
-      } catch (error) { sendResponse({ error: error.message || 'Request failed' }); }
-    })();
-    return true;
-  }
+  const action = ACTIONS[message.action];
+  if (!action) return false;
+  action(message)
+    .then(data => sendResponse({ success: true, ...data }))
+    .catch(error => sendResponse({ success: false, error: error.message, status: error.status || 0 }));
+  return true;
 });

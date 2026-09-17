@@ -76,14 +76,12 @@ class SharedTutorSessionContractTests(unittest.TestCase):
         self.assertTrue(session["browser_content_available"])
         self.assertNotIn("browser_content", session)
 
-    def test_background_presence_heartbeat_does_not_collect_every_visited_url(self):
+    def test_extension_does_not_run_a_background_tutor_session(self):
         worker = (ROOT / "extension" / "background.js").read_text(encoding="utf-8")
         panel = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
-        self.assertIn("browser_observation: message.observation", worker)
-        self.assertIn("browser_content: message.browserContent", worker)
-        heartbeat = panel[panel.index("async function publishBrowserPresence"):panel.index("tutorSkill?.addEventListener")]
-        self.assertIn("if (contentRefs)", heartbeat)
-        self.assertNotIn("contentRefs = []", heartbeat)
+        self.assertNotIn("/tutor/session", worker + panel)
+        self.assertNotIn("setInterval", panel)
+        self.assertNotIn("updateBrowserContext", worker + panel)
 
     def test_stale_agent_run_does_not_leave_both_surfaces_permanently_locked(self):
         import sys
@@ -240,7 +238,7 @@ class SharedTutorSessionContractTests(unittest.TestCase):
         self.assertEqual(payload["messages"][-1]["text"], "Found 1 relevant source on the current page.")
         self.assertEqual(payload["messages"][-1]["evidence"], evidence)
 
-    def test_extension_is_a_side_panel_bound_to_the_shared_session(self):
+    def test_extension_is_a_four_action_side_panel_while_web_owns_tutor_session(self):
         import json
 
         manifest = json.loads((ROOT / "extension" / "manifest.json").read_text(encoding="utf-8"))
@@ -252,9 +250,9 @@ class SharedTutorSessionContractTests(unittest.TestCase):
         self.assertIn("sidePanel", manifest["permissions"])
         self.assertNotIn("default_popup", manifest["action"])
         self.assertIn("openPanelOnActionClick", worker)
-        self.assertIn("'/tutor/session'", worker)
-        self.assertIn("sessionId: tutorSession.id", panel)
-        self.assertNotIn("let chatHistory", panel)
+        self.assertNotIn("'/tutor/session'", worker)
+        self.assertIn("action: 'createStudyGuide'", panel)
+        self.assertNotIn("tutorSession", panel)
         self.assertIn("apiFetch('/tutor/session')", web_tutor)
         self.assertIn("session_id: session.id", web_tutor)
         self.assertIn('aria-label="Destination class"', web_tutor)
