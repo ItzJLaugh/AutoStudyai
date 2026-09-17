@@ -188,6 +188,7 @@ async function publishBrowserPresence(contentRefs = null, lastActionResult = nul
   const response = await runtimeMessage({
     action: 'updateBrowserContext',
     sessionId: tutorSession.id,
+    browserAvailable: activeStudyTabState.available,
     observation,
     browserContent,
     lastActionResult,
@@ -392,7 +393,7 @@ tutorSkill?.addEventListener('change', async () => {
   else statusDiv.innerText = response?.error || 'Could not change Tutor skill.';
 });
 
-window.setInterval(async () => {
+async function refreshTutorSession() {
   if (!tutorSession?.id) return;
   const response = await runtimeMessage({ action: 'getTutorSession' });
   if (response?.id) {
@@ -400,11 +401,16 @@ window.setInterval(async () => {
     await refreshPageContext();
     await publishBrowserPresence();
   }
-}, 5000);
+}
 
 chrome.tabs.onActivated.addListener(() => refreshPageContext());
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   if (tab.active && (changeInfo.status === 'complete' || changeInfo.title)) refreshPageContext();
+});
+chrome.permissions?.onAdded?.addListener(() => refreshPageContext());
+window.addEventListener('focus', refreshTutorSession);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refreshTutorSession();
 });
 
 // Read the browser context even before sign-in, then reconnect the Classroom session.
@@ -815,7 +821,8 @@ async function captureActiveTab(commandId = null) {
   try {
     tab = await getActiveStudyTab();
   } catch (error) {
-    statusDiv.innerText = error.message;
+    const access = await runtimeMessage({ action: 'requestActiveTabAccess' });
+    statusDiv.innerText = access?.error || error.message;
     await reportCaptureResult('failed', statusDiv.innerText);
     return;
   }
@@ -1004,6 +1011,14 @@ async function sendChat(forcedMode = null) {
     chatAnswerDiv.innerText = SKILL_PROGRESS[tutorSession.active_skill] || 'Cordia is already working on your last request.';
     return;
   }
+  await refreshPageContext();
+  const selectedSkill = tutorSkillOverride || tutorSession.active_skill;
+  if (['capture', 'find_material'].includes(selectedSkill) && !activeStudyTabState.available) {
+    const access = await runtimeMessage({ action: 'requestActiveTabAccess' });
+    chatAnswerDiv.innerText = access?.error || activeStudyTabState.error;
+    return;
+  }
+  await publishBrowserPresence();
   chatInput.value = '';
 
   const mode = forcedMode || (exampleModeEnabled ? 'example' : 'short');

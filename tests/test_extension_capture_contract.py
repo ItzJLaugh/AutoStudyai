@@ -94,13 +94,16 @@ class ExtensionCaptureContractTests(unittest.TestCase):
     def test_side_panel_resolves_the_real_active_tab_in_the_service_worker(self):
         worker = (ROOT / "extension" / "background.js").read_text(encoding="utf-8")
         popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+        manifest = (ROOT / "extension" / "manifest.json").read_text(encoding="utf-8")
 
         self.assertIn("async function resolveActiveStudyTab", worker)
         self.assertIn("lastFocusedWindow: true", worker)
         self.assertIn("windows.getLastFocused", worker)
         self.assertIn("message.action === 'getActiveStudyTab'", worker)
         self.assertNotIn("currentWindow: true", popup)
-        self.assertIn("Click the Cordia extension icon while your study page is active", worker)
+        self.assertIn("requestActiveTabAccess", worker)
+        self.assertIn("permissions.addHostAccessRequest", worker)
+        self.assertIn('"optional_host_permissions": ["http://*/*", "https://*/*"]', manifest)
         self.assertNotIn("'Browser available'", popup)
         self.assertIn("'Current tab ready'", popup)
 
@@ -111,6 +114,14 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("const authenticated = await initAuth()", handler)
         self.assertIn("Sign in to CordiaClassroom in this browser profile", handler)
         self.assertNotIn("!tutorSession?.id || tutorSession.status !== 'idle') return", handler)
+
+    def test_side_panel_is_event_driven_instead_of_polling_session_and_browser(self):
+        popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")
+
+        self.assertNotIn("window.setInterval", popup)
+        self.assertIn("window.addEventListener('focus', refreshTutorSession)", popup)
+        self.assertIn("visibilitychange", popup)
+        self.assertIn("await publishBrowserPresence()", popup)
 
     def test_tutor_can_queue_the_same_user_approved_capture_flow(self):
         popup = (ROOT / "extension" / "popup.js").read_text(encoding="utf-8")

@@ -49,19 +49,40 @@ function isWebTab(tab) {
   return Boolean(tab?.id && /^https?:/i.test(tab.url || ''));
 }
 
-async function resolveActiveStudyTab() {
+async function resolveActiveTabCandidate() {
   const [focusedTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (isWebTab(focusedTab)) return focusedTab;
+  if (focusedTab?.id) return focusedTab;
 
   const focusedWindow = await chrome.windows.getLastFocused({ populate: true, windowTypes: ['normal'] });
   const windowTab = (focusedWindow?.tabs || []).find(tab => tab.active);
-  if (isWebTab(windowTab)) return windowTab;
+  if (windowTab?.id) return windowTab;
+  throw new Error('Open an http or https study page first.');
+}
 
-  const tab = focusedTab || windowTab || null;
+async function resolveActiveStudyTab() {
+  const tab = await resolveActiveTabCandidate();
+  if (isWebTab(tab)) return tab;
   if (tab?.id && !tab.url) {
-    throw new Error('Click the Cordia extension icon while your study page is active, then try again.');
+    throw new Error('Allow Cordia to read this site, then try again.');
   }
-  throw new Error('Open an http or https study page, then click the Cordia extension icon.');
+  throw new Error('Open an http or https study page first.');
+}
+
+async function requestActiveTabAccess() {
+  const tab = await resolveActiveTabCandidate();
+  if (isWebTab(tab)) return { success: true, tab: publicTab(tab) };
+  if (tab.url && !/^https?:/i.test(tab.url)) {
+    return { success: false, error: 'Open an http or https study page first.' };
+  }
+  if (!chrome.permissions?.addHostAccessRequest) {
+    return { success: false, error: 'Click the Cordia extension icon while this study page is active, then try again.' };
+  }
+  await chrome.permissions.addHostAccessRequest({ tabId: tab.id });
+  return {
+    success: false,
+    requested: true,
+    error: 'Choose Allow for Cordia in the extension menu, then try again.'
+  };
 }
 
 function publicTab(tab) {
@@ -94,6 +115,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'getActiveStudyTab') {
     resolveActiveStudyTab()
       .then(tab => sendResponse({ success: true, tab: publicTab(tab) }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  if (message.action === 'requestActiveTabAccess') {
+    requestActiveTabAccess()
+      .then(sendResponse)
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
@@ -214,7 +242,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           method: 'PATCH',
           body: JSON.stringify({
             session_id: message.sessionId,
-            browser_available: true,
+            browser_available: message.browserAvailable !== false,
             browser_observation: message.observation,
             browser_content: message.browserContent,
             permission_scope: ['read_page'],
