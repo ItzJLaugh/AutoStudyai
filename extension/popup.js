@@ -13,6 +13,7 @@ let pendingImages = [];
 let activeBrowserCommandId = null;
 let pendingBrowserCommandId = null;
 let tutorSkillOverride = '';
+let activeStudyTabState = { available: false, error: 'Checking current tab…' };
 const SKILL_PROGRESS = {
   explain: 'Explaining material…',
   capture: 'Reading current page…',
@@ -55,16 +56,23 @@ const authUserEmail = document.getElementById('auth-user-email');
 // Auth functions
 // =====================
 async function initAuth() {
-  const token = await getValidToken();
+  let token = await getValidToken();
+  let syncResult = null;
+  if (!token) {
+    syncResult = await runtimeMessage({ action: 'syncClassroomAuth' });
+    if (syncResult?.authenticated) token = await getValidToken();
+  }
   if (token) {
-    chrome.storage.local.get(['userEmail'], (result) => {
-      showLoggedIn(result.userEmail || 'Logged in');
-      initTutorSession();
-    });
+    const result = await new Promise(resolve => chrome.storage.local.get(['userEmail'], resolve));
+    showLoggedIn(result.userEmail || syncResult?.userEmail || 'Logged in');
+    await initTutorSession();
+    return true;
   } else {
     // Both access and refresh tokens are expired/invalid
     chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
     showLoginForm();
+    if (syncResult?.error) authStatusDiv.textContent = syncResult.error;
+    return false;
   }
 }
 
@@ -96,34 +104,56 @@ async function initTutorSession() {
   const response = await runtimeMessage({ action: 'getTutorSession' });
   if (!response?.id) {
     if (browserStatus) browserStatus.textContent = response?.error || 'Tutor unavailable';
-    return;
+    return false;
   }
   renderTutorSession(response);
   await refreshPageContext();
   await publishBrowserPresence();
+  return true;
+}
+
+async function getActiveStudyTab() {
+  const response = await runtimeMessage({ action: 'getActiveStudyTab' });
+  if (!response?.success || !response.tab) {
+    throw new Error(response?.error || 'Cordia could not access the active study page.');
+  }
+  return response.tab;
 }
 
 async function refreshPageContext() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !/^https?:/.test(tab.url || '')) {
+  let tab;
+  try {
+    tab = await getActiveStudyTab();
+  } catch (error) {
+    activeStudyTabState = { available: false, error: error.message };
     pageContextTitle.textContent = 'Open a study page';
-    pageContextDomain.textContent = 'Cordia only reads it when you ask.';
+    pageContextDomain.textContent = error.message;
+    renderBrowserStatus();
     return;
   }
+  activeStudyTabState = { available: true, error: '' };
   let host = '';
   try { host = new URL(tab.url).host; } catch (_) { /* keep the privacy label */ }
   pageContextTitle.textContent = tab.title || 'Current browser tab';
   pageContextDomain.textContent = host ? `${host} · Not sent until you ask` : 'Not sent until you ask';
+  renderBrowserStatus();
+}
+
+function renderBrowserStatus() {
+  if (!browserStatus) return;
+  if (tutorSession?.status && tutorSession.status !== 'idle') {
+    browserStatus.textContent = SKILL_PROGRESS[tutorSession.active_skill] || 'Cordia is working…';
+    return;
+  }
+  browserStatus.textContent = activeStudyTabState.available
+    ? 'Current tab ready'
+    : activeStudyTabState.error;
 }
 
 function renderTutorSession(next) {
   tutorSession = next;
   if (tutorSessionBar) tutorSessionBar.style.display = 'grid';
-  if (browserStatus) {
-    browserStatus.textContent = next.status === 'idle'
-      ? 'Browser available'
-      : (SKILL_PROGRESS[next.active_skill] || 'Cordia is working…');
-  }
+  renderBrowserStatus();
   if (tutorSkill) {
     const activeLabel = next.skills?.find(item => item.id === next.active_skill)?.label || 'Explain';
     const automatic = document.createElement('option');
@@ -146,9 +176,8 @@ async function publishBrowserPresence(contentRefs = null, lastActionResult = nul
   if (!tutorSession?.id) return;
   let observation;
   if (contentRefs) {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const tab = tabs[0];
-    if (!tab || !/^https?:/.test(tab.url || '')) return;
+    let tab;
+    try { tab = await getActiveStudyTab(); } catch (_) { return; }
     observation = {
       url: tab.url,
       title: tab.title || '',
@@ -277,10 +306,7 @@ async function findStudyMaterialOnPage(requestedQuery) {
 
 async function findMaterialInActiveTab(command) {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !/^https?:/.test(tab.url || '')) {
-      throw new Error('Open the course page you want Cordia to search, then try again.');
-    }
+    const tab = await getActiveStudyTab();
     lastPageUrl = tab.url;
     lastPageTitle = (tab.title || 'Canvas course material').slice(0, 120);
     lastSourceType = 'canvas';
@@ -381,7 +407,8 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   if (tab.active && (changeInfo.status === 'complete' || changeInfo.title)) refreshPageContext();
 });
 
-// Init auth on popup open
+// Read the browser context even before sign-in, then reconnect the Classroom session.
+refreshPageContext();
 initAuth();
 
 // =====================
@@ -784,10 +811,11 @@ async function captureActiveTab(commandId = null) {
   if (platformBanner) platformBanner.style.display = 'none';
 
   pendingBrowserCommandId = commandId;
-  const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-  const tab = tabs[0];
-  if (!tab?.id || !/^https?:/.test(tab.url || '')) {
-    statusDiv.innerText = 'Open a study page in a normal browser tab first.';
+  let tab;
+  try {
+    tab = await getActiveStudyTab();
+  } catch (error) {
+    statusDiv.innerText = error.message;
     await reportCaptureResult('failed', statusDiv.innerText);
     return;
   }
@@ -964,7 +992,18 @@ saveBtn.addEventListener('click', async () => {
 // =====================
 async function sendChat(forcedMode = null) {
   const question = chatInput.value.trim();
-  if (!question || !tutorSession?.id || tutorSession.status !== 'idle') return;
+  if (!question) return;
+  if (!tutorSession?.id) {
+    const authenticated = await initAuth();
+    if (!authenticated || !tutorSession?.id) {
+      chatAnswerDiv.innerText = 'Sign in to CordiaClassroom in this browser profile, then ask again.';
+      return;
+    }
+  }
+  if (tutorSession.status !== 'idle') {
+    chatAnswerDiv.innerText = SKILL_PROGRESS[tutorSession.active_skill] || 'Cordia is already working on your last request.';
+    return;
+  }
   chatInput.value = '';
 
   const mode = forcedMode || (exampleModeEnabled ? 'example' : 'short');

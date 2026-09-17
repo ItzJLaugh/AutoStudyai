@@ -151,6 +151,7 @@ async function main() {
     localStorage.setItem('userEmail', 'student@example.com');
   });
   await page.addScriptTag({ path: bridgeScript });
+  await page.waitForFunction(() => Boolean(window.__extensionAuth.authToken));
   assert.deepEqual(await page.evaluate(() => window.__extensionAuth), {
     authToken: 'access-token',
     refreshToken: 'refresh-token',
