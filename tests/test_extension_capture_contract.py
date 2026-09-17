@@ -74,6 +74,8 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("localStorage.getItem('authToken')", bridge)
         self.assertIn("chrome.storage.local.set", bridge)
         self.assertIn("syncClassroomAuth", self.worker)
+        self.assertIn("chrome.storage.onChanged.addListener", self.panel)
+        self.assertIn("window.addEventListener('focus', initAuth)", self.panel)
 
     def test_custom_extension_code_is_small(self):
         self.assertLess(len(self.worker.splitlines()), 220)

@@ -68,6 +68,8 @@ async function initAuth() {
   }
   state.authenticated = Boolean(auth.authToken);
   makeButton.disabled = !state.authenticated;
+  connectLink.href = 'https://classroom.cordiacode.com';
+  connectLink.textContent = 'Connect';
   connectLink.hidden = state.authenticated;
   announce(state.authenticated
     ? `Connected${auth.userEmail ? ` as ${auth.userEmail}` : ''}. Ready.`
@@ -193,4 +195,10 @@ async function saveStudyGuide() {
 
 makeButton.addEventListener('click', makeStudyGuide);
 saveButton.addEventListener('click', saveStudyGuide);
+connectLink.addEventListener('click', () => announce('Sign in to Classroom. This panel will connect automatically.', 'working'));
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && ['authToken', 'userEmail'].some(key => changes[key])) initAuth();
+});
+window.addEventListener('focus', initAuth);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) initAuth(); });
 initAuth();

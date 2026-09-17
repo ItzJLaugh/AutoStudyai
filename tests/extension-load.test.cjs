@@ -14,7 +14,7 @@ async function main() {
     if (!worker) worker = await context.waitForEvent('serviceworker');
     const extensionId = new URL(worker.url()).host;
     const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
-    assert.equal(manifest.version, '1.8.0');
+    assert.equal(manifest.version, '1.8.1');
     assert.deepEqual(manifest.host_permissions, ['http://*/*', 'https://*/*']);
     assert.equal(manifest.optional_host_permissions, undefined);
     assert.equal(manifest.side_panel.default_path, 'popup.html');
@@ -26,6 +26,13 @@ async function main() {
     assert.equal(await panel.locator('#make-guide').count(), 1);
     assert.equal(await panel.locator('.brand strong').textContent(), 'CordiaClassroom');
     assert.equal(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+
+    await worker.evaluate(() => chrome.storage.local.set({
+      authToken: 'test-session',
+      userEmail: 'student@example.edu',
+    }));
+    await panel.waitForFunction(() => !document.getElementById('make-guide').disabled);
+    assert.match(await panel.locator('#status-text').textContent(), /Connected as student@example\.edu/);
   } finally {
     await context.close();
   }
