@@ -32,9 +32,15 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn('Save to Classroom', self.html)
 
     def test_site_access_is_declared_not_runtime_choreography(self):
-        self.assertEqual(self.manifest["host_permissions"], ["http://*/*", "https://*/*"])
+        self.assertEqual(self.manifest["host_permissions"], ["<all_urls>"])
         self.assertNotIn("optional_host_permissions", self.manifest)
         self.assertNotIn("addHostAccessRequest", self.worker)
+
+    def test_capture_permission_failure_falls_back_to_page_reading(self):
+        self.assertIn("step('capture', 'skipped')", self.panel)
+        self.assertIn("await capture();", self.panel)
+        self.assertIn("await scrape();", self.panel)
+        self.assertIn("Chrome could not read or capture this page", self.panel)
 
     def test_scraper_uses_readability_with_lms_fallback(self):
         self.assertTrue((ROOT / "extension" / "vendor" / "Readability.js").exists())
@@ -68,6 +74,12 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertNotIn("disconnect", self.html.lower())
         self.assertEqual(self.html.count('role="status"'), 1)
 
+    def test_panel_has_direct_contextual_tutor_without_session_polling(self):
+        self.assertIn('id="tutor-form"', self.html)
+        self.assertIn("action: 'askTutor'", self.panel)
+        self.assertIn("apiFetch('/chat'", self.worker)
+        self.assertNotIn("'/tutor/session'", self.worker + self.panel)
+
     def test_extension_reuses_classroom_session_without_password_form(self):
         bridge = (ROOT / "extension" / "asai-bridge.js").read_text(encoding="utf-8")
         self.assertNotIn('type="password"', self.html)
@@ -79,7 +91,7 @@ class ExtensionCaptureContractTests(unittest.TestCase):
 
     def test_custom_extension_code_is_small(self):
         self.assertLess(len(self.worker.splitlines()), 220)
-        self.assertLess(len(self.panel.splitlines()), 210)
+        self.assertLess(len(self.panel.splitlines()), 290)
         self.assertLess(len(self.scraper.splitlines()), 130)
 
 

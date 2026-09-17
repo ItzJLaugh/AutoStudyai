@@ -145,6 +145,21 @@ async function createStudyGuide(message) {
   return generated;
 }
 
+async function askTutor(message) {
+  const answer = await responseData(await apiFetch('/chat', {
+    method: 'POST',
+    body: JSON.stringify({
+      question: message.question,
+      content: message.content,
+      mode: 'short',
+      context_title: message.contextTitle || 'Current study material',
+      context_url: /^https?:/i.test(message.contextUrl || '') ? message.contextUrl : null,
+    }),
+  }), 'Cordia Tutor could not answer that question.');
+  if (!answer?.answer) throw new Error('Cordia Tutor returned no answer.');
+  return answer;
+}
+
 async function saveStudyGuide(message) {
   if (!message.studyGuide?.trim()) throw new Error('Create a study guide before saving.');
   const saved = await responseData(await apiFetch('/guides', {
@@ -177,7 +192,7 @@ async function saveStudyGuide(message) {
   return { savedGuide: saved.guide, guideUrl, redirected };
 }
 
-const ACTIONS = { captureScreen, scrapePage, extractEducationalContent, createStudyGuide, saveStudyGuide };
+const ACTIONS = { captureScreen, scrapePage, extractEducationalContent, createStudyGuide, saveStudyGuide, askTutor };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'syncClassroomAuth') {

@@ -8,7 +8,7 @@
 </head>
 <body>
   <header class="brand">
-    <img src="icon48.png" alt="">
+    <img src="cordia-classroom-logo.png" alt="">
     <div><strong>CordiaClassroom</strong><span>Turn the current page into a study guide.</span></div>
   </header>
 
@@ -27,6 +27,20 @@
     </div>
     <button id="make-guide" class="make-button">Make study guide</button>
   </main>
+
+  <section class="card tutor-card" aria-labelledby="tutor-title">
+    <div class="tutor-heading">
+      <div><small>ASK ABOUT THIS PAGE</small><strong id="tutor-title">Cordia Tutor</strong></div>
+      <span class="tutor-context">Current material</span>
+    </div>
+    <div id="tutor-messages" class="tutor-messages" aria-live="polite">
+      <p class="tutor-empty">Ask for an explanation, example, or quick check.</p>
+    </div>
+    <form id="tutor-form" class="tutor-form">
+      <input id="tutor-input" type="text" maxlength="2000" autocomplete="off" placeholder="Ask Cordia about this page" aria-label="Ask Cordia about this page">
+      <button id="tutor-send" type="submit" aria-label="Send question">↑</button>
+    </form>
+  </section>
 
   <section id="result" class="card result" hidden>
     <strong id="result-title"></strong>
