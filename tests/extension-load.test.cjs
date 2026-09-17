@@ -14,7 +14,7 @@ async function main() {
     if (!worker) worker = await context.waitForEvent('serviceworker');
     const extensionId = new URL(worker.url()).host;
     const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
-    assert.equal(manifest.version, '1.7.0');
+    assert.equal(manifest.version, '1.7.1');
     assert.deepEqual(manifest.host_permissions, ['http://*/*', 'https://*/*']);
     assert.equal(manifest.optional_host_permissions, undefined);
     assert.equal(manifest.side_panel.default_path, 'popup.html');

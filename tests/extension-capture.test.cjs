@@ -40,7 +40,7 @@ async function main() {
     .replace('<script src="popup.js"></script>', ''));
   assert.equal(await panel.locator('.action').count(), 4);
   assert.deepEqual(await panel.locator('.action strong').allTextContents(), [
-    'Capture screen', 'Scrape page', 'Get educational content', 'Make study guide',
+    'Capture screen', 'Scrape page', 'Get educational content', 'Make & save study guide',
   ]);
   assert.equal(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
 

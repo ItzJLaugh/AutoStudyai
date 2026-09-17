@@ -31,11 +31,12 @@ function show(text) {
   status.textContent = text;
 }
 
-function showResult(title, content, classroomLink = false) {
+function showResult(title, content, classroomHref = '') {
   result.hidden = false;
   resultTitle.textContent = title;
   resultContent.textContent = content;
-  openClassroom.hidden = !classroomLink;
+  openClassroom.hidden = !classroomHref;
+  if (classroomHref) openClassroom.href = classroomHref;
 }
 
 async function run(label, work) {
@@ -127,14 +128,16 @@ async function makeStudyGuide() {
   });
   if (!response?.success) throw new Error(response?.error || 'Study-guide creation failed.');
   if (!response.study_guide) throw new Error('The server returned no study guide.');
-  showResult('Study guide', response.study_guide, true);
-  show('Study guide created and saved to CordiaClassroom.');
+  if (!response.savedGuide?.id) throw new Error('CordiaClassroom did not confirm the saved guide.');
+  showResult('Saved to CordiaClassroom', response.study_guide,
+    `https://classroom.cordiacode.com/guide/${encodeURIComponent(response.savedGuide.id)}`);
+  show('Saved. Open the guide in CordiaClassroom below.');
 }
 
 document.getElementById('capture-screen').addEventListener('click', () => run('Capturing visible screen…', captureScreen));
 document.getElementById('scrape-page').addEventListener('click', () => run('Scraping current page…', scrapePage));
 document.getElementById('extract-content').addEventListener('click', () => run('Finding educational content…', extractContent));
-document.getElementById('make-guide').addEventListener('click', () => run('Creating study guide…', makeStudyGuide));
+document.getElementById('make-guide').addEventListener('click', () => run('Creating and saving study guide…', makeStudyGuide));
 
 updatePageContext();
 initAuth();

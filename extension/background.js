@@ -140,22 +140,21 @@ async function createStudyGuide(message) {
     method: 'POST',
     body: JSON.stringify({ content: message.content, images: message.images || [], notes: true, study_guide: true, flashcards: true }),
   }), 'Study-guide generation failed.');
-  let savedGuide = null;
-  if (generated.study_guide) {
-    savedGuide = await responseData(await apiFetch('/guides', {
-      method: 'POST',
-      body: JSON.stringify({
-        title: message.title || 'Study Guide',
-        notes: generated.notes || null,
-        study_guide: generated.study_guide,
-        flashcards: generated.flashcards || null,
-        source_url: /^https?:/i.test(message.url || '') ? message.url : null,
-        source_type: message.sourceType || 'webpage',
-        source_title: message.title || 'Captured study material',
-      }),
-    }), 'The guide was generated but could not be saved.');
-  }
-  return { ...generated, savedGuide };
+  if (!generated.study_guide) throw new Error('The server returned no study guide.');
+  const saved = await responseData(await apiFetch('/guides', {
+    method: 'POST',
+    body: JSON.stringify({
+      title: message.title || 'Study Guide',
+      notes: generated.notes || null,
+      study_guide: generated.study_guide,
+      flashcards: generated.flashcards || null,
+      source_url: /^https?:/i.test(message.url || '') ? message.url : null,
+      source_type: message.sourceType || 'webpage',
+      source_title: message.title || 'Captured study material',
+    }),
+  }), 'The guide was generated but could not be saved.');
+  if (!saved?.guide?.id) throw new Error('CordiaClassroom did not confirm the saved guide.');
+  return { ...generated, savedGuide: saved.guide };
 }
 
 const ACTIONS = { captureScreen, scrapePage, extractEducationalContent, createStudyGuide };

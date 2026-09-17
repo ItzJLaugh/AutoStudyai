@@ -48,6 +48,12 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("apiFetch('/guides'", self.worker)
         self.assertIn("'[Screenshot fallback]'", self.panel)
 
+    def test_guide_action_requires_confirmed_platform_save(self):
+        self.assertIn("if (!saved?.guide?.id)", self.worker)
+        self.assertIn("savedGuide: saved.guide", self.worker)
+        self.assertIn("if (!response.savedGuide?.id)", self.panel)
+        self.assertIn("classroom.cordiacode.com/guide/", self.panel)
+
     def test_extension_reuses_classroom_session_without_password_form(self):
         bridge = (ROOT / "extension" / "asai-bridge.js").read_text(encoding="utf-8")
         self.assertNotIn('type="password"', self.html)
