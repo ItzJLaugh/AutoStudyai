@@ -58,8 +58,8 @@ export default function InstallExtensionPage() {
         <li className="extension-install-step">
           <span className="extension-install-number">4</span>
           <div>
-            <h2>Use four direct actions</h2>
-            <p>Open the side panel, then choose <strong>Capture screen</strong>, <strong>Scrape page</strong>, <strong>Get educational content</strong>, or <strong>Make study guide</strong>. Making a guide saves it to CordiaClassroom automatically.</p>
+            <h2>Make and save your guide</h2>
+            <p>Click <strong>Make study guide</strong>. One button captures, reads, focuses, and creates the guide. Review it, then click <strong>Save to Classroom</strong> to save and open the exact guide.</p>
           </div>
         </li>
       </ol>

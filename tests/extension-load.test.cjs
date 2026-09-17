@@ -14,7 +14,7 @@ async function main() {
     if (!worker) worker = await context.waitForEvent('serviceworker');
     const extensionId = new URL(worker.url()).host;
     const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
-    assert.equal(manifest.version, '1.7.1');
+    assert.equal(manifest.version, '1.8.0');
     assert.deepEqual(manifest.host_permissions, ['http://*/*', 'https://*/*']);
     assert.equal(manifest.optional_host_permissions, undefined);
     assert.equal(manifest.side_panel.default_path, 'popup.html');
@@ -22,7 +22,8 @@ async function main() {
     const panel = await context.newPage();
     await panel.setViewportSize({ width: 360, height: 800 });
     await panel.goto(`chrome-extension://${extensionId}/popup.html`);
-    assert.equal(await panel.locator('.action').count(), 4);
+    assert.equal(await panel.locator('.step').count(), 4);
+    assert.equal(await panel.locator('#make-guide').count(), 1);
     assert.equal(await panel.locator('.brand strong').textContent(), 'CordiaClassroom');
     assert.equal(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   } finally {

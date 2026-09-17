@@ -1,17 +1,17 @@
 const state = {
-  screenshot: '',
-  scraped: null,
-  sections: [],
-  images: [],
-  source: null,
+  screenshot: '', scraped: null, source: null, sections: [], images: [],
+  generated: null, title: '', authenticated: false,
 };
 
-const buttons = [...document.querySelectorAll('.action')];
-const status = document.getElementById('status');
+const makeButton = document.getElementById('make-guide');
+const saveButton = document.getElementById('save-guide');
+const saveBubble = document.getElementById('save-bubble');
 const result = document.getElementById('result');
 const resultTitle = document.getElementById('result-title');
 const resultContent = document.getElementById('result-content');
-const openClassroom = document.getElementById('open-classroom');
+const statusBox = document.getElementById('status');
+const statusText = document.getElementById('status-text');
+const connectLink = document.getElementById('connect');
 
 function runtime(message) {
   return new Promise(resolve => chrome.runtime.sendMessage(message, response => {
@@ -23,38 +23,41 @@ function storage(keys) {
   return new Promise(resolve => chrome.storage.local.get(keys, resolve));
 }
 
-function setBusy(value) {
-  buttons.forEach(button => { button.disabled = value; });
+function announce(message, tone = 'ready') {
+  statusText.textContent = message;
+  statusBox.dataset.tone = tone;
 }
 
-function show(text) {
-  status.textContent = text;
+function step(name, status) {
+  document.querySelector(`[data-step="${name}"]`).dataset.state = status;
 }
 
-function showResult(title, content, classroomHref = '') {
-  result.hidden = false;
-  resultTitle.textContent = title;
-  resultContent.textContent = content;
-  openClassroom.hidden = !classroomHref;
-  if (classroomHref) openClassroom.href = classroomHref;
+function resetSteps() {
+  document.querySelectorAll('.step').forEach(item => { item.dataset.state = ''; });
 }
 
-async function run(label, work) {
-  setBusy(true);
-  show(label);
-  try {
-    await work();
-  } catch (error) {
-    show(error.message || 'The action failed.');
-  } finally {
-    setBusy(false);
-  }
+function cleanTitle(value) {
+  return String(value || '')
+    .replace(/\.(pdf|pptx?|docx?)$/i, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/(^|\s)\w/g, letter => letter.toUpperCase());
 }
 
-async function updatePageContext() {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  document.getElementById('page-title').textContent = tab?.title || 'Open a study page';
-  document.getElementById('page-url').textContent = /^https?:/i.test(tab?.url || '') ? new URL(tab.url).host : 'HTTP and HTTPS pages only';
+function isGenericTitle(value) {
+  return !value || /^(file\s*preview|document|study material|slides?|page|untitled)$/i.test(value.trim());
+}
+
+function chooseGuideTitle() {
+  const sourceTitle = cleanTitle(state.source?.title);
+  const headings = state.sections.map(section => cleanTitle(section.heading)).filter(title => !isGenericTitle(title));
+  const content = state.sections.map(section => `${section.heading || ''} ${section.text || ''}`).join(' ');
+  const assessment = cleanTitle(content.match(/\b(?:exam|test|quiz)\s*(?:review\s*)?#?\s*\d+\b/i)?.[0]);
+  const topic = headings.find(title => !assessment || !title.toLowerCase().includes(assessment.toLowerCase()));
+  if (assessment) return (topic ? `${assessment} — ${topic}` : assessment).slice(0, 100);
+  if (!isGenericTitle(sourceTitle)) return sourceTitle.slice(0, 100);
+  return (topic || 'Study Guide').slice(0, 100);
 }
 
 async function initAuth() {
@@ -63,81 +66,131 @@ async function initAuth() {
     await runtime({ action: 'syncClassroomAuth' });
     auth = await storage(['authToken', 'userEmail']);
   }
-  document.getElementById('signed-in').hidden = !auth.authToken;
-  document.getElementById('signed-out').hidden = Boolean(auth.authToken);
-  document.getElementById('user-email').textContent = auth.userEmail || 'Connected';
+  state.authenticated = Boolean(auth.authToken);
+  makeButton.disabled = !state.authenticated;
+  connectLink.hidden = state.authenticated;
+  announce(state.authenticated
+    ? `Connected${auth.userEmail ? ` as ${auth.userEmail}` : ''}. Ready.`
+    : 'Connect CordiaClassroom to make and save a guide.', state.authenticated ? 'ready' : 'warning');
 }
 
-document.getElementById('disconnect').addEventListener('click', () => {
-  chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail'], initAuth);
-});
-
-async function captureScreen() {
+async function capture() {
+  step('capture', 'active');
+  announce('Capturing the visible study material…', 'working');
   const response = await runtime({ action: 'captureScreen' });
   if (!response?.success) throw new Error(response?.error || 'Screen capture failed.');
   state.screenshot = response.image;
   state.source = response;
-  state.sections = [];
-  showResult('Screen captured', 'The visible browser area is ready for educational extraction.');
-  show('Screen captured.');
+  step('capture', 'done');
 }
 
-async function scrapePage() {
+async function scrape() {
+  step('scrape', 'active');
+  announce('Reading the page and attached document…', 'working');
   const response = await runtime({ action: 'scrapePage' });
-  if (!response?.success) throw new Error(response?.error || 'Page scraping failed.');
+  if (!response?.success) throw new Error(response?.error || 'Page reading failed.');
   state.scraped = response;
   state.source = response;
-  state.sections = [];
-  showResult(response.title || 'Page scraped', response.text.slice(0, 5000));
-  show(`Scraped ${response.text.length.toLocaleString()} characters.`);
+  step('scrape', 'done');
 }
 
-async function ensureSource() {
-  if (state.scraped || state.screenshot) return;
-  try {
-    await scrapePage();
-  } catch (_) {
-    await captureScreen();
-  }
-}
-
-async function extractContent() {
-  await ensureSource();
-  const content = state.scraped?.text || '[Screenshot fallback]';
-  const images = state.scraped ? [] : [{ data: state.screenshot, context: 'Visible study material' }];
-  const response = await runtime({ action: 'extractEducationalContent', content, images });
+async function extract() {
+  step('extract', 'active');
+  announce('Finding the material worth studying…', 'working');
+  const images = state.screenshot ? [{ data: state.screenshot, context: 'Visible study material' }] : [];
+  const response = await runtime({
+    action: 'extractEducationalContent',
+    content: state.scraped?.text || '[Screenshot fallback]',
+    images,
+  });
   if (!response?.success) throw new Error(response?.error || 'Educational extraction failed.');
   state.sections = response.sections || [];
   state.images = response.use_images ? images : [];
   if (!state.sections.length) throw new Error('No educational content was found on this page.');
-  showResult('Educational content', state.sections.map(section => `${section.heading}\n${section.text}`).join('\n\n'));
-  show(`${state.sections.length} study section${state.sections.length === 1 ? '' : 's'} ready.`);
+  step('extract', 'done');
+}
+
+async function generate() {
+  step('create', 'active');
+  announce('Writing the study guide…', 'working');
+  const content = state.sections.map(section => `${section.heading}\n${section.text}`).join('\n\n');
+  const response = await runtime({ action: 'createStudyGuide', content, images: state.images });
+  if (!response?.success) throw new Error(response?.error || 'Study-guide creation failed.');
+  if (!response.study_guide) throw new Error('The server returned no study guide.');
+  state.generated = response;
+  state.title = chooseGuideTitle();
+  step('create', 'done');
 }
 
 async function makeStudyGuide() {
-  if (!state.sections.length) await extractContent();
-  const content = state.sections.map(section => `${section.heading}\n${section.text}`).join('\n\n');
-  const source = state.source || {};
-  const response = await runtime({
-    action: 'createStudyGuide',
-    content,
-    images: state.images,
-    title: source.title || 'Study Guide',
-    url: source.url || '',
-    sourceType: source.sourceType || 'webpage',
-  });
-  if (!response?.success) throw new Error(response?.error || 'Study-guide creation failed.');
-  if (!response.study_guide) throw new Error('The server returned no study guide.');
-  if (!response.savedGuide?.id) throw new Error('CordiaClassroom did not confirm the saved guide.');
-  showResult('Saved to CordiaClassroom', response.study_guide,
-    `https://classroom.cordiacode.com/guide/${encodeURIComponent(response.savedGuide.id)}`);
-  show('Saved. Open the guide in CordiaClassroom below.');
+  if (!state.authenticated) return initAuth();
+  makeButton.disabled = true;
+  saveBubble.hidden = true;
+  saveBubble.classList.remove('saved');
+  saveButton.disabled = false;
+  saveButton.textContent = 'Save to Classroom';
+  result.hidden = true;
+  resetSteps();
+  state.scraped = null;
+  state.sections = [];
+  state.generated = null;
+  try {
+    await capture();
+    try {
+      await scrape();
+    } catch (_) {
+      step('scrape', 'skipped');
+      announce('The page is protected. Using the visible capture instead…', 'working');
+    }
+    await extract();
+    await generate();
+    resultTitle.textContent = state.title;
+    resultContent.textContent = state.generated.study_guide;
+    result.hidden = false;
+    document.getElementById('guide-title').textContent = state.title;
+    saveBubble.hidden = false;
+    announce('Guide ready. Review it, then save it to Classroom.', 'ready');
+  } catch (error) {
+    announce(error.message || 'The guide could not be created.', 'error');
+  } finally {
+    makeButton.disabled = false;
+  }
 }
 
-document.getElementById('capture-screen').addEventListener('click', () => run('Capturing visible screen…', captureScreen));
-document.getElementById('scrape-page').addEventListener('click', () => run('Scraping current page…', scrapePage));
-document.getElementById('extract-content').addEventListener('click', () => run('Finding educational content…', extractContent));
-document.getElementById('make-guide').addEventListener('click', () => run('Creating and saving study guide…', makeStudyGuide));
+async function saveStudyGuide() {
+  if (!state.generated || saveButton.disabled) return;
+  saveButton.disabled = true;
+  saveButton.textContent = 'Saving…';
+  announce('Saving your guide to CordiaClassroom…', 'working');
+  const source = state.source || {};
+  const response = await runtime({
+    action: 'saveStudyGuide',
+    title: state.title,
+    notes: state.generated.notes,
+    studyGuide: state.generated.study_guide,
+    flashcards: state.generated.flashcards,
+    url: source.url || '',
+    sourceType: source.sourceType || 'webpage',
+    tabId: source.tabId,
+  });
+  if (!response?.success || !response.savedGuide?.id) {
+    saveButton.disabled = false;
+    saveButton.textContent = 'Save to Classroom';
+    announce(response?.error || 'The guide could not be saved. Try again.', 'error');
+    return;
+  }
+  saveBubble.classList.add('saved');
+  saveButton.textContent = 'Saved';
+  if (response.redirected) {
+    announce('Saved. Opening your guide in CordiaClassroom…', 'ready');
+  } else {
+    connectLink.href = response.guideUrl;
+    connectLink.textContent = 'Open guide';
+    connectLink.hidden = false;
+    announce('Saved to Classroom. Open the guide here.', 'ready');
+  }
+}
 
-updatePageContext();
+makeButton.addEventListener('click', makeStudyGuide);
+saveButton.addEventListener('click', saveStudyGuide);
 initAuth();

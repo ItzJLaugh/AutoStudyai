@@ -12,32 +12,31 @@
     <div><strong>CordiaClassroom</strong><span>Turn the current page into a study guide.</span></div>
   </header>
 
-  <section class="card auth">
-    <div id="signed-out" hidden>
-      <p>Sign in to CordiaClassroom first.</p>
-      <a class="button primary" href="https://classroom.cordiacode.com" target="_blank">Open CordiaClassroom</a>
+  <section id="status" class="status-card" role="status">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span id="status-text">Checking your Classroom connection…</span>
+    <a id="connect" href="https://classroom.cordiacode.com" target="_blank" hidden>Connect</a>
+  </section>
+
+  <main class="card workflow" aria-label="Study guide workflow">
+    <div class="steps" aria-label="Progress">
+      <div class="step" data-step="capture"><b>1</b><span>Capture</span></div>
+      <div class="step" data-step="scrape"><b>2</b><span>Read</span></div>
+      <div class="step" data-step="extract"><b>3</b><span>Focus</span></div>
+      <div class="step" data-step="create"><b>4</b><span>Create</span></div>
     </div>
-    <div id="signed-in" hidden><span id="user-email"></span><button id="disconnect" class="link">Disconnect</button></div>
-  </section>
-
-  <section class="card context">
-    <span>Current tab</span>
-    <strong id="page-title">Open a study page</strong>
-    <small id="page-url"></small>
-  </section>
-
-  <main class="card actions" aria-label="Study actions">
-    <button id="capture-screen" class="action"><b>1</b><span><strong>Capture screen</strong><small>Capture exactly what is visible.</small></span></button>
-    <button id="scrape-page" class="action"><b>2</b><span><strong>Scrape page</strong><small>Read the page, Canvas file, or PDF.</small></span></button>
-    <button id="extract-content" class="action"><b>3</b><span><strong>Get educational content</strong><small>Keep the material worth studying.</small></span></button>
-    <button id="make-guide" class="action primary"><b>4</b><span><strong>Make &amp; save study guide</strong><small>Generate it and confirm it is in Classroom.</small></span></button>
+    <button id="make-guide" class="make-button">Make study guide</button>
   </main>
 
-  <p id="status" role="status">Choose an action.</p>
   <section id="result" class="card result" hidden>
     <strong id="result-title"></strong>
     <pre id="result-content"></pre>
-    <a id="open-classroom" href="https://classroom.cordiacode.com/dashboard?view=guides" target="_blank" hidden>Open saved guide</a>
+  </section>
+
+  <section id="save-bubble" class="save-bubble" hidden>
+    <span class="live-dot" aria-hidden="true"></span>
+    <div><small>Ready for Classroom</small><strong id="guide-title"></strong></div>
+    <button id="save-guide">Save to Classroom</button>
   </section>
   <script src="popup.js"></script>
 </body>

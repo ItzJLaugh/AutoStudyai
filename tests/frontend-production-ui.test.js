@@ -81,8 +81,8 @@ assert.equal((smartnotes.match(/source_type: guidePreview\.source\?\.type/g) || 
 assert.match(nclex, /source_type: 'study_guide'/);
 assert.match(extensionPopup, /action: 'createStudyGuide'/);
 assert.match(extensionPopup, /sourceType: source\.sourceType/);
-assert.match(extensionOnboarding, /four direct actions/);
-assert.match(extensionOnboarding, /Make study guide/);
+assert.match(extensionOnboarding, /One button captures, reads, focuses, and creates the guide/);
+assert.match(extensionOnboarding, /Save to Classroom/);
 assert.doesNotMatch(extensionOnboarding, /Capture Content|asai-popup/);
 assert.match(missionPage, /One Cordia Tutor/);
 assert.match(guidePage, /Based on \{sourceHref/);

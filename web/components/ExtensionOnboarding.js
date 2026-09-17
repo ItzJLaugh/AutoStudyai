@@ -10,26 +10,26 @@ const INSTALL_MARKER_ATTR = 'data-asai-extension';
 const STEPS = [
   {
     id: 1,
-    title: 'Open the Tutor side panel',
-    body: 'On any lecture slideshow or course page, click the pinned CordiaClassroom icon. The Tutor stays beside your current tab.',
+    title: 'Open CordiaClassroom',
+    body: 'On any lecture, slideshow, Canvas page, or PDF, click the pinned CordiaClassroom icon.',
     scene: 'toolbar',
   },
   {
     id: 2,
-    title: 'Ask or capture',
-    body: 'Ask Cordia Tutor to explain, find, or build from the page—or open Capture and choose “Read this study material.”',
+    title: 'Make a study guide',
+    body: 'Click “Make study guide.” One button captures, reads, focuses, and creates the guide.',
     scene: 'capture',
   },
   {
     id: 3,
     title: 'Review and save',
-    body: 'Review the source-grounded result in the side panel, then save it to the matching Classroom class.',
+    body: 'Review the result, then click “Save to Classroom” when the live save bubble appears.',
     scene: 'preview',
   },
   {
     id: 4,
     title: 'Continue in Classroom',
-    body: 'The same Tutor conversation and new study material are waiting in CordiaClassroom.',
+    body: 'After the save is confirmed, Cordia opens the exact study guide in Classroom automatically.',
     scene: 'platform',
   },
 ];

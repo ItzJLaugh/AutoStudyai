@@ -38,10 +38,11 @@ async function main() {
   await panel.setContent(popupHtml
     .replace('<link rel="stylesheet" href="styles.css">', `<style>${popupCss}</style>`)
     .replace('<script src="popup.js"></script>', ''));
-  assert.equal(await panel.locator('.action').count(), 4);
-  assert.deepEqual(await panel.locator('.action strong').allTextContents(), [
-    'Capture screen', 'Scrape page', 'Get educational content', 'Make & save study guide',
-  ]);
+  assert.equal(await panel.locator('.step').count(), 4);
+  assert.deepEqual(await panel.locator('.step span').allTextContents(), ['Capture', 'Read', 'Focus', 'Create']);
+  assert.equal(await panel.locator('#make-guide').textContent(), 'Make study guide');
+  assert.equal(await panel.locator('#save-guide').textContent(), 'Save to Classroom');
+  assert.equal(await panel.locator('.context').count(), 0);
   assert.equal(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
 
   await browser.close();

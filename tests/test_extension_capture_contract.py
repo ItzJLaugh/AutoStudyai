@@ -13,13 +13,23 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.scraper = (ROOT / "extension" / "content.js").read_text(encoding="utf-8")
         self.manifest = json.loads((ROOT / "extension" / "manifest.json").read_text(encoding="utf-8"))
 
-    def test_extension_exposes_only_four_study_actions(self):
-        self.assertIn("const ACTIONS = { captureScreen, scrapePage, extractEducationalContent, createStudyGuide }", self.worker)
-        self.assertEqual(self.html.count('class="action'), 4)
+    def test_one_button_runs_the_four_step_study_workflow(self):
+        self.assertIn("captureScreen, scrapePage, extractEducationalContent, createStudyGuide, saveStudyGuide", self.worker)
+        self.assertEqual(self.html.count('class="step"'), 4)
+        self.assertEqual(self.html.count('id="make-guide"'), 1)
         for action in ("captureScreen", "scrapePage", "extractEducationalContent", "createStudyGuide"):
             self.assertIn(f"action: '{action}'", self.panel)
         for removed in ("getTutorSession", "setTutorSkill", "updateBrowserContext", "requestActiveTabAccess"):
             self.assertNotIn(removed, self.worker + self.panel)
+
+    def test_panel_defers_save_and_redirects_only_after_confirmation(self):
+        self.assertIn("action: 'saveStudyGuide'", self.panel)
+        self.assertIn("if (!saved?.guide?.id)", self.worker)
+        self.assertIn("chrome.tabs.update(message.tabId", self.worker)
+        self.assertIn("chrome.tabs.create({ url: guideUrl })", self.worker)
+        self.assertIn("classroom.cordiacode.com/guide/", self.worker)
+        self.assertIn('id="save-bubble"', self.html)
+        self.assertIn('Save to Classroom', self.html)
 
     def test_site_access_is_declared_not_runtime_choreography(self):
         self.assertEqual(self.manifest["host_permissions"], ["http://*/*", "https://*/*"])
@@ -48,11 +58,15 @@ class ExtensionCaptureContractTests(unittest.TestCase):
         self.assertIn("apiFetch('/guides'", self.worker)
         self.assertIn("'[Screenshot fallback]'", self.panel)
 
-    def test_guide_action_requires_confirmed_platform_save(self):
-        self.assertIn("if (!saved?.guide?.id)", self.worker)
-        self.assertIn("savedGuide: saved.guide", self.worker)
-        self.assertIn("if (!response.savedGuide?.id)", self.panel)
-        self.assertIn("classroom.cordiacode.com/guide/", self.panel)
+    def test_title_uses_content_instead_of_file_preview(self):
+        self.assertIn("function chooseGuideTitle()", self.panel)
+        self.assertIn("(?:exam|test|quiz)", self.panel)
+        self.assertIn("file\\s*preview", self.panel)
+
+    def test_panel_removes_current_tab_and_duplicate_connection_controls(self):
+        self.assertNotIn("Current tab", self.html)
+        self.assertNotIn("disconnect", self.html.lower())
+        self.assertEqual(self.html.count('role="status"'), 1)
 
     def test_extension_reuses_classroom_session_without_password_form(self):
         bridge = (ROOT / "extension" / "asai-bridge.js").read_text(encoding="utf-8")
@@ -63,7 +77,7 @@ class ExtensionCaptureContractTests(unittest.TestCase):
 
     def test_custom_extension_code_is_small(self):
         self.assertLess(len(self.worker.splitlines()), 220)
-        self.assertLess(len(self.panel.splitlines()), 180)
+        self.assertLess(len(self.panel.splitlines()), 210)
         self.assertLess(len(self.scraper.splitlines()), 130)
 
 

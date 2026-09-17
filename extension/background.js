@@ -79,7 +79,7 @@ async function captureScreen() {
   const tab = await activeWebTab();
   const image = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 82 });
   if (!image) throw new Error('Chrome could not capture the visible page.');
-  return { image, title: tab.title || 'Study material', url: tab.url, sourceType: 'screenshot' };
+  return { image, title: tab.title || 'Study material', url: tab.url, sourceType: 'screenshot', tabId: tab.id };
 }
 
 function safeDocumentUrl(value) {
@@ -117,7 +117,7 @@ async function scrapePage() {
   if (!source) throw new Error('The page scraper returned no content.');
   if (source.kind === 'file') {
     const extracted = await extractDocument(source);
-    return { text: extracted.text, title: source.filename || tab.title || 'Study document', url: source.url, sourceType: 'file' };
+    return { text: extracted.text, title: source.filename || tab.title || 'Study document', url: source.url, sourceType: 'file', tabId: tab.id };
   }
   if (!source.text?.trim()) throw new Error('No readable page content was found.');
   return {
@@ -125,6 +125,7 @@ async function scrapePage() {
     title: source.title || tab.title || 'Study page',
     url: tab.url,
     sourceType: source.selected ? 'selected_text' : 'webpage',
+    tabId: tab.id,
   };
 }
 
@@ -141,23 +142,42 @@ async function createStudyGuide(message) {
     body: JSON.stringify({ content: message.content, images: message.images || [], notes: true, study_guide: true, flashcards: true }),
   }), 'Study-guide generation failed.');
   if (!generated.study_guide) throw new Error('The server returned no study guide.');
+  return generated;
+}
+
+async function saveStudyGuide(message) {
+  if (!message.studyGuide?.trim()) throw new Error('Create a study guide before saving.');
   const saved = await responseData(await apiFetch('/guides', {
     method: 'POST',
     body: JSON.stringify({
       title: message.title || 'Study Guide',
-      notes: generated.notes || null,
-      study_guide: generated.study_guide,
-      flashcards: generated.flashcards || null,
+      notes: message.notes || null,
+      study_guide: message.studyGuide,
+      flashcards: message.flashcards || null,
       source_url: /^https?:/i.test(message.url || '') ? message.url : null,
       source_type: message.sourceType || 'webpage',
       source_title: message.title || 'Captured study material',
     }),
   }), 'The guide was generated but could not be saved.');
   if (!saved?.guide?.id) throw new Error('CordiaClassroom did not confirm the saved guide.');
-  return { ...generated, savedGuide: saved.guide };
+  const guideUrl = `https://classroom.cordiacode.com/guide/${encodeURIComponent(saved.guide.id)}`;
+  let redirected = false;
+  try {
+    if (message.tabId) {
+      await chrome.tabs.update(message.tabId, { url: guideUrl });
+      redirected = true;
+    }
+  } catch (_) { /* The source tab may have closed after generation. */ }
+  if (!redirected) {
+    try {
+      await chrome.tabs.create({ url: guideUrl });
+      redirected = true;
+    } catch (_) { /* The confirmed save still succeeds even if Chrome blocks navigation. */ }
+  }
+  return { savedGuide: saved.guide, guideUrl, redirected };
 }
 
-const ACTIONS = { captureScreen, scrapePage, extractEducationalContent, createStudyGuide };
+const ACTIONS = { captureScreen, scrapePage, extractEducationalContent, createStudyGuide, saveStudyGuide };
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'syncClassroomAuth') {
