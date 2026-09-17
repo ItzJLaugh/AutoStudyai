@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CordiaClassroom",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "Create notes, study guides, and flashcards from selected text, course pages, and common study files.",
   "homepage_url": "https://classroom.cordiacode.com",
   "minimum_chrome_version": "114",
@@ -10,6 +10,7 @@
     "https://autostudy-ai.fly.dev/*",
     "https://classroom.cordiacode.com/*"
   ],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background.js"
   },
