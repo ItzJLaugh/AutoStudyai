@@ -106,7 +106,7 @@ BROWSER_TTL_SECONDS = 45
 RUN_TTL_SECONDS = 180
 TUTOR_SAFETY_POLICY = (
     "Never take graded assessments, submit assignments, change grades, or impersonate the student. "
-    "Require explicit confirmation before downloads, calendar changes, external messages, or Canvas writes."
+    "Require explicit confirmation before downloads, calendar changes, external messages, or learning-platform writes."
 )
 BROWSER_COMMAND_PERMISSIONS = {
     "capture_current_page": "read_page",
@@ -153,26 +153,6 @@ def validate_skill(skill: str | None, message: str = "") -> str:
     if not TUTOR_SKILLS[selected]["available"]:
         raise HTTPException(status_code=409, detail=f"{TUTOR_SKILLS[selected]['label']} is not available yet")
     return selected
-
-
-def build_deadline_plan(items: list[dict], limit: int = 6) -> str:
-    """Create a truthful, read-only plan from normalized Canvas deadlines."""
-    pending = sorted(
-        (item for item in items if item.get("due_at") and not item.get("completed")),
-        key=lambda item: item["due_at"],
-    )[:limit]
-    if not pending:
-        return "Canvas has no upcoming incomplete deadlines to plan from."
-    lines = ["Study plan from your current Canvas deadlines:"]
-    for item in pending:
-        try:
-            due = datetime.fromisoformat(str(item["due_at"]).replace("Z", "+00:00"))
-            due_label = due.astimezone().strftime("%b %d at %I:%M %p")
-        except (TypeError, ValueError):
-            due_label = str(item["due_at"])
-        lines.append(f"• {due_label} — {item.get('title') or 'Course item'}: review the source, practice it, then check your understanding.")
-    lines.append("No calendar events were created.")
-    return "\n".join(lines)
 
 
 def tutor_skill_instruction(skill: str | None) -> str:

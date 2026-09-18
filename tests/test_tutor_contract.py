@@ -20,6 +20,7 @@ class TutorContractTests(unittest.TestCase):
         table = MagicMock()
         table.select.return_value = table
         table.eq.return_value = table
+        table.limit.return_value = table
         table.insert.return_value = table
         guide = {
             "id": self.guide_id,
@@ -55,6 +56,56 @@ class TutorContractTests(unittest.TestCase):
         self.assertEqual(response.json()["answer"], "Mitosis is cell division.")
         self.assertEqual(response.json()["source"], {"type": "study_guide", "id": self.guide_id, "title": "Biology"})
         self.assertEqual(answer.call_args.kwargs["context"], "Q1: What is mitosis?\nA1: Cell division.")
+
+    @patch("main._learning_guidance", return_value="")
+    @patch("main.record_usage")
+    @patch("main.check_usage", return_value={"used": 0})
+    @patch("main.answer_question", return_value="The selected source explains recursion.")
+    @patch("main.get_user_id", return_value="student-1")
+    def test_tutor_uses_selected_material_when_saved_guide_content_is_empty(self, _auth, answer, _usage, _record, _guidance):
+        db, table = self.guide_db()
+        table.execute.side_effect = [MagicMock(data=[{
+            "id": self.guide_id,
+            "title": "Recursion",
+            "folder_id": None,
+            "study_guide": "",
+            "notes": None,
+            "source_url": None,
+        }])]
+        with patch("main.get_supabase", return_value=db):
+            response = self.client.post(
+                "/chat",
+                headers={"Authorization": "Bearer test"},
+                json={"question": "Explain this", "content": "Recursion needs a base case.", "guide_id": self.guide_id},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(answer.call_args.kwargs["context"], "Recursion needs a base case.")
+
+    @patch("main._learning_guidance", return_value="")
+    @patch("main.record_usage")
+    @patch("main.check_usage", return_value={"used": 0})
+    @patch("main.generate_practice_guide")
+    @patch("main.get_user_id", return_value="student-1")
+    def test_practice_endpoint_returns_exactly_ten_source_grounded_problems(self, _auth, generate, _usage, record, _guidance):
+        generate.return_value = "\n".join(
+            line
+            for index in range(1, 11)
+            for line in (f"Q{index}: Solve source problem {index}.", f"A{index}: Source answer {index}.")
+        )
+        db, _table = self.guide_db()
+        with patch("main.get_supabase", return_value=db):
+            response = self.client.post(
+                "/practice",
+                headers={"Authorization": "Bearer test"},
+                json={"guide_id": self.guide_id},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["problems"]), 10)
+        self.assertEqual(response.json()["source"]["id"], self.guide_id)
+        self.assertIn("mitosis", generate.call_args.args[0])
+        record.assert_called_once()
 
     @patch("main._learning_guidance", return_value="")
     @patch("main.record_usage")
@@ -246,7 +297,7 @@ class TutorContractTests(unittest.TestCase):
         )
 
     @patch("main.get_user_id", return_value="student-1")
-    def test_plan_reads_existing_canvas_deadlines_without_calendar_write(self, _auth):
+    def test_plan_without_selected_material_points_to_calendar_dashboard(self, _auth):
         turn = {
             "id": "session-1",
             "run_id": "run-3",
@@ -254,11 +305,8 @@ class TutorContractTests(unittest.TestCase):
             "conversation_version": 9,
             "messages": [{"role": "user", "text": "Plan my week"}],
         }
-        completed = {**turn, "status": "idle", "conversation_version": 10}
-        deadlines = [{"title": "Exam 1", "due_at": "2026-09-20T23:59:00Z", "completed": False}]
         with patch("main.claim_tutor_turn", return_value=turn), \
-             patch("main.canvas.tutor_deadlines", return_value=deadlines) as read_deadlines, \
-             patch("main.complete_tutor_turn", return_value=completed), \
+             patch("main.complete_tutor_turn", return_value={**turn, "status": "idle", "conversation_version": 10}), \
              patch("main.public_tutor_session", return_value={"id": "session-1", "status": "idle"}):
             response = self.client.post(
                 "/chat",
@@ -273,10 +321,8 @@ class TutorContractTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["action"], "created_plan")
-        self.assertIn("Exam 1", response.json()["answer"])
-        self.assertIn("No calendar events were created", response.json()["answer"])
-        read_deadlines.assert_called_once_with("student-1")
+        self.assertEqual(response.json()["action"], "opened_plan_help")
+        self.assertIn("calendar reminders", response.json()["answer"])
 
     @patch("main.get_user_id", return_value="student-1")
     def test_organize_requires_and_uses_explicit_destination_class(self, _auth):
@@ -315,7 +361,7 @@ class TutorContractTests(unittest.TestCase):
         self.assertEqual(move.call_args.args[1].folder_id, target_class)
 
     @patch("main.get_user_id", return_value="student-1")
-    def test_browser_material_guide_is_saved_to_matching_canvas_class(self, _auth):
+    def test_browser_material_guide_uses_explicitly_selected_class(self, _auth):
         class_id = "66666666-6666-4666-8666-666666666666"
         turn = {
             "id": "session-1",
@@ -336,7 +382,6 @@ class TutorContractTests(unittest.TestCase):
         db.table.return_value = table
 
         with patch("main.get_supabase", return_value=db), \
-             patch("main.canvas.folder_id_from_source_url", return_value=class_id) as match_class, \
              patch("main.claim_tutor_turn", return_value=turn), \
              patch("main.complete_tutor_turn", return_value=completed), \
              patch("main.public_tutor_session", return_value={"id": "session-1", "status": "idle"}), \
@@ -354,6 +399,7 @@ class TutorContractTests(unittest.TestCase):
                     "content": "Source: Exam review\nA proposition is a declarative statement.",
                     "context_title": "Exam 1 material",
                     "context_url": "https://school.instructure.com/courses/4/pages/exam-review",
+                    "class_id": class_id,
                     "session_id": "session-1",
                     "conversation_version": 13,
                     "skill": "build_guide",
@@ -363,7 +409,6 @@ class TutorContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["action"], "created_guide")
         self.assertEqual(table.insert.call_args.args[0]["folder_id"], class_id)
-        match_class.assert_called_once_with("student-1", "https://school.instructure.com/courses/4/pages/exam-review")
 
 
 if __name__ == "__main__":

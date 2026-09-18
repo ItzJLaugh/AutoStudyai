@@ -103,3 +103,10 @@ class ChatResponse(BaseModel):
     source: Optional[dict] = None
     skill: Optional[str] = None
     session: Optional[dict] = None
+
+
+class PracticeRequest(BaseModel):
+    """Create a temporary practice set from one guide or uploaded source."""
+    guide_id: Optional[str] = Field(default=None, max_length=36)
+    content: str = Field(default="", max_length=500_000)
+    title: Optional[str] = Field(default=None, max_length=200)

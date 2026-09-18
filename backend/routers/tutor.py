@@ -54,7 +54,7 @@ class BrowserContextUpdate(BaseModel):
     @field_validator("permission_scope")
     @classmethod
     def validate_permissions(cls, value):
-        allowed = {"read_page", "navigate", "download", "calendar_write", "canvas_write"}
+        allowed = {"read_page", "navigate", "download", "calendar_write"}
         if any(item not in allowed for item in value):
             raise ValueError("Unsupported browser permission")
         return sorted(set(value))

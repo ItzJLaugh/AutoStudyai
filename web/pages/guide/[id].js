@@ -110,6 +110,7 @@ export default function GuidePage() {
     { key: 'notes', label: 'Notes' },
     { key: 'flashcards', label: `Flashcards (${flashcards.length})` },
     { key: 'quiz', label: 'Retain' },
+    { key: 'practice', label: 'Practice' },
   ];
 
   return (
@@ -319,6 +320,19 @@ export default function GuidePage() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'practice' && (
+        <div className="practice-tab-intro">
+          <h3>Work the problem, not just the flashcard.</h3>
+          <p>
+            Generate 10 source-grounded problems or scenarios, keep this guide visible,
+            and use a touch-ready workspace to draw, type, and arrange symbols.
+          </p>
+          <button className="btn" onClick={() => router.push('/practice/' + id)}>
+            Open practice workspace
+          </button>
         </div>
       )}
 

@@ -37,7 +37,11 @@ def get_auth_supabase() -> Client:
     in the browser, not in this shared API process.
     """
     url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+    key = (
+        os.getenv("SUPABASE_ANON_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or os.getenv("SUPABASE_KEY")
+    )
     if not url or not key:
         raise ValueError("Supabase credentials not configured")
     return create_client(

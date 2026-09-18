@@ -35,19 +35,6 @@ class SharedTutorSessionContractTests(unittest.TestCase):
         self.assertTrue(TUTOR_SKILLS["plan"]["available"])
         self.assertTrue(TUTOR_SKILLS["organize"]["available"])
 
-    def test_deadline_plan_is_bounded_read_only_and_skips_completed_work(self):
-        import sys
-        sys.path.insert(0, str(ROOT / "backend"))
-        from services.tutor_sessions import build_deadline_plan
-
-        plan = build_deadline_plan([
-            {"title": "Already submitted", "due_at": "2026-09-16T12:00:00Z", "completed": True},
-            {"title": "Exam review", "due_at": "2026-09-18T23:59:00Z", "completed": False},
-        ])
-        self.assertIn("Exam review", plan)
-        self.assertNotIn("Already submitted", plan)
-        self.assertIn("No calendar events were created", plan)
-
     def test_browser_presence_expires_instead_of_claiming_a_stale_connection(self):
         import sys
         sys.path.insert(0, str(ROOT / "backend"))

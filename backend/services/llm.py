@@ -433,7 +433,7 @@ def generate_study_guide_from_notes(html_content: str) -> str:
 
 
 def generate_practice_guide(context: str, learning_guidance: str = "") -> str:
-    """Create source-grounded practice problems in the existing Q/A guide format."""
+    """Create ten source-grounded practice problems in the canonical Q/A format."""
     client = get_openai_client()
     if not client:
         return "[Error: OpenAI API key not configured]"
@@ -442,16 +442,18 @@ def generate_practice_guide(context: str, learning_guidance: str = "") -> str:
         f"\nAdapt the presentation using this learning guidance: {learning_guidance}"
         if learning_guidance else ""
     )
-    prompt = f"""Create 8-12 practice problems using only the source material below.
-Each problem must be answerable from the source. Include a concise answer that explains the reasoning using only source facts.
-Do not introduce outside facts, fabricated examples, or unsupported assumptions.{guidance}
+    prompt = f"""Create exactly 10 practice problems or realistic scenarios from the source material below.
+Match the work to the subject: calculations and derivations for math, engineering, chemistry, finance, or accounting; code or debugging tasks for computing; and applied scenarios for conceptual material.
+Each problem must be solvable from the source. You may vary numbers when the source provides the method, but include every value needed to solve the problem.
+Include one concise answer that shows the essential reasoning. Do not introduce unsupported facts.{guidance}
 
 SOURCE:
 {context[:25000]}
 
 Return only this repeated format:
 Q1: [practice problem]
-A1: [source-grounded answer]
+A1: [source-grounded answer and essential reasoning on one line]
+Continue through Q10/A10. Do not return fewer or more than 10 pairs.
 """
     try:
         response = client.chat.completions.create(

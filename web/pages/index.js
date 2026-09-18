@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [confirmationSent, setConfirmationSent] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
 
   useEffect(() => {
     if (getToken()) router.push('/dashboard');
@@ -74,6 +75,20 @@ export default function LoginPage() {
     }
   }
 
+  async function continueWithGoogle() {
+    setOauthLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`${API}/auth/oauth/google`);
+      const data = await responseJson(response);
+      if (!response.ok || !data?.url) throw new Error(data?.detail || 'Google sign-in could not start.');
+      window.location.assign(data.url);
+    } catch (oauthError) {
+      setError(oauthError.message || 'Google sign-in could not start.');
+      setOauthLoading(false);
+    }
+  }
+
   function showLogin() {
     setForgotMode(false);
     setForgotSent(false);
@@ -99,7 +114,7 @@ export default function LoginPage() {
           <section className="login-panel-left">
             <div className="login-brand-mark">
               <AcademicInfinityMark className="login-academic-mark" />
-              <div className="login-brand-name">CordiaClassroom</div>
+              <div className="login-brand-name">CordiaClassroom <small>beta</small></div>
               <h1 className="login-editorial-title">Learn from anything.</h1>
               <p className="login-brand-tagline">Capture educational material from any page and turn it into a focused study workspace.</p>
             </div>
@@ -125,6 +140,11 @@ export default function LoginPage() {
             ) : (
               <div className="login-form-wrap">
                 <h2 className="login-form-title">{isSignup ? 'Create account' : 'Sign in'}</h2>
+                <button type="button" className="login-oauth-button" onClick={continueWithGoogle} disabled={oauthLoading}>
+                  <span aria-hidden="true">G</span>
+                  {oauthLoading ? 'Opening Google…' : 'Continue with Google'}
+                </button>
+                <div className="login-or"><span>or use email</span></div>
                 <div className="login-mode-tabs" role="tablist" aria-label="Account access">
                   <button type="button" role="tab" aria-selected={!isSignup} className={!isSignup ? 'active' : ''} onClick={() => selectMode(false)}>Sign in</button>
                   <button type="button" role="tab" aria-selected={isSignup} className={isSignup ? 'active' : ''} onClick={() => selectMode(true)}>Create account</button>

@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from schemas import (
     IngestRequest, IngestResponse,
     GenerateRequest, GenerateResponse,
-    ChatRequest, ChatResponse
+    ChatRequest, ChatResponse, PracticeRequest
 )
 from services.text_processing import (
     clean_text, chunk_text,
@@ -36,7 +36,7 @@ from services.llm import (
     analyze_images_for_slides, generate_practice_guide,
     study_guide_is_complete, study_guide_to_flashcards,
 )
-from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes, canvas, tutor
+from routers import auth, folders, guides, stats, search, quiz, billing, nclex, exam, feedback, smart_notes, calendar, tutor
 from auth_utils import get_user_id
 from database import get_supabase
 from routers.billing import check_usage, record_usage
@@ -47,7 +47,6 @@ from services.pptx_rendering import (
     render_pptx_to_pdf,
 )
 from services.tutor_sessions import (
-    build_deadline_plan,
     claim_tutor_turn,
     complete_tutor_turn,
     fail_tutor_turn,
@@ -156,7 +155,7 @@ app.include_router(exam.router)
 app.include_router(billing.router)
 app.include_router(feedback.router)
 app.include_router(smart_notes.router)
-app.include_router(canvas.router)
+app.include_router(calendar.router)
 app.include_router(tutor.router)
 
 def _learning_guidance(user_id: str) -> str:
@@ -595,6 +594,64 @@ async def generate(body: GenerateRequest, request: Request, authorization: str =
         raise HTTPException(status_code=500, detail="Failed to generate materials")
 
 
+@app.post("/practice")
+@limiter.limit("10/minute")
+async def create_practice_set(
+    body: PracticeRequest,
+    request: Request,
+    authorization: str = Header(default=""),
+):
+    """Generate ten temporary practice problems from a guide or uploaded text."""
+    user_id = get_user_id(authorization)
+    content = _sanitize_text(body.content, MAX_CONTENT_LENGTH)
+    title = (body.title or "Uploaded study material").strip() or "Uploaded study material"
+    source = {"type": "upload", "title": title}
+
+    if body.guide_id:
+        if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', body.guide_id, re.IGNORECASE):
+            raise HTTPException(status_code=400, detail="That study guide link is not valid.")
+        result = (
+            get_supabase().table("study_guides")
+            .select("id,title,study_guide,notes")
+            .eq("id", body.guide_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            raise HTTPException(status_code=404, detail="That study guide is no longer available.")
+        guide = result.data[0]
+        content = _sanitize_text(
+            guide.get("study_guide") or _plain_context(guide.get("notes") or ""),
+            MAX_CONTENT_LENGTH,
+        )
+        title = guide.get("title") or "Study Guide"
+        source = {"type": "study_guide", "id": guide["id"], "title": title}
+
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="Add a study guide or upload readable study material first.")
+
+    usage = check_usage(user_id, "build")
+    generated = await run_in_threadpool(
+        generate_practice_guide,
+        content,
+        _learning_guidance(user_id),
+    )
+    problems = study_guide_to_flashcards(generated or "")
+    if len(problems) < 10:
+        raise HTTPException(status_code=502, detail="Cordia could not create all 10 practice problems. Please try again.")
+
+    record_usage(user_id, "build", usage)
+    return {
+        "title": f"{title} — Practice",
+        "source": source,
+        "problems": [
+            {"id": index + 1, "prompt": pair["front"], "answer": pair["back"]}
+            for index, pair in enumerate(problems[:10])
+        ],
+    }
+
+
 @app.post("/chat", response_model=ChatResponse)
 @limiter.limit("30/minute")
 async def chat(body: ChatRequest, request: Request, authorization: str = Header(default="")):
@@ -610,6 +667,7 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
 
         question = _sanitize_text(body.question, MAX_QUESTION_LENGTH)
         content = _sanitize_text(body.content, MAX_CONTENT_LENGTH)
+        request_content = content
 
         if not question:
             raise HTTPException(status_code=400, detail="Question is required")
@@ -631,7 +689,10 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             if not result.data:
                 raise HTTPException(status_code=404, detail="Guide not found")
             guide = result.data[0]
-            content = _sanitize_text(guide.get("study_guide") or guide.get("notes") or "", MAX_CONTENT_LENGTH)
+            content = _sanitize_text(
+                guide.get("study_guide") or guide.get("notes") or request_content,
+                MAX_CONTENT_LENGTH,
+            )
             source = {"type": "study_guide", "id": guide["id"], "title": guide.get("title") or "Study Guide"}
         elif body.note_id:
             if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', body.note_id, re.IGNORECASE):
@@ -644,7 +705,10 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             if not result.data:
                 raise HTTPException(status_code=404, detail="Note not found")
             note = result.data[0]
-            content = _sanitize_text(_plain_context(note.get("content") or ""), MAX_CONTENT_LENGTH)
+            content = _sanitize_text(
+                _plain_context(note.get("content") or request_content),
+                MAX_CONTENT_LENGTH,
+            )
             source = {"type": "smartnote", "id": note["id"], "title": note.get("title") or "SmartNote"}
         elif body.context_title and content:
             source = {
@@ -655,8 +719,6 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
                 source["url"] = body.context_url
 
         context_class_id = body.class_id or (guide or note or {}).get("folder_id")
-        if not context_class_id and source and source.get("type") == "browser":
-            context_class_id = canvas.folder_id_from_source_url(user_id, source.get("url"))
 
         if body.session_id:
             session_turn = claim_tutor_turn(
@@ -705,10 +767,11 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             )
 
         if active_skill == "plan":
-            return finish(ChatResponse(
-                answer=build_deadline_plan(canvas.tutor_deadlines(user_id)),
-                action="created_plan",
-            ))
+            if not content.strip():
+                return finish(ChatResponse(
+                    answer="Open Canvas calendar reminders on the Dashboard to review what is due today and what is coming next.",
+                    action="opened_plan_help",
+                ))
 
         if active_skill == "organize":
             if not (guide or note):
@@ -733,8 +796,12 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
                 source=source,
             ))
 
-        if not content:
-            return finish(ChatResponse(answer="Choose study material before asking Cordia."))
+        if not content.strip():
+            if source:
+                return finish(ChatResponse(
+                    answer=f"{source.get('title') or 'The selected material'} is selected, but it does not contain readable study material yet. Add content or choose another source."
+                ))
+            return finish(ChatResponse(answer="Choose a study guide, SmartNote, or uploaded file before asking Cordia."))
 
         # Validate mode
         if body.mode not in ("short", "detailed", "example"):

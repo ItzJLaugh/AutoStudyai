@@ -11,7 +11,7 @@ const SKILL_PROGRESS = {
   practice: 'Creating practice problems…',
   retain: 'Strengthening recall…',
   plan: 'Planning study time…',
-  find_material: 'Finding Canvas material…',
+  find_material: 'Finding related material…',
   organize: 'Organizing study material…',
 };
 
@@ -165,12 +165,17 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
       status: 'running',
       messages: [...(current?.messages || []), { role: 'user', text: question }],
     }));
+    const selectedContent = material?.kind === 'guide'
+      ? (material.study_guide || material.notes || '')
+      : material?.kind === 'note'
+        ? (material.content || '')
+        : (material?.content || '');
     const data = await apiFetch('/chat', {
       method: 'POST',
       timeoutMs: 120000,
       body: JSON.stringify({
         question,
-        content: ['attachment', 'browser'].includes(material?.kind) ? material.content : '',
+        content: selectedContent,
         ...(material?.kind === 'guide' ? { guide_id: material.id } : {}),
         ...(material?.kind === 'note' ? { note_id: material.id } : {}),
         ...(['attachment', 'browser'].includes(material?.kind) ? { context_title: material.title } : {}),

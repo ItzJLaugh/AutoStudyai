@@ -9,17 +9,17 @@ Market CordiaClassroom as a focused student product that reliably turns Canvas o
 The first public release is ready only when a new user can complete this path without developer help:
 
 1. Create an account and return through email or Google authentication.
-2. Connect Canvas with the guided token flow.
-3. See current courses and upcoming work.
-4. Create or automatically receive a guide from real course material.
-5. Find the guide in its class and study it with Retain, quiz, and tutor help.
+2. Add the user's read-only Canvas calendar-feed link without an API token or connector account.
+3. See work due today and upcoming work.
+4. Create a guide from real course material captured by the browser extension or uploaded directly.
+5. Find the guide in its class and study it with Practice, Retain, quiz, and Tutor help.
 6. Understand failures, limits, billing, privacy, and how to recover.
 
 ## Current evidence
 
 - Next.js production build passes for all 20 routes.
 - 75 backend contracts and 9 frontend/browser contracts pass.
-- Existing Canvas dashboard, secure file proxy, study-source review, guide generation, billing limits, learning profile, and extension capture contracts are present.
+- Canvas calendar reminders, secure file proxy, study-source review, guide generation, billing limits, learning profile, and extension capture contracts are present.
 - Live backend health endpoint responds successfully.
 - GitHub Actions verifies backend contracts, frontend contracts, the production build, and extension capture on pull requests.
 - The repository does not contain a reproducible baseline for the complete Supabase schema.
@@ -33,13 +33,11 @@ The first public release is ready only when a new user can complete this path wi
 
 ### P0 — trustworthy core path
 
-- [x] Filter Canvas planner noise before applying the automatic-guide scan limit.
 - [x] Preserve loaded Classroom data during partial API failures and provide an explicit retry state.
 - [x] Normalize structured API errors before rendering them.
-- [x] Synchronize Canvas courses to Classes with an immutable external course ID and idempotent updates.
-- [x] Attach Canvas-created guides to the matching class automatically.
+- [x] Replace the Canvas API/Pipedream connector with a read-only calendar-feed preview that stores its link only in the user's browser.
 - [x] Show the actual synchronous generation state as `building`, `ready`, or `failed`; never invent a queue or imply success before a guide is saved.
-- [ ] Test the complete real path: authentication → Canvas → source → generated guide → saved class.
+- [ ] Test the complete real path: authentication → captured or uploaded source → generated guide → saved class.
 - [x] Add structured server error reporting and a request ID visible to support without exposing student content.
 
 ### P0 — release safety
@@ -59,7 +57,7 @@ The first public release is ready only when a new user can complete this path wi
 
 - [x] Replace the fixed right-side tutor card with one collapsible, resizable left Tutor sidebar shared across learning screens.
 - [x] Let Tutor use the active guide, SmartNote, or session-attached PDF, DOCX, PPTX, image, or text file as explicit context.
-- [ ] Let Tutor fetch an unsaved Canvas source directly without duplicating the extension capture pipeline.
+- [x] Let Tutor use an explicitly selected guide, SmartNote, browser capture, or uploaded file without duplicating the extension capture pipeline.
 - [x] Let Tutor create a practice-problem guide linked to the source guide and saved into the same class.
 - [x] In Retain Mode, prefill `Explain this question` after an incorrect response and ground the answer in the current guide.
 - [x] Store and display source type, title, and ID for every current guide-generation path and Tutor explanation.
@@ -78,8 +76,8 @@ The first public release is ready only when a new user can complete this path wi
 
 ### P2 — after the public beta is stable
 
-- [ ] Replace manual Canvas tokens with institution-approved Canvas OAuth where schools provide developer-key access.
-- [ ] Add opt-in calendar reminders with clear authorization and undo behavior.
+- [x] Add opt-in Canvas calendar-feed reminders with clear authorization and disconnect behavior.
+- [ ] Reconsider institution-approved Canvas OAuth only if a school supplies a developer key and student demand justifies the connector.
 - [ ] Add institution onboarding, educator controls, and administrative reporting only after student demand is proven.
 
 ## Release gates
@@ -87,12 +85,12 @@ The first public release is ready only when a new user can complete this path wi
 Every item below needs current evidence, not a configured or mocked state:
 
 - Two fresh user accounts complete sign-up, sign-in, reset, sign-out, and session recovery.
-- Two Canvas domains connect and refresh without exposing credentials to Cordia UI or logs.
+- Two Canvas calendar-feed domains preview and refresh without exposing account credentials to Cordia UI or logs.
 - PDF, PPTX, Canvas file, ordinary webpage, selected text, and unsupported-source failure paths are exercised.
 - Generated guides retain source provenance, save once, land in the correct class, and survive refresh.
 - Quiz, Retain, SmartNotes, and Tutor use the selected guide and do not invent missing source content.
 - Free and paid limits behave correctly across UI, API, database, and Stripe webhook retries.
-- API outage, AI timeout, Canvas expiry, database failure, and partial response states are understandable and recoverable.
+- API outage, AI timeout, expired calendar feed, database failure, and partial response states are understandable and recoverable.
 - CI is green from a clean checkout, then the Vercel preview receives keyboard, responsive, and browser smoke tests.
 - Production deployment, health checks, logs, and rollback are verified before marketing traffic is enabled.
 

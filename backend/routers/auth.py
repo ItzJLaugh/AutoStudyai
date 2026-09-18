@@ -117,6 +117,25 @@ class AuthResponse(BaseModel):
     refresh_token: str = ""
 
 
+@router.get("/oauth/google")
+def google_oauth():
+    """Start the hosted Supabase Google OAuth flow."""
+    site_url = (os.getenv("SITE_URL") or os.getenv("FRONTEND_URL") or "https://classroom.cordiacode.com").rstrip("/")
+    try:
+        result = get_auth_supabase().auth.sign_in_with_oauth({
+            "provider": "google",
+            "options": {"redirect_to": f"{site_url}/auth/callback"},
+        })
+        if not result or not result.url:
+            raise HTTPException(status_code=503, detail="Google sign-in is not available right now.")
+        return {"url": result.url}
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.error("Google OAuth start failed: %s", type(error).__name__)
+        raise HTTPException(status_code=503, detail="Google sign-in is not configured yet.")
+
+
 @router.post("/signup", response_model=AuthResponse)
 def signup(request: SignupRequest, req: Request):
     """Create a new user account. Rate limited."""

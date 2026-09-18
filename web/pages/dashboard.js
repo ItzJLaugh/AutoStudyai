@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { apiErrorMessage, apiFetch } from '../lib/api';
 import { useRequireAuth } from '../lib/auth';
@@ -7,7 +7,7 @@ import useSessionTracker from '../lib/useSessionTracker';
 import SearchModal from '../components/SearchModal';
 import AILoadingSphere from '../components/AILoadingSphere';
 import StudyWorkspaceFrame from '../components/StudyWorkspaceFrame';
-import CanvasDashboard from '../components/CanvasDashboard';
+import CalendarDashboard from '../components/CalendarDashboard';
 import { organizeDashboardGuides } from '../lib/dashboardOrganization';
 
 export default function Dashboard({ timerState, setTimerState }) {
@@ -86,17 +86,6 @@ export default function Dashboard({ timerState, setTimerState }) {
       setLoading(false);
     }
   }
-
-  const refreshCanvasWorkspace = useCallback(async () => {
-    const [foldersData, guidesData, statsData] = await Promise.all([
-      apiFetch('/folders'),
-      apiFetch('/guides'),
-      apiFetch('/stats/overview'),
-    ]);
-    if (Array.isArray(foldersData?.folders)) setFolders(foldersData.folders);
-    if (Array.isArray(guidesData?.guides)) setGuides(guidesData.guides);
-    if (statsData && !statsData.detail) setStats(statsData);
-  }, []);
 
   async function createFolder() {
     if (!newFolderName.trim()) return;
@@ -435,12 +424,12 @@ export default function Dashboard({ timerState, setTimerState }) {
           </div>
         )}
 
-        <CanvasDashboard onWorkspaceChanged={refreshCanvasWorkspace} />
+        <CalendarDashboard />
 
         <button type="button" className="dashboard-extension-banner" onClick={() => router.push('/install-extension')}>
           <span className="extension-banner-badge">Chrome</span>
           <span className="dashboard-extension-copy">
-            <strong>Study something outside Canvas</strong>
+            <strong>Study anything in your browser</strong>
             <small>Use the Chrome extension to capture any educational page, PDF, or slideshow.</small>
           </span>
           <span className="dashboard-extension-action">Install free</span>

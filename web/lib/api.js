@@ -53,9 +53,21 @@ export function authOnlyHeaders() {
 }
 
 export function apiErrorMessage(detail, fallback = 'Something went wrong. Please try again.') {
-  if (typeof detail === 'string' && detail.trim()) return detail;
-  if (typeof detail?.message === 'string' && detail.message.trim()) return detail.message;
-  return fallback;
+  const message = typeof detail === 'string' ? detail.trim() : String(detail?.message || '').trim();
+  if (!message) return fallback;
+  if (/invalid or expired token|invalid refresh token|failed to refresh token/i.test(message)) {
+    return 'Your session expired. Sign in again.';
+  }
+  if (/failed to fetch|networkerror|load failed|service unavailable/i.test(message)) {
+    return 'Classroom could not reach the service. Check your connection and try again.';
+  }
+  if (/internal server error|unexpected server error/i.test(message)) {
+    return 'Classroom hit a temporary problem. Please try again.';
+  }
+  if (/too many (requests|attempts)/i.test(message)) {
+    return 'Too many requests were sent at once. Wait a moment and try again.';
+  }
+  return message;
 }
 
 function addRequestReference(data, response) {
@@ -71,7 +83,14 @@ function addRequestReference(data, response) {
 }
 
 export async function responseJson(response) {
-  return addRequestReference(await response.json(), response);
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    data = { detail: response.ok ? '' : 'Classroom received an unreadable response. Please try again.' };
+  }
+  if (data?.detail) data = { ...data, detail: apiErrorMessage(data.detail) };
+  return addRequestReference(data, response);
 }
 
 // Proactive token refresh — silently renews the token 2 min before expiry.
@@ -81,7 +100,8 @@ function getTokenExpiry() {
   const token = getToken();
   if (!token) return null;
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const encoded = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '=')));
     return payload.exp ? payload.exp * 1000 : null;
   } catch { return null; }
 }

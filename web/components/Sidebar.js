@@ -62,6 +62,7 @@ export default function Sidebar() {
       <a className="top-navigation-brand" href="/dashboard" aria-label="CordiaClassroom dashboard">
         <AcademicInfinityMark className="top-navigation-mark" />
         <span>CordiaClassroom</span>
+        <small className="top-navigation-beta">beta</small>
       </a>
 
       <nav className="top-navigation-links" aria-label="Primary navigation">
