@@ -6,11 +6,11 @@ Handles connection to Supabase for user data, folders, and study guides.
 import os
 import logging
 from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
 
 logger = logging.getLogger(__name__)
 
 _supabase_client = None
-_supabase_auth_client = None
 
 
 def get_supabase() -> Client:
@@ -28,14 +28,23 @@ def get_supabase() -> Client:
 
 
 def get_auth_supabase() -> Client:
-    """Get or create a separate Supabase client used only for JWT validation.
-    Kept separate so auth.get_user() calls never modify the DB client's session state."""
-    global _supabase_auth_client
-    if _supabase_auth_client is None:
-        url = os.getenv("SUPABASE_URL")
-        key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-        if not url or not key:
-            raise ValueError("Supabase credentials not configured")
-        _supabase_auth_client = create_client(url, key)
-        logger.info("Supabase auth client initialized")
-    return _supabase_auth_client
+    """Create one stateless Supabase Auth client for one server operation.
+
+    Supabase clients persist and auto-refresh sessions by default. Reusing one
+    process-wide client therefore lets unrelated login, validation, and refresh
+    requests overwrite each other's in-memory session. Server auth calls always
+    receive their token explicitly, so persistence and automatic refresh belong
+    in the browser, not in this shared API process.
+    """
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+    if not url or not key:
+        raise ValueError("Supabase credentials not configured")
+    return create_client(
+        url,
+        key,
+        options=ClientOptions(
+            auto_refresh_token=False,
+            persist_session=False,
+        ),
+    )
