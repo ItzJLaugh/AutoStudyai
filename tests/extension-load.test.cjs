@@ -14,7 +14,7 @@ async function main() {
     if (!worker) worker = await context.waitForEvent('serviceworker');
     const extensionId = new URL(worker.url()).host;
     const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
-    assert.equal(manifest.version, '1.9.0');
+    assert.equal(manifest.version, '1.9.1');
     assert.deepEqual(manifest.host_permissions, ['<all_urls>']);
     assert.equal(manifest.optional_host_permissions, undefined);
     assert.equal(manifest.side_panel.default_path, 'popup.html');
@@ -29,12 +29,8 @@ async function main() {
     assert.match(await panel.locator('.brand img').getAttribute('src'), /cordia-classroom-logo\.png/);
     assert.equal(await panel.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
 
-    await worker.evaluate(() => chrome.storage.local.set({
-      authToken: 'test-session',
-      userEmail: 'student@example.edu',
-    }));
-    await panel.waitForFunction(() => !document.getElementById('make-guide').disabled);
-    assert.match(await panel.locator('#status-text').textContent(), /Connected as student@example\.edu/);
+    assert.equal(await panel.locator('#make-guide').isDisabled(), true);
+    assert.equal(await panel.locator('#tutor-input').isDisabled(), true);
   } finally {
     await context.close();
   }

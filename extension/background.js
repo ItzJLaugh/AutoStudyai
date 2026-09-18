@@ -11,28 +11,20 @@ function storageSet(values) {
   return new Promise(resolve => chrome.storage.local.set(values, resolve));
 }
 
-async function refreshAccessToken(refreshToken) {
-  if (!refreshToken) return '';
-  const response = await fetch(API + '/auth/refresh', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.access_token) return '';
-  await storageSet({ authToken: data.access_token, refreshToken: data.refresh_token || refreshToken });
-  return data.access_token;
-}
-
 async function apiFetch(path, options = {}, retry = true) {
-  const auth = await storageGet(['authToken', 'refreshToken']);
+  const auth = await storageGet(['authToken']);
   if (!auth.authToken) throw new Error('Sign in to CordiaClassroom first.');
   const headers = { Authorization: `Bearer ${auth.authToken}`, ...(options.headers || {}) };
   if (options.body && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   let response = await fetch(API + path, { ...options, headers });
   if (response.status === 401 && retry) {
-    const token = await refreshAccessToken(auth.refreshToken);
-    if (token) response = await fetch(API + path, { ...options, headers: { ...headers, Authorization: `Bearer ${token}` } });
+    const sync = await syncClassroomAuth(true);
+    const fresh = await storageGet(['authToken']);
+    if (!sync?.authenticated || !fresh.authToken) {
+      await chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
+      throw new Error('Your Classroom session expired. Sign in again to reconnect.');
+    }
+    response = await fetch(API + path, { ...options, headers: { ...headers, Authorization: `Bearer ${fresh.authToken}` } });
   }
   return response;
 }
@@ -52,19 +44,32 @@ async function activeWebTab() {
   return tab;
 }
 
-async function syncClassroomAuth() {
+async function syncClassroomAuth(forceRefresh = false) {
   const tabs = await chrome.tabs.query({ url: 'https://classroom.cordiacode.com/*' });
   for (const tab of tabs) {
     try {
-      return await chrome.tabs.sendMessage(tab.id, { action: 'syncCordiaAuth' });
+      return await chrome.tabs.sendMessage(tab.id, { action: 'syncCordiaAuth', forceRefresh });
     } catch (_) {
       try {
         await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['asai-bridge.js'] });
-        return await chrome.tabs.sendMessage(tab.id, { action: 'syncCordiaAuth' });
+        return await chrome.tabs.sendMessage(tab.id, { action: 'syncCordiaAuth', forceRefresh });
       } catch (_) { /* Try the next Classroom tab. */ }
     }
   }
   return { authenticated: false, error: 'Sign in to CordiaClassroom, then reopen this panel.' };
+}
+
+async function validateClassroomAuth() {
+  await syncClassroomAuth(false);
+  const auth = await storageGet(['authToken', 'userEmail']);
+  if (!auth.authToken) return { authenticated: false, error: 'Connect CordiaClassroom to make and save a guide.' };
+  try {
+    const profile = await responseData(await apiFetch('/auth/me'), 'Classroom could not verify this session.');
+    return { authenticated: true, userEmail: profile.email || auth.userEmail || '' };
+  } catch (error) {
+    await chrome.storage.local.remove(['authToken', 'refreshToken', 'userEmail']);
+    return { authenticated: false, error: error.message };
+  }
 }
 
 async function ensureScraper(tabId) {
@@ -197,6 +202,10 @@ const ACTIONS = { captureScreen, scrapePage, extractEducationalContent, createSt
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'syncClassroomAuth') {
     syncClassroomAuth().then(sendResponse).catch(error => sendResponse({ error: error.message }));
+    return true;
+  }
+  if (message.action === 'validateClassroomAuth') {
+    validateClassroomAuth().then(sendResponse).catch(error => sendResponse({ authenticated: false, error: error.message }));
     return true;
   }
   const action = ACTIONS[message.action];

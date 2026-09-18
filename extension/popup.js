@@ -65,19 +65,17 @@ function chooseGuideTitle() {
 }
 
 async function initAuth() {
-  let auth = await storage(['authToken', 'userEmail']);
-  if (!auth.authToken) {
-    await runtime({ action: 'syncClassroomAuth' });
-    auth = await storage(['authToken', 'userEmail']);
-  }
-  state.authenticated = Boolean(auth.authToken);
+  const auth = await runtime({ action: 'validateClassroomAuth' });
+  state.authenticated = Boolean(auth?.authenticated);
   makeButton.disabled = !state.authenticated;
+  tutorInput.disabled = !state.authenticated;
+  tutorSend.disabled = !state.authenticated;
   connectLink.href = 'https://classroom.cordiacode.com';
   connectLink.textContent = 'Connect';
   connectLink.hidden = state.authenticated;
   announce(state.authenticated
     ? `Connected${auth.userEmail ? ` as ${auth.userEmail}` : ''}. Ready.`
-    : 'Connect CordiaClassroom to make and save a guide.', state.authenticated ? 'ready' : 'warning');
+    : (auth?.error || 'Connect CordiaClassroom to make and save a guide.'), state.authenticated ? 'ready' : 'warning');
 }
 
 async function capture() {
