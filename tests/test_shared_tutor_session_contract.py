@@ -262,6 +262,21 @@ class SharedTutorSessionContractTests(unittest.TestCase):
         self.assertIn('os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")', database)
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here", example)
 
+    def test_auth_client_is_fresh_without_incompatible_client_options(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "backend"))
+        import database
+
+        environment = {
+            "SUPABASE_URL": "https://example.supabase.co",
+            "SUPABASE_ANON_KEY": "anon-key",
+        }
+        with patch("database.os.getenv", side_effect=environment.get), patch("database.create_client") as create:
+            client = MagicMock()
+            create.return_value = client
+            self.assertIs(database.get_auth_supabase(), client)
+            create.assert_called_once_with(environment["SUPABASE_URL"], environment["SUPABASE_ANON_KEY"])
+
     def test_browser_context_rejects_non_web_urls_and_unbounded_results(self):
         import sys
         from pydantic import ValidationError
