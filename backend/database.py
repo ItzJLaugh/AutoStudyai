@@ -6,6 +6,7 @@ Handles connection to Supabase for user data, folders, and study guides.
 import os
 import logging
 from supabase import create_client, Client
+from supabase.lib.client_options import SyncClientOptions
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,17 @@ def get_auth_supabase() -> Client:
     )
     if not url or not key:
         raise ValueError("Supabase credentials not configured")
-    # This client is already scoped to one operation, so its default in-memory
-    # auth storage cannot leak a session into another request. Avoid custom
-    # ClientOptions here: supabase-py 2.31 can raise while constructing a sync
-    # client because that options object does not expose ``storage``.
-    return create_client(url, key)
+    # OAuth starts on the API but finishes in the browser callback. Use the
+    # implicit flow so Supabase returns the access and refresh tokens in the URL
+    # fragment; a server-only PKCE verifier would be lost between requests.
+    # SyncClientOptions is required here: the base ClientOptions type does not
+    # provide the synchronous storage field expected by supabase-py 2.31.
+    return create_client(
+        url,
+        key,
+        options=SyncClientOptions(
+            auto_refresh_token=False,
+            persist_session=False,
+            flow_type="implicit",
+        ),
+    )

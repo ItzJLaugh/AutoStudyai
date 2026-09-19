@@ -262,7 +262,7 @@ class SharedTutorSessionContractTests(unittest.TestCase):
         self.assertIn('os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")', database)
         self.assertIn("SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here", example)
 
-    def test_auth_client_is_fresh_without_incompatible_client_options(self):
+    def test_auth_client_is_fresh_and_uses_browser_compatible_implicit_oauth(self):
         import sys
         sys.path.insert(0, str(ROOT / "backend"))
         import database
@@ -275,7 +275,14 @@ class SharedTutorSessionContractTests(unittest.TestCase):
             client = MagicMock()
             create.return_value = client
             self.assertIs(database.get_auth_supabase(), client)
-            create.assert_called_once_with(environment["SUPABASE_URL"], environment["SUPABASE_ANON_KEY"])
+            create.assert_called_once()
+            args = create.call_args.args
+            options = create.call_args.kwargs["options"]
+            self.assertEqual(args, (environment["SUPABASE_URL"], environment["SUPABASE_ANON_KEY"]))
+            self.assertFalse(options.auto_refresh_token)
+            self.assertFalse(options.persist_session)
+            self.assertEqual(options.flow_type, "implicit")
+            self.assertTrue(hasattr(options, "storage"))
 
     def test_browser_context_rejects_non_web_urls_and_unbounded_results(self):
         import sys
