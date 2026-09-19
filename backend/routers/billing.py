@@ -146,6 +146,7 @@ def create_checkout_session(body: CheckoutRequest, authorization: str = Header(d
         "line_items": [{"price": price_id, "quantity": 1}],
         "success_url": f"{frontend_url}/settings?billing=success",
         "cancel_url": f"{frontend_url}/settings?billing=cancelled",
+        "client_reference_id": user_id,
         "metadata": metadata,
         "subscription_data": {"metadata": metadata},
         "allow_promotion_codes": True,
@@ -211,13 +212,13 @@ def process_stripe_event(event) -> None:
 
     if event_type == "checkout.session.completed":
         subscription_id = data.get("subscription")
-        user_id = data.get("metadata", {}).get("user_id")
+        user_id = data.get("metadata", {}).get("user_id") or data.get("client_reference_id")
         if not subscription_id or not user_id:
             raise ValueError("Checkout event is missing subscription metadata")
         row = _subscription_row(_plain(_stripe().Subscription.retrieve(subscription_id)))
         row["user_id"] = user_id
         db.table("user_subscriptions").upsert(row, on_conflict="user_id").execute()
-    elif event_type == "customer.subscription.updated":
+    elif event_type in {"customer.subscription.created", "customer.subscription.updated"}:
         row = _subscription_row(data)
         user_id = data.get("metadata", {}).get("user_id")
         if user_id:
@@ -233,6 +234,8 @@ def process_stripe_event(event) -> None:
                 "plan": "free",
                 "status": "cancelled",
                 "stripe_subscription_id": None,
+                "billing_interval": None,
+                "current_period_end": None,
                 "cancel_at_period_end": False,
             }
         ).eq("stripe_customer_id", data.get("customer")).eq(
