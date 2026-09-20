@@ -13,6 +13,7 @@ const login = read('web', 'pages', 'index.js');
 const install = read('web', 'pages', 'install-extension.js');
 const documentPage = read('web', 'pages', '_document.js');
 const appPage = read('web', 'pages', '_app.js');
+const nextConfig = read('web', 'next.config.js');
 
 assert.match(mark, /export default function AcademicInfinityMark/);
 assert.match(mark, /open-book|book-pages/);
@@ -36,5 +37,7 @@ assert.match(documentPage, /cordia-classroom-icon\.png/);
 assert.match(appPage, /application-name" content="CordiaClassroom"/);
 assert.match(appPage, /og:site_name" content="CordiaClassroom"/);
 assert.doesNotMatch(documentPage, /autostudy/i);
+assert.match(nextConfig, /type: 'host', value: 'autostudyai\.online'/);
+assert.match(nextConfig, /https:\/\/classroom\.cordiacode\.com\/\:path\*/);
 
 console.log('UI shell contract passed');
