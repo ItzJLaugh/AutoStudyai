@@ -1,7 +1,7 @@
 {
-  "name": "web",
+  "name": "cordia-classroom-web",
   "version": "1.0.0",
-  "description": "",
+  "description": "CordiaClassroom study workspace",
   "main": "index.js",
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,7 @@
     "start": "next start"
   },
   "keywords": [],
-  "author": "",
+  "author": "CordiaCode",
   "license": "ISC",
   "dependencies": {
     "mermaid": "11.16.1",

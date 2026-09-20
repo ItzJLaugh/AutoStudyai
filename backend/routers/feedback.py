@@ -1,5 +1,5 @@
 """
-Feedback router for AutoStudyAI.
+Feedback router for CordiaClassroom.
 Handles user feedback/bug report submissions.
 """
 

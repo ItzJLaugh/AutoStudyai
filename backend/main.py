@@ -1,7 +1,4 @@
-"""
-AutoStudyAI Backend API
-FastAPI server for processing educational content and generating study materials.
-"""
+"""CordiaClassroom API for processing educational content and study materials."""
 
 import os
 import re
@@ -72,8 +69,8 @@ limiter = Limiter(key_func=get_remote_address)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="AutoStudyAI API",
-    description="API for generating study materials from educational content",
+    title="CordiaClassroom API",
+    description="CordiaClassroom API for generating study materials from educational content",
     version="1.0.0",
     docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
     redoc_url=None,

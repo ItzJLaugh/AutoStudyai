@@ -89,7 +89,7 @@ export default function PrivacyPolicy() {
             <li>Does not monitor or collect your browsing history. The title, source URL, and bounded page context are sent only for the page you choose to capture</li>
             <li>Does not transmit browser cookies, passwords, form credentials, or unrestricted browser history</li>
             <li>Stores your authentication token locally using Chrome's storage API so you remain logged in between sessions</li>
-            <li>Sends extension data only to <strong style={{ color: 'var(--text-primary)' }}>autostudy-ai.fly.dev</strong>, our API; the service providers listed above may process that data to provide the requested feature</li>
+            <li>Sends extension data only to the <strong style={{ color: 'var(--text-primary)' }}>CordiaClassroom API</strong>; the service providers listed above may process that data to provide the requested feature</li>
           </ul>
         </Section>
 
@@ -154,7 +154,7 @@ export default function PrivacyPolicy() {
           </p>
           <p style={{ marginTop: '12px' }}>
             <strong style={{ color: 'var(--text-primary)' }}>CordiaClassroom</strong><br />
-            Email: <a href="mailto:jackson.laughlin0804@gmail.com" style={{ color: 'var(--accent)' }}>support@autostudyai.online</a><br />
+            Email: <a href="mailto:support@cordiacode.com" style={{ color: 'var(--accent)' }}>support@cordiacode.com</a><br />
             Website: <a href="https://classroom.cordiacode.com" style={{ color: 'var(--accent)' }}>https://classroom.cordiacode.com</a>
           </p>
         </Section>

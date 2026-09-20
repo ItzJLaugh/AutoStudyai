@@ -1,5 +1,5 @@
 """
-Folders router for AutoStudyAI.
+Folders router for CordiaClassroom.
 Handles CRUD operations for class folders.
 """
 

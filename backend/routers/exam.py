@@ -1,5 +1,5 @@
 """
-Generalized exam router for AutoStudyAI.
+Generalized exam router for CordiaClassroom.
 Generates domain-specific practice exam questions (NCLEX, Bar, technical, etc.)
 from study guide content using few-shot examples from domain config files.
 """

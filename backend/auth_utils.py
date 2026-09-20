@@ -1,5 +1,5 @@
 """
-Shared auth utility for AutoStudyAI.
+Shared auth utility for CordiaClassroom.
 Verifies Supabase JWT by calling supabase.auth.get_user().
 """
 

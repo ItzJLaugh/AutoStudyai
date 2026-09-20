@@ -1,4 +1,4 @@
-# AutoStudyAI Backend
+# CordiaClassroom Backend
 
 FastAPI server that processes captured content and generates study materials using OpenAI GPT-4o.
 

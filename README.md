@@ -1,10 +1,10 @@
-# AutoStudyAI
+# CordiaClassroom
 
 A Chrome side-panel extension and Classroom web app that share one Cordia Tutor session for capturing and learning from student-approved educational content.
 
 ## Overview
 
-AutoStudyAI captures content from Learning Management Systems (Canvas, Blackboard, Moodle), online textbooks, PDFs, slideshows, and any webpage, then uses AI to transform it into organized study materials.
+CordiaClassroom captures content from learning platforms, online textbooks, PDFs, slideshows, and webpages, then turns it into organized study materials.
 
 ## Features
 
@@ -19,7 +19,7 @@ AutoStudyAI captures content from Learning Management Systems (Canvas, Blackboar
 
 ### Slideshow Detection & Extraction
 
-AutoStudyAI automatically detects and extracts content from slideshows:
+CordiaClassroom automatically detects and extracts content from slideshows:
 
 | Platform | Detection | Extraction |
 |----------|-----------|------------|

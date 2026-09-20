@@ -1,5 +1,5 @@
 """
-Supabase database client for AutoStudyAI.
+Supabase database client for CordiaClassroom.
 Handles connection to Supabase for user data, folders, and study guides.
 """
 

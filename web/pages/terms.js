@@ -83,7 +83,7 @@ export default function TermsOfService() {
         </Section>
 
         <Section title="12. Contact">
-          <p>If you have questions about these Terms, please contact us at support@autostudyai.com.</p>
+          <p>If you have questions about these Terms, please contact us at support@cordiacode.com.</p>
         </Section>
 
         <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid var(--border-subtle)' }}>

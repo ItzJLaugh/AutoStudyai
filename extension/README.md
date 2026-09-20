@@ -1,4 +1,4 @@
-# AutoStudyAI Chrome Extension
+# CordiaClassroom Chrome Extension
 
 Chrome side-panel extension that captures student-approved educational content and shares one Cordia Tutor session with CordiaClassroom.
 

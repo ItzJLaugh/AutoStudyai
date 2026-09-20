@@ -1,5 +1,5 @@
 """
-Stats router for AutoStudyAI.
+Stats router for CordiaClassroom.
 Handles streak tracking, study session logging, and overview statistics.
 """
 

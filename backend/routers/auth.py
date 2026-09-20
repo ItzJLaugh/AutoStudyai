@@ -1,5 +1,5 @@
 """
-Authentication router for AutoStudyAI.
+Authentication router for CordiaClassroom.
 Handles user signup, login, and session management via Supabase Auth.
 """
 

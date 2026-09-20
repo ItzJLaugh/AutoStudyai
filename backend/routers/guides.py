@@ -1,5 +1,5 @@
 """
-Guides router for AutoStudyAI.
+Guides router for CordiaClassroom.
 Handles CRUD operations for saved study guides.
 """
 

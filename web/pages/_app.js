@@ -1,4 +1,5 @@
 import '../styles/globals.css';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
@@ -22,12 +23,27 @@ export default function App({ Component, pageProps }) {
   const [timerState, setTimerState] = useState({
     mode: 'focus', minutes: 25, seconds: 0, isRunning: false
   });
+  const brandHead = (
+    <Head>
+      <title>CordiaClassroom</title>
+      <meta name="application-name" content="CordiaClassroom" />
+      <meta name="description" content="Turn course material into focused study guides, notes, flashcards, and practice with CordiaClassroom." />
+      <meta property="og:site_name" content="CordiaClassroom" />
+      <meta property="og:title" content="CordiaClassroom" />
+      <meta property="og:description" content="Turn course material into focused study guides, notes, flashcards, and practice." />
+      <meta property="og:image" content="https://classroom.cordiacode.com/cordia-classroom-icon.png" />
+      <meta property="og:url" content="https://classroom.cordiacode.com" />
+      <meta name="twitter:card" content="summary" />
+    </Head>
+  );
+
   if (isLoginPage) {
-    return <Component {...pageProps} />;
+    return <>{brandHead}<Component {...pageProps} /></>;
   }
 
   return (
     <>
+      {brandHead}
       <Layout timerState={timerState} setTimerState={setTimerState}>
         <Component {...pageProps} timerState={timerState} setTimerState={setTimerState} />
       </Layout>

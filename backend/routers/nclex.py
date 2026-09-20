@@ -1,5 +1,5 @@
 """
-NCLEX router for AutoStudyAI.
+NCLEX router for CordiaClassroom.
 Generates clinical scenario MCQ and SATA questions with rationales from study guide content.
 """
 

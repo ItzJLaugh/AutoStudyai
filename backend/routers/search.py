@@ -1,5 +1,5 @@
 """
-Search router for AutoStudyAI.
+Search router for CordiaClassroom.
 Full-text search across study guides.
 """
 

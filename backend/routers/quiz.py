@@ -1,5 +1,5 @@
 """
-Quiz router for AutoStudyAI.
+Quiz router for CordiaClassroom.
 Generates MCQ quizzes from study guide Q&A pairs and tracks attempts.
 """
 
