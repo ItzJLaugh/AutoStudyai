@@ -7,6 +7,7 @@ import AcademicInfinityMark from './AcademicInfinityMark';
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', match: '/dashboard' },
   { label: 'Study Guides', href: '/dashboard?view=guides', match: 'view=guides' },
+  { label: 'Calendar', href: '/dashboard?view=calendar', match: 'view=calendar' },
   { label: 'SmartNotes', href: '/smartnotes', match: '/smartnotes' },
 ];
 

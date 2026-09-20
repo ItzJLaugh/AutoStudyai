@@ -4,11 +4,11 @@ import { readFile } from 'node:fs/promises';
 
 const source = relativePath => readFile(new URL(`../${relativePath}`, import.meta.url), 'utf8');
 
-test('top navigation keeps classes inside Dashboard and Study Guides', async () => {
+test('top navigation exposes focused study destinations without a separate Classes page', async () => {
   const sidebar = await source('components/Sidebar.js');
   const labels = [...sidebar.matchAll(/\{ label: '([^']+)'/g)].map(match => match[1]);
 
-  assert.deepEqual(labels, ['Dashboard', 'Study Guides', 'SmartNotes']);
+  assert.deepEqual(labels, ['Dashboard', 'Study Guides', 'Calendar', 'SmartNotes']);
 });
 
 test('dashboard routes use the shared workspace and retire the separate Classes view', async () => {

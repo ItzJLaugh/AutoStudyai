@@ -14,7 +14,7 @@ export default function Dashboard({ timerState, setTimerState }) {
   const router = useRouter();
   const { ready } = useRequireAuth();
   useSessionTracker('browse');
-  const view = router.query.view || null; // null = dashboard, 'guides' = study-guide library
+  const view = router.query.view || null; // null = dashboard; guides/calendar = focused workspace views
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [folders, setFolders] = useState([]);
@@ -340,6 +340,21 @@ export default function Dashboard({ timerState, setTimerState }) {
         {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
         {contextMenu && renderContextMenu()}
         </div>
+      </StudyWorkspaceFrame>
+    );
+  }
+
+  if (view === 'calendar') {
+    return (
+      <StudyWorkspaceFrame classes={organized.classes} section="calendar" timerState={timerState} setTimerState={setTimerState}>
+        {loadErrorBanner}
+        <div className="dashboard-desktop-header">
+          <div>
+            <h1>Calendar</h1>
+            <p>Review Canvas deadlines and control reminders from one place.</p>
+          </div>
+        </div>
+        <CalendarDashboard />
       </StudyWorkspaceFrame>
     );
   }

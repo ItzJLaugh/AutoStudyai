@@ -55,6 +55,8 @@ assert.match(calendarDashboard, /apiFetch\('\/calendar\/preview'/);
 assert.match(calendarDashboard, /cordiaCanvasCalendarFeed/);
 assert.match(calendarDashboard, /Due today/);
 assert.match(dashboard, /<CalendarDashboard \/>/);
+assert.match(navigation, /Calendar[^\n]+\/dashboard\?view=calendar/);
+assert.match(dashboard, /view === 'calendar'/);
 assert.match(dashboard, /Some Classroom data could not be refreshed/);
 assert.match(dashboard, /if \(Array\.isArray\(guidesData\?\.guides\)\) setGuides/);
 assert.match(dashboard, /role="alert"/);
