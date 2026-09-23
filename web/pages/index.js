@@ -58,7 +58,7 @@ export default function LoginPage() {
       const data = await responseJson(response);
 
       if (response.ok && data.access_token) {
-        setToken(data.access_token, data.email, data.refresh_token);
+        setToken(data.access_token, data.email, data.refresh_token, data.name);
         scheduleProactiveRefresh();
         router.push('/dashboard');
       } else if (response.ok && isSignup) {

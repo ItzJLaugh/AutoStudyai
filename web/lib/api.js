@@ -31,14 +31,25 @@ function notifyAuthChanged() {
   window.postMessage({ type: 'CORDIA_AUTH_UPDATED' }, window.location.origin);
 }
 
-export function setToken(token, email, refreshToken) {
+function tokenIdentity(token = getToken()) {
   const payload = tokenPayload(token);
   const metadata = payload.user_metadata || {};
+  const combinedName = [metadata.given_name, metadata.family_name].filter(Boolean).join(' ').trim();
+  return {
+    userId: payload.sub || '',
+    email: payload.email || '',
+    name: metadata.full_name || metadata.name || combinedName || '',
+  };
+}
+
+export function setToken(token, email, refreshToken, name = '') {
+  const identity = tokenIdentity(token);
   localStorage.setItem('authToken', token);
-  localStorage.setItem('userEmail', email || payload.email || '');
-  if (payload.sub) localStorage.setItem('userId', payload.sub);
-  const name = metadata.full_name || metadata.name || '';
-  if (name) localStorage.setItem('userName', name);
+  localStorage.setItem('userEmail', email || identity.email);
+  if (identity.userId) localStorage.setItem('userId', identity.userId);
+  const resolvedName = name || identity.name;
+  if (resolvedName) localStorage.setItem('userName', resolvedName);
+  else localStorage.removeItem('userName');
   if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
   notifyAuthChanged();
 }
@@ -53,7 +64,9 @@ export function clearAuth() {
 }
 
 export function getUserEmail() {
-  return typeof window !== 'undefined' ? localStorage.getItem('userEmail') || '' : '';
+  return typeof window !== 'undefined'
+    ? localStorage.getItem('userEmail') || tokenIdentity().email
+    : '';
 }
 
 export function getUserId() {
@@ -62,7 +75,9 @@ export function getUserId() {
 }
 
 export function getUserName() {
-  return typeof window !== 'undefined' ? localStorage.getItem('userName') || '' : '';
+  return typeof window !== 'undefined'
+    ? localStorage.getItem('userName') || tokenIdentity().name
+    : '';
 }
 
 export function cacheUserIdentity(identity = {}) {

@@ -29,8 +29,8 @@ export default function Sidebar() {
     apiFetch('/auth/me').then(identity => {
       if (!active || !identity?.user_id) return;
       cacheUserIdentity(identity);
-      setEmail(identity.email || '');
-      setName(identity.name || '');
+      setEmail(identity.email || getUserEmail() || '');
+      setName(identity.name || getUserName() || '');
     });
     return () => { active = false; };
   }, []);
