@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
-import { apiErrorMessage, apiFetch } from '../lib/api';
+import { apiErrorMessage, apiFetch, getUserId } from '../lib/api';
 
 const FEED_KEY = 'cordiaCanvasCalendarFeed';
 const REMINDER_KEY = 'cordiaCalendarReminders';
+
+function accountKey(key, userId) {
+  return userId ? `${key}:${userId}` : '';
+}
 
 function dateValue(item) {
   const value = new Date(item?.due_at || '').getTime();
@@ -20,10 +24,11 @@ function dueLabel(item) {
     + (item.all_day ? '' : ` · ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`);
 }
 
-function notifyDueToday(items) {
-  if (typeof window === 'undefined' || !('Notification' in window) || localStorage.getItem(REMINDER_KEY) !== 'on' || Notification.permission !== 'granted') return;
+function notifyDueToday(items, userId) {
+  const reminderKey = accountKey(REMINDER_KEY, userId);
+  if (typeof window === 'undefined' || !reminderKey || !('Notification' in window) || localStorage.getItem(reminderKey) !== 'on' || Notification.permission !== 'granted') return;
   items.forEach(item => {
-    const key = `cordiaCalendarNotified:${item.id}:${new Date().toDateString()}`;
+    const key = `cordiaCalendarNotified:${userId}:${item.id}:${new Date().toDateString()}`;
     if (localStorage.getItem(key)) return;
     new Notification('Due today in Canvas', { body: item.title, tag: key });
     localStorage.setItem(key, '1');
@@ -38,16 +43,27 @@ export default function CalendarDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [reminders, setReminders] = useState(false);
+  const [userId, setUserId] = useState('');
 
   useEffect(() => {
-    const saved = localStorage.getItem(FEED_KEY) || '';
+    const accountId = getUserId();
+    const feedKey = accountKey(FEED_KEY, accountId);
+    const reminderKey = accountKey(REMINDER_KEY, accountId);
+
+    // Legacy keys were shared by every account in one browser. Never attach
+    // that feed URL to a different signed-in user.
+    localStorage.removeItem(FEED_KEY);
+    localStorage.removeItem(REMINDER_KEY);
+
+    setUserId(accountId);
+    const saved = feedKey ? localStorage.getItem(feedKey) || '' : '';
     setFeedUrl(saved);
     setConnectedUrl(saved);
-    setReminders(localStorage.getItem(REMINDER_KEY) === 'on');
-    if (saved) refresh(saved);
+    setReminders(Boolean(reminderKey && localStorage.getItem(reminderKey) === 'on'));
+    if (saved) refresh(saved, accountId);
   }, []);
 
-  async function refresh(url = connectedUrl || feedUrl) {
+  async function refresh(url = connectedUrl || feedUrl, accountId = userId) {
     if (!url) return;
     setLoading(true);
     setError('');
@@ -56,11 +72,17 @@ export default function CalendarDashboard() {
       body: JSON.stringify({ url }),
     });
     if (Array.isArray(data?.items)) {
-      localStorage.setItem(FEED_KEY, url);
+      const feedKey = accountKey(FEED_KEY, accountId);
+      if (!feedKey) {
+        setError('Sign in again before connecting a calendar.');
+        setLoading(false);
+        return;
+      }
+      localStorage.setItem(feedKey, url);
       setConnectedUrl(url);
       setItems(data.items);
       setDueToday(Array.isArray(data.due_today) ? data.due_today : []);
-      notifyDueToday(data.due_today || []);
+      notifyDueToday(data.due_today || [], accountId);
     } else {
       setError(apiErrorMessage(data?.detail, 'Classroom could not read this calendar feed.'));
     }
@@ -68,7 +90,8 @@ export default function CalendarDashboard() {
   }
 
   function disconnect() {
-    localStorage.removeItem(FEED_KEY);
+    const feedKey = accountKey(FEED_KEY, userId);
+    if (feedKey) localStorage.removeItem(feedKey);
     setConnectedUrl('');
     setFeedUrl('');
     setItems([]);
@@ -77,8 +100,13 @@ export default function CalendarDashboard() {
   }
 
   async function toggleReminders() {
+    const reminderKey = accountKey(REMINDER_KEY, userId);
+    if (!reminderKey) {
+      setError('Sign in again before enabling reminders.');
+      return;
+    }
     if (reminders) {
-      localStorage.removeItem(REMINDER_KEY);
+      localStorage.removeItem(reminderKey);
       setReminders(false);
       return;
     }
@@ -91,9 +119,9 @@ export default function CalendarDashboard() {
       setError('Desktop reminders were not allowed. You can still review deadlines on this dashboard.');
       return;
     }
-    localStorage.setItem(REMINDER_KEY, 'on');
+    localStorage.setItem(reminderKey, 'on');
     setReminders(true);
-    notifyDueToday(dueToday);
+    notifyDueToday(dueToday, userId);
   }
 
   if (!connectedUrl) {

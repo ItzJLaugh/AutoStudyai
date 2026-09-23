@@ -311,9 +311,23 @@ def get_current_user(authorization: str = Header(default="")):
         if not result.user:
             raise HTTPException(status_code=401, detail="Invalid token")
 
+        metadata = result.user.user_metadata or {}
+        name = metadata.get("full_name") or metadata.get("name")
+        if not name:
+            profiles = (
+                get_supabase().table("user_profiles")
+                .select("name")
+                .eq("id", result.user.id)
+                .limit(1)
+                .execute()
+            )
+            if profiles.data:
+                name = profiles.data[0].get("name")
+
         return {
             "user_id": result.user.id,
-            "email": result.user.email
+            "email": result.user.email,
+            "name": name or "",
         }
 
     except HTTPException:

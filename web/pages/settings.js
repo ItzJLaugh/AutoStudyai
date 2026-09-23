@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useRequireAuth } from '../lib/auth';
-import { apiFetch, getUserEmail } from '../lib/api';
+import { apiErrorMessage, apiFetch, cacheUserIdentity, getUserEmail } from '../lib/api';
 import FeedbackModal from '../components/FeedbackModal';
 
 export default function SettingsPage() {
@@ -27,6 +27,11 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!ready) return;
     setEmail(getUserEmail() || '');
+    apiFetch('/auth/me').then(identity => {
+      if (!identity?.user_id) return;
+      cacheUserIdentity(identity);
+      setEmail(identity.email || '');
+    });
     const saved = localStorage.getItem('theme') || 'light';
     setTheme(saved);
 
@@ -76,7 +81,7 @@ export default function SettingsPage() {
     if (data?.url) {
       window.location.href = data.url;
     } else {
-      setMessage('Failed to start checkout. Please try again.');
+      setMessage(apiErrorMessage(data?.detail, 'Failed to start checkout. Please try again.'));
       setUpgrading(false);
     }
   }

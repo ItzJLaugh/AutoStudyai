@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import { clearAuth, getUserEmail } from '../lib/api';
+import { apiFetch, cacheUserIdentity, clearAuth, getUserEmail, getUserName } from '../lib/api';
 import FeedbackModal from './FeedbackModal';
 import AcademicInfinityMark from './AcademicInfinityMark';
 
@@ -14,6 +14,7 @@ const navItems = [
 export default function Sidebar() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [theme, setTheme] = useState('light');
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -21,7 +22,17 @@ export default function Sidebar() {
 
   useEffect(() => {
     setEmail(getUserEmail() || '');
+    setName(getUserName() || '');
     setTheme(localStorage.getItem('theme') || 'light');
+
+    let active = true;
+    apiFetch('/auth/me').then(identity => {
+      if (!active || !identity?.user_id) return;
+      cacheUserIdentity(identity);
+      setEmail(identity.email || '');
+      setName(identity.name || '');
+    });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -58,6 +69,15 @@ export default function Sidebar() {
     router.push('/');
   }
 
+  const displayName = name || (email ? email.split('@')[0] : 'Your profile');
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0])
+    .join('')
+    .toUpperCase() || 'CC';
+
   return (
     <header className="top-navigation">
       <a className="top-navigation-brand" href="/dashboard" aria-label="CordiaClassroom dashboard">
@@ -76,13 +96,13 @@ export default function Sidebar() {
 
       <div className="account-menu" ref={menuRef}>
         <button type="button" className="account-avatar" onClick={() => setMenuOpen(open => !open)} aria-expanded={menuOpen} aria-haspopup="menu" aria-label="Open account menu">
-          {email ? email.slice(0, 2).toUpperCase() : 'AS'}
+          {initials}
         </button>
 
         {menuOpen && (
           <div className="account-menu-panel" role="menu" aria-label="Account menu">
             <div className="account-menu-identity">
-              <strong>{email ? email.split('@')[0] : 'Your profile'}</strong>
+              <strong>{displayName}</strong>
               <span>{email || 'CordiaClassroom account'}</span>
             </div>
             <button type="button" role="menuitem" onClick={() => router.push('/settings')}>Your profile</button>
