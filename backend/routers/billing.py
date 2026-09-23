@@ -130,6 +130,8 @@ def create_checkout_session(body: CheckoutRequest, authorization: str = Header(d
         raise HTTPException(status_code=409, detail="Plus is already active")
 
     price_id = os.getenv(PRICE_ENV[body.interval])
+    if body.interval == "monthly" and not price_id:
+        price_id = os.getenv("STRIPE_PRICE_ID")
     if not price_id:
         raise HTTPException(status_code=503, detail="Billing not configured")
     rows = (

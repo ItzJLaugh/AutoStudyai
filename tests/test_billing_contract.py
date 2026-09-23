@@ -136,6 +136,23 @@ class BillingContractTests(unittest.TestCase):
             "cus_existing",
         )
 
+    def test_monthly_checkout_supports_legacy_live_price_during_secret_migration(self):
+        db, _ = self._subscription_query()
+        stripe_client = MagicMock()
+        stripe_client.checkout.Session.create.return_value = SimpleNamespace(url="https://checkout.test")
+        with (
+            patch.dict(os.environ, {"STRIPE_PRICE_ID": "price_live_monthly"}, clear=True),
+            patch.object(billing, "get_user_id", return_value="user-1"),
+            patch.object(billing, "get_user_plan", return_value={"plan": "free"}),
+            patch.object(billing, "get_supabase", return_value=db),
+            patch.object(billing, "_stripe", return_value=stripe_client),
+        ):
+            billing.create_checkout_session(billing.CheckoutRequest(), "Bearer token")
+        self.assertEqual(
+            stripe_client.checkout.Session.create.call_args.kwargs["line_items"],
+            [{"price": "price_live_monthly", "quantity": 1}],
+        )
+
     def test_portal_uses_existing_customer_and_subscription_return_url(self):
         db, _ = self._subscription_query("cus_existing")
         stripe_client = MagicMock()

@@ -17,13 +17,28 @@ export function getToken() {
   return typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
 }
 
+function tokenPayload(token = getToken()) {
+  if (!token) return {};
+  try {
+    const encoded = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '=')));
+  } catch {
+    return {};
+  }
+}
+
 function notifyAuthChanged() {
   window.postMessage({ type: 'CORDIA_AUTH_UPDATED' }, window.location.origin);
 }
 
 export function setToken(token, email, refreshToken) {
+  const payload = tokenPayload(token);
+  const metadata = payload.user_metadata || {};
   localStorage.setItem('authToken', token);
-  localStorage.setItem('userEmail', email);
+  localStorage.setItem('userEmail', email || payload.email || '');
+  if (payload.sub) localStorage.setItem('userId', payload.sub);
+  const name = metadata.full_name || metadata.name || '';
+  if (name) localStorage.setItem('userName', name);
   if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
   notifyAuthChanged();
 }
@@ -31,12 +46,30 @@ export function setToken(token, email, refreshToken) {
 export function clearAuth() {
   localStorage.removeItem('authToken');
   localStorage.removeItem('userEmail');
+  localStorage.removeItem('userId');
+  localStorage.removeItem('userName');
   localStorage.removeItem('refreshToken');
   notifyAuthChanged();
 }
 
 export function getUserEmail() {
   return typeof window !== 'undefined' ? localStorage.getItem('userEmail') || '' : '';
+}
+
+export function getUserId() {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem('userId') || tokenPayload().sub || '';
+}
+
+export function getUserName() {
+  return typeof window !== 'undefined' ? localStorage.getItem('userName') || '' : '';
+}
+
+export function cacheUserIdentity(identity = {}) {
+  if (typeof window === 'undefined') return;
+  if (identity.user_id) localStorage.setItem('userId', identity.user_id);
+  if (identity.email) localStorage.setItem('userEmail', identity.email);
+  if (identity.name) localStorage.setItem('userName', identity.name);
 }
 
 export function authHeaders() {
@@ -97,13 +130,8 @@ export async function responseJson(response) {
 let _proactiveTimer = null;
 
 function getTokenExpiry() {
-  const token = getToken();
-  if (!token) return null;
-  try {
-    const encoded = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '=')));
-    return payload.exp ? payload.exp * 1000 : null;
-  } catch { return null; }
+  const payload = tokenPayload();
+  return payload.exp ? payload.exp * 1000 : null;
 }
 
 export function scheduleProactiveRefresh() {
