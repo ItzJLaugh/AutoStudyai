@@ -35,6 +35,7 @@ export default function PrivacyPolicy() {
 
           <p style={{ marginTop: '16px' }}><strong style={{ color: 'var(--text-primary)' }}>b. Page Content</strong></p>
           <p>When you ask the Chrome side panel to capture a page, bounded visible study content is transmitted to our servers for AI processing. The most recent normalized capture, page title, and source URL are stored in your private Tutor session so the same Tutor can continue in CordiaClassroom. A capture may also be retained as study material when you choose to save it.</p>
+          <p>If you connect a Canvas calendar feed, its private feed link is stored with your Classroom account so deadlines can reconnect automatically. It is used only by authenticated Classroom calendar routes, is never returned to the browser after saving, and is deleted when you disconnect the calendar.</p>
 
           <p style={{ marginTop: '16px' }}><strong style={{ color: 'var(--text-primary)' }}>c. Generated Study Materials</strong></p>
           <p>Study guides, notes, and flashcards you generate are stored in our database associated with your account so you can access them through the platform.</p>

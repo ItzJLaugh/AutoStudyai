@@ -115,6 +115,29 @@ class AuthResponse(BaseModel):
     email: str
     access_token: str
     refresh_token: str = ""
+    name: str = ""
+
+
+def _display_name(user) -> str:
+    metadata = user.user_metadata or {}
+    combined_name = " ".join(
+        part for part in (metadata.get("given_name"), metadata.get("family_name")) if part
+    ).strip()
+    name = metadata.get("full_name") or metadata.get("name") or combined_name
+    if name:
+        return str(name).strip()
+    try:
+        profiles = (
+            get_supabase().table("user_profiles")
+            .select("name")
+            .eq("id", user.id)
+            .limit(1)
+            .execute()
+        )
+        return (profiles.data[0].get("name") or "") if profiles.data else ""
+    except Exception as error:
+        logger.warning("Could not load display name for %s: %s", user.id, type(error).__name__)
+        return ""
 
 
 @router.get("/oauth/google")
@@ -143,7 +166,12 @@ def signup(request: SignupRequest, req: Request):
     try:
         result = get_auth_supabase().auth.sign_up({
             "email": request.email,
-            "password": request.password
+            "password": request.password,
+            "options": {"data": {
+                "name": request.name,
+                "university": request.university,
+                "major": request.major,
+            }},
         })
 
         if not result.user:
@@ -187,7 +215,8 @@ def signup(request: SignupRequest, req: Request):
             user_id=result.user.id,
             email=result.user.email,
             access_token=result.session.access_token if result.session else "",
-            refresh_token=result.session.refresh_token if result.session else ""
+            refresh_token=result.session.refresh_token if result.session else "",
+            name=_display_name(result.user),
         )
 
     except HTTPException:
@@ -214,7 +243,8 @@ def login(request: LoginRequest, req: Request):
             user_id=result.user.id,
             email=result.user.email,
             access_token=result.session.access_token,
-            refresh_token=result.session.refresh_token
+            refresh_token=result.session.refresh_token,
+            name=_display_name(result.user),
         )
 
     except HTTPException:
@@ -281,7 +311,8 @@ def refresh_token(request: RefreshRequest, req: Request):
             user_id=result.user.id,
             email=result.user.email,
             access_token=result.session.access_token,
-            refresh_token=result.session.refresh_token
+            refresh_token=result.session.refresh_token,
+            name=_display_name(result.user),
         )
 
     except HTTPException:
@@ -311,23 +342,10 @@ def get_current_user(authorization: str = Header(default="")):
         if not result.user:
             raise HTTPException(status_code=401, detail="Invalid token")
 
-        metadata = result.user.user_metadata or {}
-        name = metadata.get("full_name") or metadata.get("name")
-        if not name:
-            profiles = (
-                get_supabase().table("user_profiles")
-                .select("name")
-                .eq("id", result.user.id)
-                .limit(1)
-                .execute()
-            )
-            if profiles.data:
-                name = profiles.data[0].get("name")
-
         return {
             "user_id": result.user.id,
             "email": result.user.email,
-            "name": name or "",
+            "name": _display_name(result.user),
         }
 
     except HTTPException:

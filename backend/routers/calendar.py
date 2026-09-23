@@ -1,4 +1,4 @@
-"""Read-only Canvas calendar feed preview. No Canvas API account or token is stored."""
+"""Account-scoped, read-only Canvas calendar feed connection."""
 
 import ipaddress
 import re
@@ -11,6 +11,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from auth_utils import get_user_id
+from database import get_supabase
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 MAX_FEED_BYTES = 2_000_000
@@ -161,13 +162,65 @@ def _events(text: str) -> list[dict]:
     )[:100]
 
 
-@router.post("/preview")
-def preview_calendar(body: CalendarPreviewRequest, authorization: str = Header(default="")):
-    get_user_id(authorization)
-    items = _events(_download_feed(body.url))
+def _calendar_payload(url: str) -> dict:
+    items = _events(_download_feed(url))
     today = datetime.now(timezone.utc).date()
     return {
+        "connected": True,
         "items": items,
         "due_today": [item for item in items if datetime.fromisoformat(item["due_at"]).date() == today],
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _stored_feed(user_id: str) -> str:
+    result = (
+        get_supabase().table("canvas_calendar_connections")
+        .select("feed_url")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0].get("feed_url") or "" if result.data else ""
+
+
+@router.get("/connection")
+def get_calendar_connection(authorization: str = Header(default="")):
+    user_id = get_user_id(authorization)
+    url = _stored_feed(user_id)
+    if not url:
+        return {"connected": False, "items": [], "due_today": []}
+    return _calendar_payload(url)
+
+
+@router.post("/connection")
+def connect_calendar(body: CalendarPreviewRequest, authorization: str = Header(default="")):
+    user_id = get_user_id(authorization)
+    payload = _calendar_payload(body.url)
+    get_supabase().table("canvas_calendar_connections").upsert(
+        {
+            "user_id": user_id,
+            "feed_url": body.url,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        },
+        on_conflict="user_id",
+    ).execute()
+    return payload
+
+
+@router.delete("/connection")
+def disconnect_calendar(authorization: str = Header(default="")):
+    user_id = get_user_id(authorization)
+    (
+        get_supabase().table("canvas_calendar_connections")
+        .delete()
+        .eq("user_id", user_id)
+        .execute()
+    )
+    return {"connected": False}
+
+
+@router.post("/preview")
+def preview_calendar(body: CalendarPreviewRequest, authorization: str = Header(default="")):
+    get_user_id(authorization)
+    return _calendar_payload(body.url)

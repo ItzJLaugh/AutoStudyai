@@ -37,7 +37,7 @@ function notifyDueToday(items, userId) {
 
 export default function CalendarDashboard() {
   const [feedUrl, setFeedUrl] = useState('');
-  const [connectedUrl, setConnectedUrl] = useState('');
+  const [connected, setConnected] = useState(false);
   const [items, setItems] = useState([]);
   const [dueToday, setDueToday] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -58,45 +58,70 @@ export default function CalendarDashboard() {
     setUserId(accountId);
     const saved = feedKey ? localStorage.getItem(feedKey) || '' : '';
     setFeedUrl(saved);
-    setConnectedUrl(saved);
     setReminders(Boolean(reminderKey && localStorage.getItem(reminderKey) === 'on'));
-    if (saved) refresh(saved, accountId);
+    if (saved) {
+      connect(saved, accountId);
+    } else {
+      refresh(accountId);
+    }
   }, []);
 
-  async function refresh(url = connectedUrl || feedUrl, accountId = userId) {
-    if (!url) return;
+  function applyCalendar(data, accountId) {
+    if (!data?.connected || !Array.isArray(data.items)) return false;
+    setConnected(true);
+    setItems(data.items);
+    setDueToday(Array.isArray(data.due_today) ? data.due_today : []);
+    notifyDueToday(data.due_today || [], accountId);
+    return true;
+  }
+
+  async function connect(url, accountId = userId) {
+    if (!url || !accountId) return;
     setLoading(true);
     setError('');
-    const data = await apiFetch('/calendar/preview', {
+    const data = await apiFetch('/calendar/connection', {
       method: 'POST',
       body: JSON.stringify({ url }),
     });
-    if (Array.isArray(data?.items)) {
+    if (applyCalendar(data, accountId)) {
       const feedKey = accountKey(FEED_KEY, accountId);
-      if (!feedKey) {
-        setError('Sign in again before connecting a calendar.');
-        setLoading(false);
-        return;
-      }
-      localStorage.setItem(feedKey, url);
-      setConnectedUrl(url);
-      setItems(data.items);
-      setDueToday(Array.isArray(data.due_today) ? data.due_today : []);
-      notifyDueToday(data.due_today || [], accountId);
+      if (feedKey) localStorage.removeItem(feedKey);
+      setFeedUrl('');
     } else {
       setError(apiErrorMessage(data?.detail, 'Classroom could not read this calendar feed.'));
     }
     setLoading(false);
   }
 
-  function disconnect() {
+  async function refresh(accountId = userId) {
+    if (!accountId) return;
+    setLoading(true);
+    setError('');
+    const data = await apiFetch('/calendar/connection');
+    if (data?.connected === false) {
+      setConnected(false);
+    } else if (!applyCalendar(data, accountId)) {
+      setError(apiErrorMessage(data?.detail, 'Classroom could not refresh this calendar feed.'));
+    }
+    setLoading(false);
+  }
+
+  async function disconnect() {
+    setLoading(true);
+    setError('');
+    const data = await apiFetch('/calendar/connection', { method: 'DELETE' });
+    if (data?.connected !== false) {
+      setError(apiErrorMessage(data?.detail, 'Classroom could not disconnect this calendar.'));
+      setLoading(false);
+      return;
+    }
     const feedKey = accountKey(FEED_KEY, userId);
     if (feedKey) localStorage.removeItem(feedKey);
-    setConnectedUrl('');
+    setConnected(false);
     setFeedUrl('');
     setItems([]);
     setDueToday([]);
-    setError('');
+    setLoading(false);
   }
 
   async function toggleReminders() {
@@ -124,7 +149,7 @@ export default function CalendarDashboard() {
     notifyDueToday(dueToday, userId);
   }
 
-  if (!connectedUrl) {
+  if (!connected) {
     return (
       <section className="canvas-dashboard calendar-connect-card">
         <div className="calendar-mark" aria-hidden="true">31</div>
@@ -144,11 +169,11 @@ export default function CalendarDashboard() {
               placeholder="https://your-school.edu/feeds/calendars/..."
               aria-label="Canvas calendar feed URL"
             />
-            <button type="button" className="btn btn-green" onClick={() => refresh(feedUrl.trim())} disabled={loading || !feedUrl.trim()}>
+            <button type="button" className="btn btn-green" onClick={() => connect(feedUrl.trim())} disabled={loading || !feedUrl.trim()}>
               {loading ? 'Checking calendar…' : 'Connect calendar'}
             </button>
           </div>
-          <small>Your feed link stays in this browser. Classroom reads it only when refreshing your reminders.</small>
+          <small>Your private feed link is saved to your Classroom account so deadlines reconnect automatically on your devices.</small>
           {error && <div className="canvas-inline-error" role="alert">{error}</div>}
         </div>
       </section>
