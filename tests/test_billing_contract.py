@@ -81,6 +81,13 @@ class BillingContractTests(unittest.TestCase):
                 asyncio.run(billing.stripe_webhook(request))
         self.assertEqual(error.exception.status_code, 400)
 
+    def test_plain_supports_current_stripe_objects(self):
+        class StripeObject:
+            def to_dict(self):
+                return {"id": "cs_live_1"}
+
+        self.assertEqual(billing._plain(StripeObject()), {"id": "cs_live_1"})
+
     def test_monthly_and_yearly_checkout_use_the_matching_price(self):
         stripe_client = MagicMock()
         stripe_client.checkout.Session.create.return_value = SimpleNamespace(url="https://checkout.test")
@@ -112,8 +119,63 @@ class BillingContractTests(unittest.TestCase):
                 self.assertEqual(params["subscription_data"]["metadata"]["user_id"], "user-1")
                 self.assertEqual(
                     params["success_url"],
-                    "https://classroom.cordiacode.com/settings?billing=success",
+                    "https://classroom.cordiacode.com/settings?billing=success"
+                    "&session_id={CHECKOUT_SESSION_ID}",
                 )
+
+    def test_confirm_checkout_activates_only_the_signed_in_user(self):
+        query = MagicMock()
+        db = MagicMock()
+        db.table.return_value = query
+        stripe_client = MagicMock()
+        stripe_client.checkout.Session.retrieve.return_value = {
+            "id": "cs_live_1",
+            "status": "complete",
+            "payment_status": "paid",
+            "subscription": "sub_1",
+            "client_reference_id": "user-1",
+            "metadata": {"user_id": "user-1"},
+        }
+        stripe_client.Subscription.retrieve.return_value = {
+            "id": "sub_1",
+            "customer": "cus_1",
+            "status": "active",
+            "current_period_end": 1_800_000_000,
+            "items": {"data": [{"price": {"recurring": {"interval": "month"}}}]},
+        }
+        with (
+            patch.object(billing, "get_user_id", return_value="user-1"),
+            patch.object(billing, "get_user_plan", return_value={"plan": "classroom_plus"}),
+            patch.object(billing, "get_supabase", return_value=db),
+            patch.object(billing, "_stripe", return_value=stripe_client),
+        ):
+            result = billing.confirm_checkout(
+                billing.ConfirmCheckoutRequest(session_id="cs_live_1"), "Bearer token"
+            )
+        self.assertEqual(result["plan"], "classroom_plus")
+        payload = query.upsert.call_args.args[0]
+        self.assertEqual(payload["user_id"], "user-1")
+        self.assertEqual(payload["status"], "active")
+
+    def test_confirm_checkout_rejects_another_users_session(self):
+        stripe_client = MagicMock()
+        stripe_client.checkout.Session.retrieve.return_value = {
+            "id": "cs_live_1",
+            "status": "complete",
+            "payment_status": "paid",
+            "subscription": "sub_1",
+            "client_reference_id": "another-user",
+            "metadata": {},
+        }
+        with (
+            patch.object(billing, "get_user_id", return_value="user-1"),
+            patch.object(billing, "_stripe", return_value=stripe_client),
+        ):
+            with self.assertRaises(HTTPException) as error:
+                billing.confirm_checkout(
+                    billing.ConfirmCheckoutRequest(session_id="cs_live_1"), "Bearer token"
+                )
+        self.assertEqual(error.exception.status_code, 403)
 
     def test_checkout_reuses_existing_stripe_customer(self):
         db, _ = self._subscription_query("cus_existing")

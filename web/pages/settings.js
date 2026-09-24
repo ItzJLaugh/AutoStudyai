@@ -37,29 +37,36 @@ export default function SettingsPage() {
 
     if (router.query.billing === 'success') {
       setActiveSection('subscription');
-      setMessage('Payment received. Activating CordiaClassroom Plus...');
-      pollForPlus();
+      const sessionId = typeof router.query.session_id === 'string' ? router.query.session_id : '';
+      if (sessionId) {
+        setMessage('Confirming your CordiaClassroom Plus subscription...');
+        confirmCheckout(sessionId);
+      } else {
+        setMessage('Checkout returned without a confirmation reference. Checking your plan...');
+        loadStatus();
+      }
     } else {
       if (router.query.billing === 'cancelled') setMessage('Checkout cancelled. Your plan did not change.');
       loadStatus();
     }
   }, [ready, router.query]);
 
-  async function pollForPlus(attempts = 0) {
+  async function confirmCheckout(sessionId) {
     setLoading(true);
-    const data = await apiFetch('/billing/status');
+    const data = await apiFetch('/billing/confirm-checkout', {
+      method: 'POST',
+      body: JSON.stringify({ session_id: sessionId }),
+    });
     if (data?.plan === 'classroom_plus') {
       setStatus(data);
       if (data.billing_interval) setBillingInterval(data.billing_interval);
       setMessage('CordiaClassroom Plus is active.');
-      setLoading(false);
-    } else if (attempts < 6) {
-      setTimeout(() => pollForPlus(attempts + 1), 2000);
+      router.replace('/settings?section=subscription', undefined, { shallow: true });
     } else {
-      if (data) setStatus(data);
-      setMessage('Payment is processing. Refresh this page in a moment.');
-      setLoading(false);
+      setMessage(apiErrorMessage(data?.detail, 'We could not confirm this Checkout session. Please contact support.'));
+      await loadStatus();
     }
+    setLoading(false);
   }
 
   async function loadStatus() {
@@ -155,7 +162,7 @@ export default function SettingsPage() {
                     <div className="usage-bar">
                       <div className="usage-bar-fill" style={{ width: buildsPct + '%', background: buildsPct >= 100 ? 'var(--error)' : 'var(--accent)' }} />
                     </div>
-                    <span>{actionsUsed} of {actionsLimit} lightweight AI actions used</span>
+                    <span>{actionsUsed} of {actionsLimit} quick study actions used</span>
                     <div className="usage-bar">
                       <div className="usage-bar-fill" style={{ width: actionsPct + '%', background: actionsPct >= 100 ? 'var(--error)' : 'var(--accent)' }} />
                     </div>
@@ -173,7 +180,7 @@ export default function SettingsPage() {
                     <div className="plan-price">$0 <span>/month</span></div>
                     <ul className="plan-features">
                       <li>3 complete study builds each month</li>
-                      <li>30 lightweight AI actions each month</li>
+                      <li>30 quick study actions each month</li>
                       <li>Notes, study guides &amp; flashcards</li>
                       <li>Save guides to dashboard</li>
                     </ul>
@@ -194,7 +201,8 @@ export default function SettingsPage() {
                     </div>
                     <ul className="plan-features">
                       <li>25 complete study builds each month</li>
-                      <li>250 lightweight AI actions each month</li>
+                      <li>250 quick study actions each month</li>
+                      <li>Tutor replies, quiz regeneration, diagrams &amp; image reading</li>
                       <li>Everything in Free</li>
                       <li>Secure billing management through Stripe</li>
                       <li>Cancel anytime</li>
