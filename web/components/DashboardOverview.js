@@ -103,7 +103,7 @@ export default function DashboardOverview({ folders, guides, stats, navigate }) 
         </section>
       )}
 
-      <style jsx>{`
+      <style jsx global>{`
         .student-overview { display: grid; gap: 22px; min-width: 0; }
         .overview-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 4px 2px 0; }
         .overview-heading h1 { margin: 5px 0 6px; max-width: 720px; font-size: clamp(2.1rem, 4vw, 4.15rem); line-height: .94; letter-spacing: -.065em; }

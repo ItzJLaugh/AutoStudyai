@@ -2,6 +2,7 @@ import Sidebar from './Sidebar';
 import StreakCounter from './StreakCounter';
 import StudyTimer from './StudyTimer';
 import TutorDrawer from './TutorDrawer';
+import ClassroomVisualSystem from './ClassroomVisualSystem';
 import { useRouter } from 'next/router';
 
 export default function Layout({ children, timerState, setTimerState }) {
@@ -14,6 +15,7 @@ export default function Layout({ children, timerState, setTimerState }) {
 
   return (
     <div className="app-shell">
+      <ClassroomVisualSystem />
       <Sidebar />
       <main className="main-content fade-in">
         {children}
