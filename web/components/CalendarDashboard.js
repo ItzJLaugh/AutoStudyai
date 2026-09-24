@@ -35,7 +35,7 @@ function notifyDueToday(items, userId) {
   });
 }
 
-export default function CalendarDashboard() {
+export default function CalendarDashboard({ compact = false, onOpenCalendar = () => {} }) {
   const [feedUrl, setFeedUrl] = useState('');
   const [connected, setConnected] = useState(false);
   const [items, setItems] = useState([]);
@@ -150,6 +150,23 @@ export default function CalendarDashboard() {
   }
 
   if (!connected) {
+    if (compact) {
+      return (
+        <section className="compact-calendar">
+          <header>
+            <div>
+              <span className="compact-eyebrow">Upcoming</span>
+              <h2>Bring deadlines into view.</h2>
+            </div>
+            <span className="compact-calendar-mark" aria-hidden="true">31</span>
+          </header>
+          <p>Connect your Canvas calendar once to see assignments and due dates here.</p>
+          {error && <div className="compact-calendar-error" role="alert">{error}</div>}
+          <button type="button" onClick={onOpenCalendar}>Connect calendar</button>
+          <CompactStyles />
+        </section>
+      );
+    }
     return (
       <section className="canvas-dashboard calendar-connect-card">
         <div className="calendar-mark" aria-hidden="true">31</div>
@@ -185,6 +202,34 @@ export default function CalendarDashboard() {
     .filter(item => !todayIds.has(item.id) && dateValue(item) >= Date.now())
     .sort((a, b) => dateValue(a) - dateValue(b))
     .slice(0, 10);
+
+  if (compact) {
+    const agenda = [...dueToday, ...upcoming]
+      .sort((left, right) => dateValue(left) - dateValue(right))
+      .slice(0, 3);
+    return (
+      <section className="compact-calendar">
+        <header>
+          <div>
+            <span className="compact-eyebrow">Upcoming</span>
+            <h2>Your next deadlines</h2>
+          </div>
+          <button type="button" className="compact-calendar-link" onClick={onOpenCalendar}>View calendar</button>
+        </header>
+        {error && <div className="compact-calendar-error" role="alert">{error}</div>}
+        <div className="compact-agenda">
+          {agenda.length ? agenda.map(item => (
+            <a key={item.id} href={item.url || undefined} target={item.url ? '_blank' : undefined} rel={item.url ? 'noreferrer' : undefined}>
+              <span className="compact-date">{dueLabel(item)}</span>
+              <strong>{item.title}</strong>
+              <small>{item.course || 'Canvas'}</small>
+            </a>
+          )) : <p>Nothing due soon. Your calendar is clear.</p>}
+        </div>
+        <CompactStyles />
+      </section>
+    );
+  }
 
   const rows = list => list.length ? list.map(item => (
     <a className="calendar-agenda-row" key={item.id} href={item.url || undefined} target={item.url ? '_blank' : undefined} rel={item.url ? 'noreferrer' : undefined}>
@@ -222,5 +267,27 @@ export default function CalendarDashboard() {
         </section>
       </div>
     </section>
+  );
+}
+
+function CompactStyles() {
+  return (
+    <style jsx global>{`
+      .compact-calendar { display: flex; min-width: 0; min-height: 255px; flex-direction: column; padding: 26px; border: 1px solid var(--border-default); border-radius: 28px; background: var(--surface); box-shadow: var(--shadow-md); }
+      .compact-calendar header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+      .compact-eyebrow { color: var(--accent); font-size: .69rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+      .compact-calendar h2 { margin: 5px 0 0; font-size: 1.45rem; letter-spacing: -.04em; }
+      .compact-calendar > p, .compact-agenda > p { margin: 18px 0; color: var(--text-muted); line-height: 1.55; }
+      .compact-calendar > button { align-self: flex-start; margin-top: auto; padding: 10px 14px; border: 1px solid var(--border-default); border-radius: 12px; color: var(--ink); background: var(--bg-hover); font: inherit; font-size: .78rem; font-weight: 750; cursor: pointer; }
+      .compact-calendar-mark { display: grid; width: 43px; height: 43px; flex: 0 0 auto; place-items: center; border-radius: 13px; color: var(--accent); background: var(--bg-hover); font-weight: 850; }
+      .compact-calendar-link { flex: 0 0 auto; padding: 0; border: 0; color: var(--accent); background: transparent; font: inherit; font-size: .73rem; font-weight: 750; cursor: pointer; }
+      .compact-agenda { display: grid; margin-top: 13px; }
+      .compact-agenda a { display: grid; min-width: 0; gap: 2px; padding: 11px 0; border-top: 1px solid var(--border-default); color: var(--ink); text-decoration: none; }
+      .compact-agenda strong { overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+      .compact-agenda small { overflow: hidden; color: var(--text-muted); font-size: .67rem; text-overflow: ellipsis; white-space: nowrap; }
+      .compact-date { color: var(--accent); font-size: .62rem; font-weight: 750; }
+      .compact-calendar-error { margin-top: 12px; color: var(--error); font-size: .72rem; line-height: 1.4; }
+      @media (max-width: 620px) { .compact-calendar { min-height: 0; border-radius: 22px; padding: 22px; } }
+    `}</style>
   );
 }

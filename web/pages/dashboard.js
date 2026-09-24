@@ -8,6 +8,7 @@ import SearchModal from '../components/SearchModal';
 import AILoadingSphere from '../components/AILoadingSphere';
 import StudyWorkspaceFrame from '../components/StudyWorkspaceFrame';
 import CalendarDashboard from '../components/CalendarDashboard';
+import DashboardOverview from '../components/DashboardOverview';
 import { organizeDashboardGuides } from '../lib/dashboardOrganization';
 
 export default function Dashboard({ timerState, setTimerState }) {
@@ -423,68 +424,7 @@ export default function Dashboard({ timerState, setTimerState }) {
       {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
       <div>
         {loadErrorBanner}
-        <div className="dashboard-desktop-header">
-          <div>
-            <h1>Your study workspace</h1>
-          </div>
-          <button className="btn" onClick={() => router.push('/create')}>New study guide</button>
-        </div>
-
-        {stats && (
-          <div className="dashboard-metrics-strip" aria-label="Study overview">
-            <button type="button" onClick={() => router.push('/dashboard?view=guides')}><strong>{stats.total_guides}</strong><span>Guides</span></button>
-            <div><strong>{stats.total_flashcards}</strong><span>Flashcards</span></div>
-            <div><strong>{stats.avg_quiz_score}%</strong><span>Quiz average</span></div>
-            <div><strong>{stats.minutes_today}</strong><span>Minutes today</span></div>
-          </div>
-        )}
-
-        <CalendarDashboard />
-
-        <button type="button" className="dashboard-extension-banner" onClick={() => router.push('/install-extension')}>
-          <span className="extension-banner-badge">Chrome</span>
-          <span className="dashboard-extension-copy">
-            <strong>Study anything in your browser</strong>
-            <small>Use the Chrome extension to capture any educational page, PDF, or slideshow.</small>
-          </span>
-          <span className="dashboard-extension-action">Install free</span>
-        </button>
-
-        <div className="dashboard-guides-heading">
-          <div>
-            <h2>Not in a class</h2>
-            <p>Drag a guide onto a class in the left sidebar to organize it.</p>
-          </div>
-          <button type="button" className="btn-outline" onClick={() => router.push('/dashboard?view=guides')}>View all guides</button>
-        </div>
-
-        <div className="dashboard-unclassified-guides">
-          {organized.unclassified.length === 0 ? (
-            <div className="dashboard-guides-empty">
-              <strong>Everything is organized.</strong>
-              <span>New captures without a class will appear here.</span>
-            </div>
-          ) : organized.unclassified.map(guide => (
-            <div
-              key={guide.id}
-              className="guide-row"
-              draggable
-              onDragStart={event => onDragStart(event, guide.id)}
-              onDragEnd={onDragEnd}
-              onClick={() => router.push('/guide/' + guide.id)}
-              onContextMenu={event => onGuideContextMenu(event, guide)}
-            >
-              <span className="guide-row-type">Guide</span>
-              <div className="guide-row-info">
-                <div className="guide-row-title">{guide.title}</div>
-                <div className="guide-row-meta">No class &middot; {formatDate(guide.created_at)}</div>
-              </div>
-              <button className={'bookmark-btn' + (guide.is_bookmarked ? ' active' : '')} onClick={event => toggleBookmark(guide.id, event)} aria-label="Toggle bookmark">
-                {guide.is_bookmarked ? '\u2605' : '\u2606'}
-              </button>
-            </div>
-          ))}
-        </div>
+        <DashboardOverview folders={folders} guides={guides} stats={stats} navigate={path => router.push(path)} />
       </div>
       {toast && <div className={'toast toast-' + toast.type}>{toast.message}</div>}
       {contextMenu && renderContextMenu()}
