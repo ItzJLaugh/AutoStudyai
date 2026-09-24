@@ -18,6 +18,7 @@ export default function Sidebar() {
   const [theme, setTheme] = useState('light');
   const [menuOpen, setMenuOpen] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [canReviewFeedback, setCanReviewFeedback] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -31,6 +32,9 @@ export default function Sidebar() {
       cacheUserIdentity(identity);
       setEmail(identity.email || getUserEmail() || '');
       setName(identity.name || getUserName() || '');
+    });
+    apiFetch('/feedback/reviewer-status').then(result => {
+      if (active) setCanReviewFeedback(Boolean(result?.reviewer));
     });
     return () => { active = false; };
   }, []);
@@ -79,7 +83,8 @@ export default function Sidebar() {
     .toUpperCase() || 'CC';
 
   return (
-    <header className="top-navigation">
+    <>
+      <header className="top-navigation">
       <a className="top-navigation-brand" href="/dashboard" aria-label="CordiaClassroom dashboard">
         <AcademicInfinityMark className="top-navigation-mark" />
         <span>CordiaClassroom</span>
@@ -94,32 +99,46 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="account-menu" ref={menuRef}>
-        <button type="button" className="account-avatar" onClick={() => setMenuOpen(open => !open)} aria-expanded={menuOpen} aria-haspopup="menu" aria-label="Open account menu">
-          {initials}
-        </button>
+      <div className="top-navigation-actions">
+        <button type="button" className="feedback-header-button" onClick={() => setShowFeedback(true)}>Feedback</button>
+        <div className="account-menu" ref={menuRef}>
+          <button type="button" className="account-avatar" onClick={() => setMenuOpen(open => !open)} aria-expanded={menuOpen} aria-haspopup="menu" aria-label="Open account menu">
+            {initials}
+          </button>
 
-        {menuOpen && (
-          <div className="account-menu-panel" role="menu" aria-label="Account menu">
-            <div className="account-menu-identity">
-              <strong>{displayName}</strong>
-              <span>{email || 'CordiaClassroom account'}</span>
+          {menuOpen && (
+            <div className="account-menu-panel" role="menu" aria-label="Account menu">
+              <div className="account-menu-identity">
+                <strong>{displayName}</strong>
+                <span>{email || 'CordiaClassroom account'}</span>
+              </div>
+              <button type="button" role="menuitem" onClick={() => router.push('/settings')}>Your profile</button>
+              <button type="button" role="menuitem" onClick={() => router.push('/billing')}>Billing</button>
+              <button type="button" role="menuitem" onClick={() => router.push('/dashboard')}>Workspace</button>
+              <button type="button" role="menuitem" onClick={() => router.push('/install-extension')}>Chrome extension</button>
+              {canReviewFeedback && <button type="button" role="menuitem" onClick={() => router.push('/feedback-review')}>Review feedback</button>}
+              <div className="account-theme-row">
+                <span>Appearance</span>
+                <button type="button" className={theme === 'light' ? 'active' : ''} aria-pressed={theme === 'light'} onClick={() => setAppearance('light')}>Light</button>
+                <button type="button" className={theme === 'dark' ? 'active' : ''} aria-pressed={theme === 'dark'} onClick={() => setAppearance('dark')}>Dark</button>
+              </div>
+              <button type="button" role="menuitem" className="account-signout" onClick={signOut}>Sign out</button>
             </div>
-            <button type="button" role="menuitem" onClick={() => router.push('/settings')}>Your profile</button>
-            <button type="button" role="menuitem" onClick={() => router.push('/billing')}>Billing</button>
-            <button type="button" role="menuitem" onClick={() => router.push('/dashboard')}>Workspace</button>
-            <button type="button" role="menuitem" onClick={() => router.push('/install-extension')}>Chrome extension</button>
-            <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setShowFeedback(true); }}>Feedback</button>
-            <div className="account-theme-row">
-              <span>Appearance</span>
-              <button type="button" className={theme === 'light' ? 'active' : ''} aria-pressed={theme === 'light'} onClick={() => setAppearance('light')}>Light</button>
-              <button type="button" className={theme === 'dark' ? 'active' : ''} aria-pressed={theme === 'dark'} onClick={() => setAppearance('dark')}>Dark</button>
-            </div>
-            <button type="button" role="menuitem" className="account-signout" onClick={signOut}>Sign out</button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+        <style jsx>{`
+          .top-navigation-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+          .feedback-header-button { min-height: 42px; padding: 0 17px; border: 0; border-radius: 12px; background: #11120f; color: #fff; box-shadow: 0 8px 20px rgba(17, 18, 15, 0.16); font: inherit; font-size: 0.78rem; font-weight: 750; cursor: pointer; }
+          .feedback-header-button:hover { transform: translateY(-1px); background: #2a2c27; box-shadow: 0 11px 24px rgba(17, 18, 15, 0.2); }
+          .feedback-header-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--olive) 30%, transparent); outline-offset: 2px; }
+          @media (max-width: 720px) {
+            .top-navigation-actions { gap: 7px; }
+            .feedback-header-button { min-height: 40px; padding: 0 13px; font-size: 0.72rem; }
+          }
+        `}</style>
+      </header>
       {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
-    </header>
+    </>
   );
 }
