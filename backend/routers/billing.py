@@ -29,6 +29,10 @@ class CheckoutRequest(BaseModel):
     interval: Literal["monthly", "yearly"] = "monthly"
 
 
+class ConfirmCheckoutRequest(BaseModel):
+    session_id: str
+
+
 def _stripe():
     key = os.getenv("STRIPE_SECRET_KEY")
     if not key:
@@ -146,7 +150,10 @@ def create_checkout_session(body: CheckoutRequest, authorization: str = Header(d
     params = {
         "mode": "subscription",
         "line_items": [{"price": price_id, "quantity": 1}],
-        "success_url": f"{frontend_url}/settings?billing=success",
+        "success_url": (
+            f"{frontend_url}/settings?billing=success"
+            "&session_id={CHECKOUT_SESSION_ID}"
+        ),
         "cancel_url": f"{frontend_url}/settings?billing=cancelled",
         "client_reference_id": user_id,
         "metadata": metadata,
@@ -179,7 +186,11 @@ def create_portal_session(authorization: str = Header(default="")):
 
 
 def _plain(value) -> dict:
-    return value.to_dict_recursive() if hasattr(value, "to_dict_recursive") else dict(value)
+    if hasattr(value, "to_dict_recursive"):
+        return value.to_dict_recursive()
+    if hasattr(value, "to_dict"):
+        return value.to_dict()
+    return dict(value)
 
 
 def _subscription_row(subscription: dict) -> dict:
@@ -207,12 +218,45 @@ def _subscription_row(subscription: dict) -> dict:
     }
 
 
+def _activate_checkout(session: dict, user_id: str) -> dict:
+    """Verify a completed Stripe Checkout Session and mirror its entitlement."""
+    session_user_id = session.get("metadata", {}).get("user_id") or session.get(
+        "client_reference_id"
+    )
+    if session_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Checkout session does not belong to this account")
+    if session.get("status") != "complete":
+        raise HTTPException(status_code=409, detail="Checkout is not complete")
+    if session.get("payment_status") not in {"paid", "no_payment_required"}:
+        raise HTTPException(status_code=409, detail="Payment is still processing")
+
+    subscription_id = session.get("subscription")
+    if not subscription_id:
+        raise HTTPException(status_code=409, detail="Checkout did not create a subscription")
+    if not isinstance(subscription_id, str):
+        subscription_id = subscription_id.get("id")
+
+    row = _subscription_row(_plain(_stripe().Subscription.retrieve(subscription_id)))
+    row["user_id"] = user_id
+    get_supabase().table("user_subscriptions").upsert(row, on_conflict="user_id").execute()
+    return get_user_plan(user_id)
+
+
+@router.post("/confirm-checkout")
+def confirm_checkout(body: ConfirmCheckoutRequest, authorization: str = Header(default="")):
+    user_id = get_user_id(authorization)
+    if not body.session_id.startswith("cs_"):
+        raise HTTPException(status_code=400, detail="Invalid Checkout session")
+    session = _plain(_stripe().checkout.Session.retrieve(body.session_id))
+    return _activate_checkout(session, user_id)
+
+
 def process_stripe_event(event) -> None:
     event_type = event["type"]
     data = _plain(event["data"]["object"])
     db = get_supabase()
 
-    if event_type == "checkout.session.completed":
+    if event_type in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
         subscription_id = data.get("subscription")
         user_id = data.get("metadata", {}).get("user_id") or data.get("client_reference_id")
         if not subscription_id or not user_id:
