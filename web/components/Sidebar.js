@@ -114,7 +114,6 @@ export default function Sidebar() {
               </div>
               <button type="button" role="menuitem" onClick={() => router.push('/settings')}>Your profile</button>
               <button type="button" role="menuitem" onClick={() => router.push('/billing')}>Billing</button>
-              <button type="button" role="menuitem" onClick={() => router.push('/dashboard')}>Workspace</button>
               <button type="button" role="menuitem" onClick={() => router.push('/install-extension')}>Chrome extension</button>
               {canReviewFeedback && <button type="button" role="menuitem" onClick={() => router.push('/feedback-review')}>Review feedback</button>}
               <div className="account-theme-row">
