@@ -65,6 +65,14 @@ class GenerateResponse(BaseModel):
     flashcards: Optional[List[dict]] = None
 
 
+class RetainExplanationContext(BaseModel):
+    """The exact answered Retain question a Tutor explanation refers to."""
+    question: str = Field(..., min_length=1, max_length=2_000)
+    options: List[str] = Field(..., min_length=2, max_length=10)
+    selected_answer: str = Field(..., min_length=1, max_length=2_000)
+    correct_answer: str = Field(..., min_length=1, max_length=2_000)
+
+
 class ChatRequest(BaseModel):
     """Request for chat Q&A."""
     question: str = Field(..., min_length=1, max_length=2_000)
@@ -78,6 +86,7 @@ class ChatRequest(BaseModel):
     conversation_version: Optional[int] = Field(default=None, ge=0)
     skill: Optional[str] = Field(default=None, max_length=30)
     class_id: Optional[str] = Field(default=None, max_length=36)
+    retain_context: Optional[RetainExplanationContext] = None
 
     @field_validator("mode")
     @classmethod

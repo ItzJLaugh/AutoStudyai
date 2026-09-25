@@ -56,14 +56,14 @@ TUTOR_SKILLS = {
     },
     "retain": {
         "label": "Retain",
-        "version": 1,
+        "version": 2,
         "available": True,
         "outcome": "Help the student understand and remember missed material.",
         "complete_when": "The missed concept and a usable memory cue are explained from the source.",
         "tools": ["read_context"],
         "requires_context": True,
         "confirm": [],
-        "instruction": "Focus on why the answer is correct, why plausible alternatives fail, and what to remember next time.",
+        "instruction": "Teach the distinction behind the missed answer conversationally; use the guide as the authority and general knowledge only to clarify it.",
     },
     "plan": {
         "label": "Plan",

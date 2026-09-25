@@ -60,6 +60,55 @@ class TutorContractTests(unittest.TestCase):
     @patch("main._learning_guidance", return_value="")
     @patch("main.record_usage")
     @patch("main.check_usage", return_value={"used": 0})
+    @patch("main.explain_retain_answer", return_value="Mitosis makes matching body cells; meiosis makes sex cells with half the chromosomes.")
+    @patch("main.get_user_id", return_value="student-1")
+    def test_retain_explanation_binds_selected_and_correct_answers(self, _auth, explain, _usage, _record, _guidance):
+        db, _table = self.guide_db()
+        turn = {
+            "id": "session-1",
+            "run_id": "run-1",
+            "active_skill": "retain",
+            "conversation_version": 2,
+            "messages": [
+                {"role": "user", "text": "What is the difference between mitosis and meiosis?"},
+                {"role": "ai", "text": "They are two different forms of cell division."},
+                {"role": "user", "text": "Please explain my missed answer."},
+            ],
+        }
+        completed = {**turn, "status": "idle", "conversation_version": 3}
+        with patch("main.get_supabase", return_value=db), \
+             patch("main.claim_tutor_turn", return_value=turn), \
+             patch("main.complete_tutor_turn", return_value=completed), \
+             patch("main.public_tutor_session", return_value={"id": "session-1", "conversation_version": 3}):
+            response = self.client.post(
+                "/chat",
+                headers={"Authorization": "Bearer test"},
+                json={
+                    "question": "Please explain my missed answer.",
+                    "content": "",
+                    "guide_id": self.guide_id,
+                    "session_id": "session-1",
+                    "conversation_version": 2,
+                    "skill": "retain",
+                    "retain_context": {
+                        "question": "What is mitosis?",
+                        "options": ["Meiosis", "Cell division."],
+                        "selected_answer": "Meiosis",
+                        "correct_answer": "Cell division.",
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["answer"], "Mitosis makes matching body cells; meiosis makes sex cells with half the chromosomes.")
+        self.assertEqual(explain.call_args.kwargs["selected_answer"], "Meiosis")
+        self.assertEqual(explain.call_args.kwargs["correct_answer"], "Cell division.")
+        self.assertEqual(explain.call_args.kwargs["conversation"], turn["messages"][:-1])
+        self.assertIn("What is mitosis?", explain.call_args.kwargs["context"])
+
+    @patch("main._learning_guidance", return_value="")
+    @patch("main.record_usage")
+    @patch("main.check_usage", return_value={"used": 0})
     @patch("main.answer_question", return_value="The selected source explains recursion.")
     @patch("main.get_user_id", return_value="student-1")
     def test_tutor_uses_selected_material_when_saved_guide_content_is_empty(self, _auth, answer, _usage, _record, _guidance):

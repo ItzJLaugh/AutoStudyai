@@ -45,7 +45,14 @@ export default function QuizMode({ questions, guideId, onComplete }) {
       window.dispatchEvent(new CustomEvent('cordia:tutor-prompt', {
         detail: {
           guideId,
-          prompt: `Explain this question: ${currentQ.question}`,
+          skill: 'retain',
+          prompt: 'Can you explain why my answer does not work and help me understand the difference?',
+          retainContext: {
+            question: currentQ.question,
+            options: currentQ.options,
+            selected_answer: currentQ.options[i],
+            correct_answer: currentQ.options[currentQ.correct_index],
+          },
         },
       }));
     }

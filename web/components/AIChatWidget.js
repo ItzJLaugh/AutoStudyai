@@ -27,6 +27,8 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
   const [skillOverride, setSkillOverride] = useState('');
   const [targetClassId, setTargetClassId] = useState('');
   const [input, setInput] = useState('');
+  const [retainContext, setRetainContext] = useState(null);
+  const [savedDraft, setSavedDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [localError, setLocalError] = useState('');
@@ -101,7 +103,14 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
     const prefill = event => {
       const detail = event.detail || {};
       if (detail.guideId) setContextKey(`guide:${detail.guideId}`);
-      if (detail.prompt) setInput(detail.prompt);
+      if (detail.skill) setSkillOverride(detail.skill);
+      if (detail.retainContext) setRetainContext(detail.retainContext);
+      if (detail.prompt) {
+        setInput(current => {
+          if (detail.retainContext && current.trim() && current !== detail.prompt) setSavedDraft(current);
+          return detail.prompt;
+        });
+      }
     };
     window.addEventListener('cordia:tutor-prompt', prefill);
     return () => window.removeEventListener('cordia:tutor-prompt', prefill);
@@ -183,6 +192,7 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
         session_id: session.id,
         conversation_version: session.conversation_version,
         skill: skillOverride || null,
+        retain_context: retainContext || undefined,
         class_id: needsTargetClass ? targetClassId : material?.folder_id || undefined,
         mode: 'short',
       }),
@@ -196,8 +206,14 @@ export default function AIChatWidget({ guides: providedGuides = null, preferredG
     }
     if (data?.session?.id) {
       setSkillOverride('');
+      setRetainContext(null);
+      if (savedDraft) {
+        setInput(savedDraft);
+        setSavedDraft('');
+      }
       setSession(data.session);
     } else {
+      setInput(question);
       setLocalError(data?.answer || data?.detail || 'Cordia could not answer that yet.');
       const refreshed = await apiFetch('/tutor/session');
       if (refreshed?.id) setSession(refreshed);

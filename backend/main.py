@@ -29,7 +29,7 @@ from services.text_processing import (
 )
 from services.llm import (
     generate_notes_ai, generate_study_guide,
-    generate_flashcards, answer_question,
+    generate_flashcards, answer_question, explain_retain_answer,
     analyze_images_for_slides, generate_practice_guide,
     study_guide_is_complete, study_guide_to_flashcards,
 )
@@ -181,6 +181,26 @@ def _plain_context(text: str) -> str:
         return text
     text = re.sub(r"</?(?:p|div|li|h[1-6]|blockquote|br)[^>]*>", "\n", text, flags=re.IGNORECASE)
     return html.unescape(re.sub(r"<[^>]+>", "", text))
+
+
+def _verified_retain_context(body: ChatRequest, content: str):
+    """Validate that a queued Retain explanation still belongs to the owned guide."""
+    retain = body.retain_context
+    if not retain:
+        return None
+    if not body.guide_id:
+        raise HTTPException(status_code=400, detail="A Retain explanation requires its study guide")
+    if retain.selected_answer not in retain.options or retain.correct_answer not in retain.options:
+        raise HTTPException(status_code=400, detail="Retain answers do not match the question choices")
+    if retain.selected_answer == retain.correct_answer:
+        raise HTTPException(status_code=400, detail="This Retain answer is already correct")
+
+    normalized_source = re.sub(r"\s+", " ", content).casefold()
+    normalized_question = re.sub(r"\s+", " ", retain.question).casefold()
+    normalized_answer = re.sub(r"\s+", " ", retain.correct_answer).casefold()
+    if normalized_question not in normalized_source or normalized_answer not in normalized_source:
+        raise HTTPException(status_code=409, detail="This Retain question no longer matches the selected guide")
+    return retain
 
 
 @app.post("/render-pptx")
@@ -886,12 +906,28 @@ async def chat(body: ChatRequest, request: Request, authorization: str = Header(
             tutor_skill_instruction(active_skill),
             TUTOR_SAFETY_POLICY,
         ]))
-        answer = answer_question(
-            question=question,
-            context=content,
-            mode=body.mode,
-            learning_guidance=guidance,
-        )
+        retain_context = _verified_retain_context(body, content)
+        if retain_context:
+            previous_messages = (session_turn or {}).get("messages") or []
+            answer = explain_retain_answer(
+                question=retain_context.question,
+                options=retain_context.options,
+                selected_answer=retain_context.selected_answer,
+                correct_answer=retain_context.correct_answer,
+                context=content,
+                conversation=previous_messages[:-1],
+                learning_guidance=guidance,
+            )
+        else:
+            previous_messages = (session_turn or {}).get("messages") or []
+            answer = answer_question(
+                question=question,
+                context=content,
+                mode=body.mode,
+                learning_guidance=guidance,
+                conversation=previous_messages[:-1],
+                allow_clarification=active_skill in {"explain", "retain", None},
+            )
 
         record_usage(user_id, "lightweight", usage)
         return finish(ChatResponse(answer=answer, source=source))
