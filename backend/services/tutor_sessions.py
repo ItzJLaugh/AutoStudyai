@@ -56,7 +56,7 @@ TUTOR_SKILLS = {
     },
     "retain": {
         "label": "Retain",
-        "version": 2,
+        "version": 1,
         "available": True,
         "outcome": "Help the student understand and remember missed material.",
         "complete_when": "The missed concept and a usable memory cue are explained from the source.",
