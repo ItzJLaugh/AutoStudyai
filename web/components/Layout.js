@@ -15,7 +15,6 @@ export default function Layout({ children, timerState, setTimerState }) {
 
   return (
     <div className="app-shell">
-      <ClassroomVisualSystem />
       <Sidebar />
       <main className="main-content fade-in">
         {children}
@@ -27,6 +26,7 @@ export default function Layout({ children, timerState, setTimerState }) {
         )}
       </main>
       {!pageOwnsTutor && <TutorDrawer preferredGuideId={activeGuideId} preferredNoteId={activeNoteId} />}
+      <ClassroomVisualSystem />
     </div>
   );
 }

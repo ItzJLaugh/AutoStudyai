@@ -106,7 +106,7 @@ export default function DashboardOverview({ folders, guides, stats, navigate }) 
       <style jsx global>{`
         .student-overview { display: grid; gap: 22px; min-width: 0; }
         .overview-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 4px 2px 0; }
-        .overview-heading h1 { margin: 5px 0 6px; max-width: 720px; font-size: clamp(2.1rem, 4vw, 4.15rem); line-height: .94; letter-spacing: -.065em; }
+        .overview-heading h1 { margin: 7px 0 7px; max-width: 720px; font-size: clamp(2.15rem, 3.25vw, 3.45rem); font-weight: 650; line-height: 1.04; letter-spacing: -.035em; }
         .overview-heading p, .continue-card p { margin: 0; color: var(--text-muted); line-height: 1.55; }
         .overview-eyebrow { color: var(--accent); font-size: .69rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
         .overview-primary, .overview-secondary { border: 1px solid var(--border-default); border-radius: 14px; padding: 12px 18px; font: inherit; font-weight: 750; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease; }
@@ -116,13 +116,13 @@ export default function DashboardOverview({ folders, guides, stats, navigate }) 
         .overview-priority-grid { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(300px, .82fr); gap: 18px; align-items: stretch; }
         .continue-card, .recent-material, .overview-snapshot { border: 1px solid var(--border-default); border-radius: 28px; background: var(--surface); box-shadow: var(--shadow-md); }
         .continue-card { display: flex; min-height: 255px; flex-direction: column; justify-content: center; padding: clamp(24px, 4vw, 42px); overflow: hidden; }
-        .continue-card h2 { margin: 9px 0 10px; max-width: 680px; font-size: clamp(1.7rem, 3vw, 2.55rem); line-height: 1.03; letter-spacing: -.045em; overflow-wrap: anywhere; }
+        .continue-card h2 { margin: 10px 0 12px; max-width: 680px; font-size: clamp(1.65rem, 2.3vw, 2.25rem); font-weight: 650; line-height: 1.12; letter-spacing: -.025em; overflow-wrap: anywhere; }
         .continue-progress { height: 6px; max-width: 420px; margin: 20px 0 0; overflow: hidden; border-radius: 999px; background: var(--bg-hover); }
         .continue-progress span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
         .overview-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
         .quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
         .quick-actions button { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 2px 12px; align-items: center; min-width: 0; padding: 17px; border: 1px solid var(--border-default); border-radius: 20px; color: var(--ink); background: var(--surface); text-align: left; cursor: pointer; box-shadow: 0 8px 24px rgba(35, 39, 31, .06); }
-        .quick-actions button > span { grid-row: 1 / 3; display: grid; width: 42px; height: 42px; place-items: center; border-radius: 13px; background: var(--bg-hover); color: var(--accent); font-size: 1.1rem; font-weight: 800; }
+        .quick-actions button > span { grid-row: 1 / 3; display: grid; width: 42px; height: 42px; place-items: center; border-radius: 13px; background: #11120f; color: #fff; font-size: 1.1rem; font-weight: 750; }
         .quick-actions strong { overflow: hidden; font-size: .92rem; text-overflow: ellipsis; white-space: nowrap; }
         .quick-actions small { overflow: hidden; color: var(--text-muted); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
         .recent-material { padding: 24px; }
