@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 import StreakCounter from './StreakCounter';
 import StudyTimer from './StudyTimer';
 import { apiFetch } from '../lib/api';
-import ResizableEdgePanel from './ResizableEdgePanel';
 
-export default function DashboardStudyRail({ timerState, setTimerState, resizable = false }) {
+export default function DashboardStudyRail({ timerState, setTimerState }) {
   const [profile, setProfile] = useState(null);
   useEffect(() => { apiFetch('/stats/learning-profile').then(setProfile); }, []);
 
-  const content = (
-    <>
+  return (
+    <aside className="dashboard-study-rail" aria-label="Study tools">
       <section className="study-rail-card" aria-label="Study streak">
         <StreakCounter />
       </section>
@@ -20,11 +19,6 @@ export default function DashboardStudyRail({ timerState, setTimerState, resizabl
         <strong>{profile?.status === 'active' ? 'Learning with you' : 'Still learning'}</strong>
         <p>{profile?.message || 'Your study activity will shape future guides.'}</p>
       </section>
-    </>
+    </aside>
   );
-
-  if (resizable) {
-    return <ResizableEdgePanel as="aside" className="dashboard-study-rail" edge="right" storageKey="cordiaStudyPanelSize" defaultWidth={300} minWidth={240} aria-label="Study tools">{content}</ResizableEdgePanel>;
-  }
-  return <aside className="dashboard-study-rail" aria-label="Study tools">{content}</aside>;
 }

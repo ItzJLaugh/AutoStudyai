@@ -12,10 +12,9 @@ export default function Layout({ children, timerState, setTimerState }) {
     && (!router.query.view || router.query.view === 'guides');
   const activeGuideId = router.query.guideId || (router.pathname === '/guide/[id]' ? router.query.id : '');
   const activeNoteId = router.pathname === '/smartnotes' ? router.query.id : '';
-  const dashboardHome = router.pathname === '/dashboard' && !router.query.view;
 
   return (
-    <div className={`app-shell${dashboardHome ? ' dashboard-home-shell' : ''}`}>
+    <div className="app-shell">
       <ClassroomVisualSystem />
       <Sidebar />
       <main className="main-content fade-in">
