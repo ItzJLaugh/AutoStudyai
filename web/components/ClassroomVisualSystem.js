@@ -2,13 +2,13 @@ export default function ClassroomVisualSystem() {
   return (
     <style jsx global>{`
       :root {
-        --font-sans: Arial, "Helvetica Neue", Helvetica, sans-serif;
+        --font-sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Arial, sans-serif;
       }
 
       :root:not([data-theme="dark"]) {
         --canvas: #ffffff;
-        --surface: rgba(255, 255, 255, 0.62);
-        --surface-raised: rgba(255, 255, 255, 0.72);
+        --surface: rgba(255, 255, 255, 0.72);
+        --surface-raised: rgba(255, 255, 255, 0.82);
         --bg-primary: #ffffff;
         --bg-secondary: rgba(255, 255, 255, 0.76);
         --bg-tertiary: rgba(255, 255, 255, 0.64);
@@ -28,20 +28,19 @@ export default function ClassroomVisualSystem() {
         font-family: var(--font-sans);
       }
 
-      body { line-height: 1.5; }
-      h1, h2, h3 { text-wrap: balance; }
+      body { line-height: 1.45; }
       :root:not([data-theme="dark"]) body,
       :root:not([data-theme="dark"]) .app-shell,
       :root:not([data-theme="dark"]) .main-content {
         background: #ffffff !important;
       }
 
-      :root:not([data-theme="dark"]) body .top-navigation {
-        background: rgba(255, 255, 255, 0.58) !important;
-        border-color: rgba(17, 18, 15, 0.16) !important;
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.96) inset, 0 14px 38px rgba(17, 18, 15, 0.10) !important;
-        backdrop-filter: blur(42px) saturate(1.4) !important;
-        -webkit-backdrop-filter: blur(42px) saturate(1.4) !important;
+      :root:not([data-theme="dark"]) .top-navigation {
+        background: rgba(255, 255, 255, 0.66) !important;
+        border-color: rgba(17, 18, 15, 0.12) !important;
+        box-shadow: 0 10px 32px rgba(17, 18, 15, 0.06) !important;
+        backdrop-filter: blur(34px) saturate(1.35) !important;
+        -webkit-backdrop-filter: blur(34px) saturate(1.35) !important;
       }
 
       :root:not([data-theme="dark"]) :is(
@@ -60,9 +59,6 @@ export default function ClassroomVisualSystem() {
       .sn-card-paper,
       .sn-paper,
       .settings-section,
-      .plan-card,
-      .timer-widget,
-      .streak-widget,
       .flashcard-face,
       .quiz-question-card,
       .practice-source-panel,
@@ -79,11 +75,11 @@ export default function ClassroomVisualSystem() {
       .feedback-modal,
       .upgrade-dialog,
       .oauth-callback-card) {
-        background: rgba(255, 255, 255, 0.60) !important;
-        border-color: rgba(17, 18, 15, 0.18) !important;
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.96) inset, 0 22px 60px rgba(17, 18, 15, 0.13) !important;
-        backdrop-filter: blur(42px) saturate(1.35) !important;
-        -webkit-backdrop-filter: blur(42px) saturate(1.35) !important;
+        background: rgba(255, 255, 255, 0.70) !important;
+        border-color: rgba(17, 18, 15, 0.14) !important;
+        box-shadow: 0 18px 52px rgba(17, 18, 15, 0.10) !important;
+        backdrop-filter: blur(30px) saturate(1.25) !important;
+        -webkit-backdrop-filter: blur(30px) saturate(1.25) !important;
       }
 
       .btn,
@@ -109,21 +105,6 @@ export default function ClassroomVisualSystem() {
         border-color: #394434 !important;
       }
 
-      :root:not([data-theme="dark"]) .timer-btn {
-        background: #ffffff !important;
-        color: #11120f !important;
-        border: 1px solid rgba(17, 18, 15, 0.20) !important;
-        box-shadow: 0 5px 16px rgba(17, 18, 15, 0.09) !important;
-      }
-
-      :root:not([data-theme="dark"]) .timer-btn:hover,
-      :root:not([data-theme="dark"]) .timer-btn.active,
-      :root:not([data-theme="dark"]) .timer-mode.active {
-        background: #394434 !important;
-        color: #ffffff !important;
-        border-color: #394434 !important;
-      }
-
       :root:not([data-theme="dark"]) :is(
       .btn-outline,
       .btn-gray,
@@ -144,6 +125,7 @@ export default function ClassroomVisualSystem() {
       :root:not([data-theme="dark"]) :is(
       .top-navigation-links button.active,
       .study-library-tabs button.active,
+      .timer-mode.active,
       .account-theme-row button.active,
       .class-add-trigger,
       .guide-row-type,
@@ -171,9 +153,8 @@ export default function ClassroomVisualSystem() {
       .class-add-trigger:hover,
       .btn-outline:hover,
       .btn-gray:hover {
-        background: #ffffff !important;
+        background: #f7f7f6 !important;
         color: #11120f !important;
-        border-color: rgba(17, 18, 15, 0.26) !important;
       }
 
       .dashboard-workspace-grid.without-classes .dashboard-center-column {
