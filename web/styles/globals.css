@@ -2610,7 +2610,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 
 .class-rail-list { min-width: 0; display: grid; gap: 7px; }
 .class-rail-item { min-width: 0; position: relative; }
-.class-rail-item::after { content: ''; position: absolute; top: 0; left: 100%; width: 16px; height: 100%; }
 .class-rail-button {
   width: 100%;
   max-width: 100%;
@@ -2635,28 +2634,19 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .class-rail-item.drop-target .class-rail-button { border-color: var(--line); background: var(--sand); color: var(--ink); }
 
 .class-guide-popover {
-  position: absolute;
-  top: -12px;
-  left: calc(100% + 14px);
-  z-index: 70;
-  width: 310px;
-  padding: 16px;
+  position: static;
+  width: auto;
+  display: none;
+  margin: 7px 0 10px;
+  padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: 16px;
   background: var(--surface-raised);
-  box-shadow: 0 24px 64px rgba(25, 29, 22, 0.18), 0 0 0 1px rgba(25, 29, 22, 0.04);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateX(-6px);
-  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+  box-shadow: var(--shadow-sm);
 }
 .class-rail-item:hover .class-guide-popover,
 .class-rail-item:focus-within .class-guide-popover {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transform: translateX(0);
+  display: block;
 }
 .class-guide-popover-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 1px 4px 12px; }
 .class-guide-popover-header strong { font-size: 1.12rem; letter-spacing: -0.025em; }
@@ -2852,7 +2842,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 
 @media (max-width: 1180px) {
   .dashboard-workspace-grid { grid-template-columns: 210px minmax(0, 1fr) 250px; gap: 16px; }
-  .class-guide-popover { width: 280px; }
   .dashboard-study-rail .timer-mode { padding-inline: 5px; font-size: 0.62rem; }
 }
 
@@ -2894,9 +2883,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
   .dashboard-left-stack { order: 1; }
   .dashboard-center-column { order: 2; }
   .dashboard-study-rail { order: 3; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .class-guide-popover { position: static; width: auto; display: none; margin: 8px 0 12px; opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
-  .class-rail-item:hover .class-guide-popover,
-  .class-rail-item:focus-within .class-guide-popover { display: block; }
 }
 
 @media (max-width: 640px) {
@@ -2932,11 +2918,24 @@ input:focus, textarea:focus, select:focus { border-color: var(--olive) !importan
 .dashboard-workspace-grid.without-classes { grid-template-columns: minmax(0, 1fr) auto; }
 .dashboard-left-stack,
 .dashboard-study-rail { top: 96px; max-height: calc(100vh - 112px); }
-.dashboard-left-stack { overflow: visible; }
-.dashboard-class-rail { width: 100%; overflow: visible; }
+.dashboard-left-stack { height: calc(100vh - 112px); overflow: hidden; }
+.dashboard-class-rail {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 .dashboard-study-rail { overflow-y: auto; padding-right: 2px; }
 .dashboard-center-column { padding-top: 0; }
 .dashboard-center-column > .fade-in { max-width: none; }
+
+@media (max-width: 980px) {
+  .dashboard-left-stack { height: auto; max-height: none; overflow: visible; }
+  .dashboard-class-rail { max-height: none; overflow: visible; }
+}
 
 @media (max-width: 640px) {
   .tutor-drawer-shell { top: 112px; bottom: 10px; }
