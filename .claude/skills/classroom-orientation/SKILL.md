@@ -31,11 +31,6 @@ npm run build --prefix web
 ```
 Baseline (2026-09-26, main 416e039): 111 Python tests pass, 10/12 node tests pass (2 = env-only Playwright), web build passes. CI green on main.
 
-## Known drift (confirm with user before "fixing")
-- `CLAUDE.md` names `extension/pptxParser.js` and `jszip.min.js` — neither exists; the locked parser lives in `pptx-bundle/pptx-parser.js`.
-- `CLAUDE.md` says Claude Sonnet 4.6 powers notes/NCLEX/flashcards; the backend only calls `gpt-4o` / `gpt-4o-mini` (no Anthropic client).
-- Empty `backend/hello-fly/` directory.
-
 ## State snapshot (2026-09-26 — refresh when stale)
 - Work lands mostly as direct commits to `main` (recent revert pairs for visual redesigns).
 - Draft PR #23 (`claude/wonderful-faraday-1dp3p2`, drop legacy autostudyai.online CORS) is 12 behind; rebase before merging or its diff reverts newer main work.
