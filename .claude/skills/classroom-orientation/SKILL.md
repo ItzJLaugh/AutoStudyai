@@ -7,6 +7,11 @@ description: Use at the start of any CordiaClassroom (AutoStudyai repo) coding s
 
 `CLAUDE.md` owns the rules (pipeline tracing, prompt rules, locked slideshow capture, `fly deploy`). `PRODUCTION_RELEASE_PLAN.md` owns release priorities. This skill is the operational map.
 
+## Talking to the owner (Jackson)
+- Jackson doesn't write code or use git terms; Claude/Codex write the code, Jackson prompts and tests. Explain in plain language: "the live version" not "main", "saved changes" not "commits", "old draft copies" not "stale branches".
+- Say what it means for the product and what decision is needed, not the git mechanics.
+- Jackson's model: code gets pushed to GitHub, then goes live (Vercel does it automatically; the backends need a manual deploy).
+
 ## Layout
 - `extension/` — MV3 extension (`content.js`, `background.js`, `popup.js`, `asai-bridge.js`, `vendor/Readability.js`).
 - `pptx-bundle/pptx-parser.js` — locked PPTX parser bundle; `backend/services/pptx_rendering.py` renders PPTX server-side.
